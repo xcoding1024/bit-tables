@@ -9,6 +9,6 @@ contextBridge.exposeInMainWorld("bitTablesShell", {
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   },
   pickDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),
-  openRoot: (dir) => ipcRenderer.invoke("root:open", dir),
+  rememberRoot: (dir) => ipcRenderer.invoke("root:remember", dir),
   createSample: (parent, name) => ipcRenderer.invoke("root:createSample", parent, name),
 });

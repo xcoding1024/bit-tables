@@ -205,17 +205,15 @@ async function boot() {
   createWindow();
 }
 
-async function switchRoot(root, opts = {}) {
-  if (!opts.guide && !opts.sample) {
-    writeLastRoot(root);
+function rememberRoot(dir) {
+  if (!dir || typeof dir !== "string") {
+    throw new Error("路径无效");
   }
-  if (opts.sample) {
-    writeLastRoot(root);
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    throw new Error("不是目录");
   }
-  await serveRoot(root, opts);
-  if (win) {
-    await win.loadURL(uiURL());
-  }
+  writeLastRoot(dir);
+  return dir;
 }
 
 ipcMain.handle("window:isMaximized", () => Boolean(win && win.isMaximized()));
@@ -227,15 +225,7 @@ ipcMain.handle("dialog:openDirectory", async () => {
   return res.filePaths[0];
 });
 
-ipcMain.handle("root:open", async (_ev, dir) => {
-  if (!dir || typeof dir !== "string") {
-    throw new Error("路径无效");
-  }
-  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
-    throw new Error("不是目录");
-  }
-  await switchRoot(dir);
-});
+ipcMain.handle("root:remember", async (_ev, dir) => rememberRoot(dir));
 
 ipcMain.handle("root:createSample", async (_ev, parent, name) => {
   if (!parent || !name || typeof parent !== "string" || typeof name !== "string") {
@@ -252,7 +242,7 @@ ipcMain.handle("root:createSample", async (_ev, parent, name) => {
     throw new Error("目录已存在");
   }
   fs.mkdirSync(dest, { recursive: true });
-  await switchRoot(dest, { sample: true });
+  return rememberRoot(dest);
 });
 
 ipcMain.on("window:minimize", () => {

@@ -177,6 +177,78 @@ func TestAppendHistoryAPI(t *testing.T) {
 	}
 }
 
+func TestPutRootSwitchesDirectory(t *testing.T) {
+	_, h, _ := testServer(t)
+	other, err := tables.SeedRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := other.Create("skill"); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{"path": other.Path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/root", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(res, req)
+	if res.Code != 200 {
+		t.Fatalf("put root %d %s", res.Code, res.Body.String())
+	}
+	var view struct {
+		Path  string `json:"path"`
+		Guide bool   `json:"guide"`
+	}
+	decodeOK(t, res, &view)
+	if view.Path != other.Path || view.Guide {
+		t.Fatalf("put view %#v", view)
+	}
+
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables", nil))
+	var list struct {
+		Tables []tables.Info `json:"tables"`
+		Path   string        `json:"path"`
+	}
+	decodeOK(t, res, &list)
+	if list.Path != other.Path {
+		t.Fatalf("list path %s want %s", list.Path, other.Path)
+	}
+	if len(list.Tables) != 2 {
+		t.Fatalf("tables %#v", list.Tables)
+	}
+
+	empty := t.TempDir()
+	payload, err = json.Marshal(map[string]any{"path": empty, "sample": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/root", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(res, req)
+	if res.Code != 200 {
+		t.Fatalf("put sample %d %s", res.Code, res.Body.String())
+	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables", nil))
+	decodeOK(t, res, &list)
+	if len(list.Tables) != 1 || list.Tables[0].ID != "item" || !list.Tables[0].Complete {
+		t.Fatalf("sample %#v", list.Tables)
+	}
+
+	res = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/root", strings.NewReader(`{"path":""}`))
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(res, req)
+	if res.Code != 400 {
+		t.Fatalf("empty path %d %s", res.Code, res.Body.String())
+	}
+}
+
 func TestRootGuideFlag(t *testing.T) {
 	srv, h, _ := testServer(t)
 	srv.Guide = true

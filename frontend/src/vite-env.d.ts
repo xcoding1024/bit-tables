@@ -9,8 +9,8 @@ export type BitTablesShell = {
     isMaximized: () => Promise<boolean>;
   };
   pickDirectory: () => Promise<string>;
-  openRoot: (dir: string) => Promise<void>;
-  createSample: (parent: string, name: string) => Promise<void>;
+  rememberRoot: (dir: string) => Promise<string>;
+  createSample: (parent: string, name: string) => Promise<string>;
 };
 
 declare global {

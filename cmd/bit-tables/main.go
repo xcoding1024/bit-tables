@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/xcoding1024/bit-tables/server"
 	"github.com/xcoding1024/bit-tables/tables"
@@ -33,19 +32,12 @@ func main() {
 	if *sample && *guide {
 		log.Fatal("不能同时使用 --sample 和 --guide")
 	}
-	abs, err := filepath.Abs(rootPath)
-	if err != nil {
-		log.Fatal(err)
+	if !*sample {
+		if err := os.MkdirAll(rootPath, 0o755); err != nil {
+			log.Fatal(err)
+		}
 	}
-	if err := os.MkdirAll(abs, 0o755); err != nil {
-		log.Fatal(err)
-	}
-	var root *tables.Root
-	if *sample {
-		root, err = seedIfEmpty(abs)
-	} else {
-		root, err = tables.Open(abs)
-	}
+	root, err := tables.OpenAt(rootPath, *sample)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,22 +48,4 @@ func main() {
 	if err := http.ListenAndServe(*addr, srv.Handler()); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func seedIfEmpty(abs string) (*tables.Root, error) {
-	root, err := tables.Open(abs)
-	if err != nil {
-		return nil, err
-	}
-	list, err := root.List()
-	if err != nil {
-		return nil, err
-	}
-	if len(list) > 0 {
-		return root, nil
-	}
-	if err := root.SeedItem("item"); err != nil {
-		return nil, err
-	}
-	return root, nil
 }

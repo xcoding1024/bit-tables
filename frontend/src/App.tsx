@@ -24,13 +24,28 @@ export default function App() {
       });
   }, []);
 
+  async function applyRoot(dir: string, opts?: { sample?: boolean }) {
+    const next = await tablesApi.setRoot(dir, opts);
+    setRootPath(next.path);
+    setGuide(Boolean(next.guide));
+    setBootError("");
+    dialogs.setKind("");
+    dialogs.setBusy(false);
+    dialogs.setError("");
+    try {
+      await sh?.rememberRoot?.(next.path);
+    } catch {
+      /* 记住上次目录失败不影响当前打开 */
+    }
+  }
+
   async function confirmOpen() {
     const dir = dialogs.openPath.trim();
-    if (!dir || !sh) return;
+    if (!dir) return;
     dialogs.setBusy(true);
     dialogs.setError("");
     try {
-      await sh.openRoot(dir);
+      await applyRoot(dir);
     } catch (err: unknown) {
       dialogs.setError(err instanceof Error ? err.message : "打开失败");
       dialogs.setBusy(false);
@@ -44,7 +59,8 @@ export default function App() {
     dialogs.setBusy(true);
     dialogs.setError("");
     try {
-      await sh.createSample(parent, name);
+      const dest = await sh.createSample(parent, name);
+      await applyRoot(dest, { sample: true });
     } catch (err: unknown) {
       dialogs.setError(err instanceof Error ? err.message : "创建失败");
       dialogs.setBusy(false);
@@ -58,7 +74,7 @@ export default function App() {
       {!bootError && guide ? (
         <Guide error={dialogs.error} onOpen={dialogs.startOpen} onCreate={dialogs.startCreate} />
       ) : null}
-      {!bootError && !guide ? <Workbench rootPath={rootPath} /> : null}
+      {!bootError && !guide ? <Workbench key={rootPath} rootPath={rootPath} /> : null}
       <OpenDialog
         open={dialogs.kind === "open"}
         path={dialogs.openPath}

@@ -44,12 +44,13 @@ iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。
 
 ## 本机接口
 
-根目录由进程启动参数决定，无 `projectId`。JSON 包体：`{ "ok": true, "data": ... }` 或 `{ "ok": false, "error": { "code", "message" } }`。
+根目录由进程启动参数决定，也可在运行中 `PUT /api/root` 切换。无 `projectId`。JSON 包体：`{ "ok": true, "data": ... }` 或 `{ "ok": false, "error": { "code", "message" } }`。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/` | 工作台 HTML |
-| GET | `/api/root` | `{ path }` |
+| GET | `/api/root` | `{ path, guide }` |
+| PUT | `/api/root` | `{ path, sample?, guide? }` 切换配表根目录 |
 | GET | `/api/tables` | `{ tables, path }` |
 | POST | `/api/tables` | `{ id }` 建空表目录（并写空 `history.md`） |
 | DELETE | `/api/tables/{id}` | 删除表目录 |

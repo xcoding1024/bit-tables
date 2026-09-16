@@ -17,10 +17,11 @@ import (
 )
 
 type Server struct {
-	root  *tables.Root
-	Guide bool
-	spa   fs.FS
-	mux   http.Handler
+	rootMu sync.RWMutex
+	root   *tables.Root
+	Guide  bool
+	spa    fs.FS
+	mux    http.Handler
 
 	mu      sync.Mutex
 	clients map[chan fileEvent]struct{}
@@ -86,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/root", s.getRoot)
+	mux.HandleFunc("PUT /api/root", s.putRoot)
 	mux.HandleFunc("GET /api/tables", s.listTables)
 	mux.HandleFunc("POST /api/tables", s.createTable)
 	mux.HandleFunc("DELETE /api/tables/{id}", s.deleteTable)
@@ -125,17 +127,64 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-func (s *Server) getRoot(w http.ResponseWriter, r *http.Request) {
-	writeOK(w, map[string]any{"path": s.root.Path, "guide": s.Guide})
+func (s *Server) current() *tables.Root {
+	s.rootMu.RLock()
+	defer s.rootMu.RUnlock()
+	return s.root
 }
 
-func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
-	list, err := s.root.List()
+func (s *Server) snapshot() (*tables.Root, bool) {
+	s.rootMu.RLock()
+	defer s.rootMu.RUnlock()
+	return s.root, s.Guide
+}
+
+func (s *Server) setRoot(root *tables.Root, guide bool) {
+	s.rootMu.Lock()
+	s.root = root
+	s.Guide = guide
+	s.rootMu.Unlock()
+	s.mu.Lock()
+	s.lastSig = ""
+	s.mu.Unlock()
+}
+
+func (s *Server) getRoot(w http.ResponseWriter, r *http.Request) {
+	root, guide := s.snapshot()
+	writeOK(w, map[string]any{"path": root.Path, "guide": guide})
+}
+
+func (s *Server) putRoot(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path   string `json:"path"`
+		Sample bool   `json:"sample"`
+		Guide  bool   `json:"guide"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
+		return
+	}
+	if req.Sample && req.Guide {
+		writeErr(w, http.StatusBadRequest, "bad_request", "不能同时使用 sample 和 guide")
+		return
+	}
+	root, err := tables.OpenAt(strings.TrimSpace(req.Path), req.Sample)
 	if err != nil {
 		writeTableErr(w, err)
 		return
 	}
-	writeOK(w, map[string]any{"tables": list, "path": s.root.Path})
+	s.setRoot(root, req.Guide)
+	writeOK(w, map[string]any{"path": root.Path, "guide": req.Guide})
+}
+
+func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
+	root := s.current()
+	list, err := root.List()
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"tables": list, "path": root.Path})
 }
 
 func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +195,7 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
 		return
 	}
-	info, err := s.root.Create(strings.TrimSpace(req.ID))
+	info, err := s.current().Create(strings.TrimSpace(req.ID))
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -156,7 +205,7 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.root.Delete(id); err != nil {
+	if err := s.current().Delete(id); err != nil {
 		writeTableErr(w, err)
 		return
 	}
@@ -164,7 +213,7 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
-	files, err := s.root.Files(r.PathValue("id"))
+	files, err := s.current().Files(r.PathValue("id"))
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -181,11 +230,12 @@ func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if err := s.root.PutData(id, req.Data); err != nil {
+	root := s.current()
+	if err := root.PutData(id, req.Data); err != nil {
 		writeTableErr(w, err)
 		return
 	}
-	files, err := s.root.Files(id)
+	files, err := root.Files(id)
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -206,11 +256,12 @@ func (s *Server) postHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if err := s.root.AppendHistory(id, strings.TrimSpace(req.Mode), req.Who, req.User, req.Agent, req.When); err != nil {
+	root := s.current()
+	if err := root.AppendHistory(id, strings.TrimSpace(req.Mode), req.Who, req.User, req.Agent, req.When); err != nil {
 		writeTableErr(w, err)
 		return
 	}
-	files, err := s.root.Files(id)
+	files, err := root.Files(id)
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -220,7 +271,7 @@ func (s *Server) postHistory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	js, err := s.root.EditorJS(id)
+	js, err := s.current().EditorJS(id)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			js = tables.FallbackEditorJS()
@@ -277,7 +328,7 @@ func (s *Server) watchLoop() {
 		case <-s.stop:
 			return
 		case <-ticker.C:
-			sig, err := s.root.Signature()
+			sig, err := s.current().Signature()
 			if err != nil {
 				continue
 			}

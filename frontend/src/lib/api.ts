@@ -45,6 +45,11 @@ async function api<T>(path: string, opt?: RequestInit): Promise<T> {
 
 export const tablesApi = {
   root: () => api<RootInfo>("/api/root"),
+  setRoot: (path: string, opts?: { sample?: boolean; guide?: boolean }) =>
+    api<RootInfo>("/api/root", {
+      method: "PUT",
+      body: JSON.stringify({ path, sample: Boolean(opts?.sample), guide: Boolean(opts?.guide) }),
+    }),
   list: () => api<{ tables: TableInfo[]; path: string }>("/api/tables"),
   create: (id: string) =>
     api<TableInfo>("/api/tables", {

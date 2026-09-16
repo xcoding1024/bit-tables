@@ -54,6 +54,40 @@ func Open(path string) (*Root, error) {
 	return &Root{Path: abs}, nil
 }
 
+// OpenAt 打开配表根目录。sample 为真时若目录为空则写入 item 示例表；目录不存在时会创建。
+func OpenAt(path string, sample bool) (*Root, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, errors.New("路径不能为空")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if sample {
+		if err := os.MkdirAll(abs, 0o755); err != nil {
+			return nil, err
+		}
+	}
+	root, err := Open(abs)
+	if err != nil {
+		return nil, err
+	}
+	if !sample {
+		return root, nil
+	}
+	list, err := root.List()
+	if err != nil {
+		return nil, err
+	}
+	if len(list) > 0 {
+		return root, nil
+	}
+	if err := root.SeedItem("item"); err != nil {
+		return nil, err
+	}
+	return root, nil
+}
+
 func ValidID(id string) bool {
 	return idRe.MatchString(id)
 }
