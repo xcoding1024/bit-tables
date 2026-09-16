@@ -46,7 +46,7 @@ window.BitTableChecker = {
 
     function checkRows(sheetId, rows, fields) {
       var required = requiredKeys(fields);
-      if (!required.length && sheetId !== "kinds" && sheetId !== "rarities" && sheetId !== "tags") {
+      if (!required.length && sheetId !== "kinds") {
         required = ["id", "name"];
       }
       var ids = {};

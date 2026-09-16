@@ -49,13 +49,13 @@ func TestServeRepoFixtures(t *testing.T) {
 		Tables []tables.Info `json:"tables"`
 	}
 	decodeOK(t, res, &list)
-	var item *tables.Info
+	var sheetDemo *tables.Info
 	for i := range list.Tables {
-		if list.Tables[i].ID == "item" {
-			item = &list.Tables[i]
+		if list.Tables[i].ID == "sheet_demo" {
+			sheetDemo = &list.Tables[i]
 		}
 	}
-	if item == nil || !item.Complete {
+	if sheetDemo == nil || !sheetDemo.Complete {
 		t.Fatalf("fixtures list %#v", list.Tables)
 	}
 	res = httptest.NewRecorder()

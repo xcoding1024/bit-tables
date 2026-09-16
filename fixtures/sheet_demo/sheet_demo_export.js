@@ -2,7 +2,7 @@ window.BitTableExporter = {
   export: function (data) {
     return {
       files: [
-        { name: "item.json", content: JSON.stringify(data, null, 2) },
+        { name: "sheet_demo.json", content: JSON.stringify(data, null, 2) },
       ],
     };
   },

@@ -1,6 +1,6 @@
-id: demo
-name: 控件演示表
-desc: 覆盖常用字段类型与编辑器控件，支持表格与卡片，以及批量修改/删除
+id: sheet_demo
+name: Sheet 控件演示表
+desc: 覆盖常用字段类型与编辑器控件，支持表格与卡片，以及批量修改/删除；稀有度/标签枚举引用 enum_demo
 default_sheet: items
 views:
   - table
@@ -48,7 +48,7 @@ sheets:
         type: enum
         widget: radio
         group: basic
-        enum: rarities
+        enum: enum_demo.rarities
       - key: desc
         label: 描述
         type: string
@@ -89,8 +89,8 @@ sheets:
         type: enum
         widget: multiselect
         group: extra
-        enum: tags
-        hint: 下拉多选，存枚举 id
+        enum: enum_demo.tags
+        hint: 下拉多选，存枚举 id（跨表 enum_demo.tags）
       - key: params
         label: 自定义参数
         type: object
@@ -99,34 +99,6 @@ sheets:
         hint: 对象结构随 kind 变化；表格摘要 + 弹窗编辑（形态由 editor 按分类写死）
   - id: kinds
     name: 分类
-    kind: enum
-    fields:
-      - key: id
-        label: ID
-        type: string
-        required: true
-        widget: text
-      - key: name
-        label: 名称
-        type: string
-        required: true
-        widget: text
-  - id: rarities
-    name: 稀有度
-    kind: enum
-    fields:
-      - key: id
-        label: ID
-        type: string
-        required: true
-        widget: text
-      - key: name
-        label: 名称
-        type: string
-        required: true
-        widget: text
-  - id: tags
-    name: 标签
     kind: enum
     fields:
       - key: id

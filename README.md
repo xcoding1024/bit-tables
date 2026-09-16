@@ -6,7 +6,7 @@
 
 ## 开发
 
-需要 Go 1.23+ 与 Node.js。默认打开本仓库 [fixtures](fixtures)（含 `item` 示例表）。
+需要 Go 1.23+ 与 Node.js。默认打开本仓库 [fixtures](fixtures)（含 `sheet_demo`、`enum_demo` 等示例表）。
 
 ```powershell
 npm install

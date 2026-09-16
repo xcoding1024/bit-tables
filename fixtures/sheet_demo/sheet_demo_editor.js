@@ -5,14 +5,14 @@ window.BitTableEditor = {
       { key: "name", label: "名称", type: "string", widget: "text", group: "basic", required: true },
       { key: "icon", label: "图标", type: "icon", widget: "icon", group: "basic", path: "fixtures_res/item_icons/{id}.png" },
       { key: "kind", label: "分类", type: "enum", widget: "select", group: "basic", enum: "kinds" },
-      { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", enum: "rarities" },
+      { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", enum: "enum_demo.rarities" },
       { key: "desc", label: "描述", type: "string", widget: "textarea", group: "basic" },
       { key: "enabled", label: "启用", type: "bool", widget: "checkbox", group: "value" },
       { key: "stack", label: "堆叠上限", type: "int", widget: "number", group: "value", min: 1, max: 999 },
       { key: "weight", label: "重量", type: "float", widget: "number", group: "value", step: 0.1 },
       { key: "power", label: "强度", type: "int", widget: "range", group: "value", min: 0, max: 100 },
       { key: "available_from", label: "上架日期", type: "date", widget: "date", group: "extra" },
-      { key: "tags", label: "标签", type: "enum", widget: "multiselect", group: "extra", enum: "tags" },
+      { key: "tags", label: "标签", type: "enum", widget: "multiselect", group: "extra", enum: "enum_demo.tags" },
       { key: "params", label: "自定义参数", type: "object", widget: "params", group: "extra" },
     ];
     var GROUP_NAMES = { basic: "基础信息", value: "数值与开关", extra: "展示与扩展" };
@@ -50,7 +50,7 @@ window.BitTableEditor = {
     var data = normalizeData(api.getData());
     var enumsBag = (api.getEnums && api.getEnums()) || {};
     var fields = parseFields(struct);
-    var title = struct.name || "控件演示表";
+    var title = struct.name || "Sheet 控件演示表";
     var view = "table";
     var picked = {};
     var batchOpen = false;

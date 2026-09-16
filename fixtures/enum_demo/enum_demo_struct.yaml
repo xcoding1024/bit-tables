@@ -1,0 +1,33 @@
+id: enum_demo
+name: 枚举演示表
+desc: "跨表枚举定义示例；供 sheet_demo 等表通过 enum: enum_demo.xxx 引用"
+default_sheet: rarities
+sheets:
+  - id: rarities
+    name: 稀有度
+    kind: enum
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+      - key: name
+        label: 名称
+        type: string
+        required: true
+        widget: text
+  - id: tags
+    name: 标签
+    kind: enum
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+      - key: name
+        label: 名称
+        type: string
+        required: true
+        widget: text
