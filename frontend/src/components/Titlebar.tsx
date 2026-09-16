@@ -3,11 +3,9 @@ import { Copy, FolderOpen, FolderPlus, Minus, Square, X } from "lucide-react";
 import { shell } from "../lib/shell";
 
 export default function Titlebar({
-  rootPath,
   onOpen,
   onCreateSample,
 }: {
-  rootPath: string;
   onOpen?: () => void;
   onCreateSample?: () => void;
 }) {
@@ -37,31 +35,21 @@ export default function Titlebar({
         toggleMax();
       }}
     >
-      <div className="flex min-w-0 items-center gap-1 pl-2">
-        <span className="shrink-0 font-medium">bit-tables</span>
-        {rootPath ? (
-          <span className="min-w-0 truncate font-mono text-[11px] text-muted" title={rootPath}>
-            {rootPath}
-          </span>
+      <div className="flex min-w-0 items-center gap-0.5 pl-2" data-no-drag>
+        {onOpen ? (
+          <BarBtn label="打开已有目录" onClick={onOpen}>
+            <FolderOpen size={13} />
+            <span>打开…</span>
+          </BarBtn>
+        ) : null}
+        {onCreateSample ? (
+          <BarBtn label="创建示例项目" onClick={onCreateSample}>
+            <FolderPlus size={13} />
+            <span>新建示例</span>
+          </BarBtn>
         ) : null}
       </div>
       <div className="min-w-0 flex-1" />
-      {sh ? (
-        <div className="flex items-center gap-1 pr-1" data-no-drag>
-          {onOpen ? (
-            <BarBtn label="打开已有目录" onClick={onOpen}>
-              <FolderOpen size={13} />
-              <span>打开…</span>
-            </BarBtn>
-          ) : null}
-          {onCreateSample ? (
-            <BarBtn label="创建示例项目" onClick={onCreateSample}>
-              <FolderPlus size={13} />
-              <span>新建示例</span>
-            </BarBtn>
-          ) : null}
-        </div>
-      ) : null}
       {showWinCtl ? (
         <div className="flex" data-no-drag>
           <WinBtn label="最小化" onClick={() => ctl?.minimize()}>

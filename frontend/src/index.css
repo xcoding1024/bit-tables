@@ -71,3 +71,12 @@ body {
 .titlebar-drag [data-no-drag] {
   -webkit-app-region: no-drag;
 }
+
+.panel-resize {
+  cursor: col-resize;
+}
+
+.panel-resize:hover,
+.panel-resize.dragging {
+  background: var(--border-strong);
+}

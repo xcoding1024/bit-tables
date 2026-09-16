@@ -53,11 +53,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col bg-bg text-ink">
-      <Titlebar
-        rootPath={guide ? "" : rootPath}
-        onOpen={sh ? dialogs.startOpen : undefined}
-        onCreateSample={sh ? dialogs.startCreate : undefined}
-      />
+      <Titlebar onOpen={sh ? dialogs.startOpen : undefined} onCreateSample={sh ? dialogs.startCreate : undefined} />
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (
         <Guide error={dialogs.error} onOpen={dialogs.startOpen} onCreate={dialogs.startCreate} />
