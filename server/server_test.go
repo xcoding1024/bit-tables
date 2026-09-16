@@ -78,11 +78,15 @@ func TestListCreateTraversalAndData(t *testing.T) {
 		t.Fatalf("root %d %s", res.Code, res.Body.String())
 	}
 	var rootView struct {
-		Path string `json:"path"`
+		Path  string `json:"path"`
+		Guide bool   `json:"guide"`
 	}
 	decodeOK(t, res, &rootView)
 	if rootView.Path == "" {
 		t.Fatal("empty path")
+	}
+	if rootView.Guide {
+		t.Fatal("guide should be off")
 	}
 
 	res = httptest.NewRecorder()
@@ -164,6 +168,21 @@ func TestAppendHistoryAPI(t *testing.T) {
 	}
 	if !strings.Contains(dataBody, "加一行") {
 		t.Fatalf("data missing %s", files.History)
+	}
+}
+
+func TestRootGuideFlag(t *testing.T) {
+	srv, h, _ := testServer(t)
+	srv.Guide = true
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/root", nil))
+	var view struct {
+		Path  string `json:"path"`
+		Guide bool   `json:"guide"`
+	}
+	decodeOK(t, res, &view)
+	if !view.Guide || view.Path == "" {
+		t.Fatalf("guide %#v", view)
 	}
 }
 

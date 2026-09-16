@@ -1,0 +1,65 @@
+{
+  "name": "bit-tables",
+  "version": "0.1.0",
+  "private": true,
+  "author": "bit-tables",
+  "description": "本机配表工作台",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "desktop": "electron .",
+    "pack:win": "powershell -File scripts/pack-win.ps1",
+    "pack:linux": "node scripts/pack.js linux",
+    "pack:mac": "node scripts/pack.js mac"
+  },
+  "devDependencies": {
+    "electron": "^37.10.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "wang.bitserver.bit-tables",
+    "productName": "bit-tables",
+    "executableName": "bit-tables",
+    "artifactName": "bit-tables-${version}-${os}.${ext}",
+    "directories": {
+      "output": "dist/desktop"
+    },
+    "files": [
+      "desktop/**"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/runtime/",
+        "to": "."
+      },
+      {
+        "from": "frontend/dist",
+        "to": "renderer"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    }
+  }
+}

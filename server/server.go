@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +17,10 @@ import (
 )
 
 type Server struct {
-	root *tables.Root
-	mux  http.Handler
+	root  *tables.Root
+	Guide bool
+	spa   fs.FS
+	mux   http.Handler
 
 	mu      sync.Mutex
 	clients map[chan fileEvent]struct{}
@@ -34,12 +37,38 @@ type fileEvent struct {
 func New(root *tables.Root) *Server {
 	s := &Server{
 		root:    root,
+		spa:     openSPA(),
 		clients: map[chan fileEvent]struct{}{},
 		stop:    make(chan struct{}),
 	}
 	s.mux = s.routes()
 	go s.watchLoop()
 	return s
+}
+
+func openSPA() fs.FS {
+	for _, dir := range spaDirs() {
+		if _, err := os.Stat(filepath.Join(dir, "index.html")); err == nil {
+			return os.DirFS(dir)
+		}
+	}
+	sub, err := fs.Sub(web.Dist, "dist")
+	if err != nil {
+		return web.Dist
+	}
+	return sub
+}
+
+func spaDirs() []string {
+	var out []string
+	if dir := strings.TrimSpace(os.Getenv("BIT_TABLES_SPA")); dir != "" {
+		out = append(out, dir)
+	}
+	if exe, err := os.Executable(); err == nil {
+		out = append(out, filepath.Join(filepath.Dir(exe), "renderer"))
+	}
+	out = append(out, "frontend/dist", "web/dist")
+	return out
 }
 
 func (s *Server) Close() {
@@ -67,6 +96,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.Handle("GET /web/", http.StripPrefix("/web/", http.FileServer(http.FS(web.FS))))
+	mux.Handle("GET /assets/", http.FileServer(http.FS(s.spa)))
 	return withCORS(mux)
 }
 
@@ -84,7 +114,7 @@ func withCORS(next http.Handler) http.Handler {
 }
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
-	b, err := fs.ReadFile(web.FS, "index.html")
+	b, err := fs.ReadFile(s.spa, "index.html")
 	if err != nil {
 		http.Error(w, "missing index.html", http.StatusInternalServerError)
 		return
@@ -96,7 +126,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getRoot(w http.ResponseWriter, r *http.Request) {
-	writeOK(w, map[string]any{"path": s.root.Path})
+	writeOK(w, map[string]any{"path": s.root.Path, "guide": s.Guide})
 }
 
 func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {

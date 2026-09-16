@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-titlebar: #1f1f1f;
+  --bg-sidebar: #141414;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222222;
+  --bg-active: #2a2a2a;
+  --border: #3a3a3a;
+  --border-strong: #525252;
+  --text: #f5f5f5;
+  --text-secondary: #d4d4d4;
+  --text-muted: #a3a3a3;
+  --accent: #3794ff;
+  --accent-hover: #4da3ff;
+  --accent-fg: #ffffff;
+  --success: #4cb782;
+  --warning: #f2c94c;
+  --danger: #eb5757;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --font-sans: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+  --font-size: 13px;
+  --sidebar-width: 244px;
+  --titlebar-height: 30px;
+  --row-height: 36px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.bg-titlebar {
+  background-color: var(--bg-titlebar);
+}
+
+.bg-sidebar {
+  background-color: var(--bg-sidebar);
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar-drag [data-no-drag] {
+  -webkit-app-region: no-drag;
+}

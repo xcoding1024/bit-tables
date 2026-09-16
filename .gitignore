@@ -1,6 +1,9 @@
 /bit-tables
 /bit-tables.exe
 /dist
+node_modules
+frontend/dist
+frontend/node_modules
 *.exe
 *.test
 *.out
