@@ -30,9 +30,11 @@ func EditorHTML(editorJS string) string {
   var struct = null;
   var data = null;
   var sheetId = "";
+  var enums = {};
   var api = {
     getStruct: function () { return struct; },
     getData: function () { return data; },
+    getEnums: function () { return enums || {}; },
     setData: function (next) {
       data = next;
       parent.postMessage({ type: "dirty", data: data }, "*");
@@ -53,9 +55,11 @@ func EditorHTML(editorJS string) string {
       if (msg.struct != null) struct = msg.struct;
       if (msg.data != null) data = msg.data;
       if (msg.sheetId != null) sheetId = msg.sheetId;
+      if (msg.enums != null) enums = msg.enums;
       mount();
     } else if (msg.type === "replaceData") {
       data = msg.data;
+      if (msg.enums != null) enums = msg.enums;
       mount();
     }
   });

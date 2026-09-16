@@ -19,6 +19,7 @@
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`），由该表 editor/checker/export 解释
 - sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为隐式 `main`，数据仍可用顶层 `rows`
 - 多 sheet 数据写在 `sheets.{id}.rows`。editor 按当前 sheet 的 `fields` + `rows` 画一页；checker / export 校整表，路径形如 `sheets.items.rows.0.id`
+- 枚举 sheet 设 `kind: enum`（字段推荐 `id`/`name`）。字段用 `enum: kinds` 或 `enum: other.kinds` 引用；存 id，下拉显示 name
 - `{id}_docs.md` 分三节：`## 结构`、`## 检查规则`、`## 导出规则`
 
 ## 结构修改
@@ -28,13 +29,13 @@
 `editor.js` 必须定义：
 
 ```js
-window.BitTableEditor = { mount(el, api) { /* api: getStruct/getData/setData/save/askAI */ } };
+window.BitTableEditor = { mount(el, api) { /* api: getStruct/getData/getEnums/setData/save/askAI */ } };
 ```
 
 `checker.js` 必须定义：
 
 ```js
-window.BitTableChecker = { check(data, struct) { return { ok: true, errors: [{ path, message }] }; } };
+window.BitTableChecker = { check(data, struct, enums) { return { ok: true, errors: [{ path, message }] }; } };
 ```
 
 `export.js` 必须定义：
@@ -42,6 +43,8 @@ window.BitTableChecker = { check(data, struct) { return { ok: true, errors: [{ p
 ```js
 window.BitTableExporter = { export(data, struct) { return { files: [{ name, content }] }; } };
 ```
+
+枚举：sheet 设 `kind: enum`；字段 `enum: sheet` 或 `enum: table.sheet`；兼容旧 `options`。
 
 ## 数据修改
 

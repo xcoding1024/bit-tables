@@ -1,8 +1,7 @@
 window.BitTableChecker = {
-  check: function (data, struct) {
+  check: function (data, struct, enums) {
     var errors = [];
-    var kinds = { weapon: 1, armor: 1, consumable: 1, material: 1 };
-    var rarities = { common: 1, rare: 1, epic: 1, legendary: 1 };
+    enums = enums || {};
 
     function requiredKeys(fields) {
       var keys = [];
@@ -14,10 +13,44 @@ window.BitTableChecker = {
       return keys;
     }
 
+    function enumIdSet(field) {
+      var ref = field && field.enum ? String(field.enum).trim() : "";
+      var set = {};
+      if (ref && enums[ref] && enums[ref].length) {
+        enums[ref].forEach(function (item) {
+          if (item && item.id) set[String(item.id)] = true;
+        });
+        return set;
+      }
+      var bag = (data && data.sheets) || {};
+      if (ref && bag[ref] && Array.isArray(bag[ref].rows)) {
+        bag[ref].rows.forEach(function (row) {
+          if (row && row.id) set[String(row.id)] = true;
+        });
+        return set;
+      }
+      var raw = field && field.options;
+      var list = Array.isArray(raw)
+        ? raw.map(String)
+        : String(raw || "")
+            .split(",")
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean);
+      list.forEach(function (id) {
+        set[id] = true;
+      });
+      return set;
+    }
+
     function checkRows(sheetId, rows, fields) {
       var required = requiredKeys(fields);
-      if (!required.length) required = ["id", "name"];
+      if (!required.length && sheetId !== "kinds" && sheetId !== "rarities") required = ["id", "name"];
       var ids = {};
+      var enumFields = (fields || []).filter(function (f) {
+        return f && (f.enum || f.type === "enum");
+      });
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i] || {};
         var prefix = "sheets." + sheetId + ".rows." + i;
@@ -35,12 +68,15 @@ window.BitTableChecker = {
           }
           ids[row.id] = true;
         }
-        if (row.kind && !kinds[row.kind]) {
-          errors.push({ path: prefix + ".kind", message: "分类无效" });
-        }
-        if (row.rarity && !rarities[row.rarity]) {
-          errors.push({ path: prefix + ".rarity", message: "稀有度无效" });
-        }
+        enumFields.forEach(function (field) {
+          var key = field.key;
+          var val = row[key];
+          if (val == null || val === "") return;
+          var allowed = enumIdSet(field);
+          if (Object.keys(allowed).length && !allowed[String(val)]) {
+            errors.push({ path: prefix + "." + key, message: key + " 不在枚举 " + (field.enum || "") });
+          }
+        });
         var stack = Number(row.stack);
         if (row.stack != null && row.stack !== "" && (isNaN(stack) || stack < 1 || stack > 999)) {
           errors.push({ path: prefix + ".stack", message: "堆叠上限须在 1–999" });

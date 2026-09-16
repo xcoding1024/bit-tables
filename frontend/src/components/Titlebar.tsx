@@ -1,13 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, FolderOpen, FolderPlus, Minus, Square, X } from "lucide-react";
+import { Copy, FolderOpen, FolderPlus, ListTree, Minus, Square, X } from "lucide-react";
 import { shell } from "../lib/shell";
 
 export default function Titlebar({
   onOpen,
   onCreateSample,
+  onEnums,
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
+  onEnums?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -48,6 +50,12 @@ export default function Titlebar({
             <span>新建示例</span>
           </BarBtn>
         ) : null}
+        {onEnums ? (
+          <BarBtn label="项目枚举" onClick={onEnums} testId="titlebar-enums">
+            <ListTree size={13} />
+            <span>枚举</span>
+          </BarBtn>
+        ) : null}
       </div>
       <div className="min-w-0 flex-1" />
       {showWinCtl ? (
@@ -67,11 +75,22 @@ export default function Titlebar({
   );
 }
 
-function BarBtn({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+function BarBtn({
+  label,
+  onClick,
+  children,
+  testId,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+  testId?: string;
+}) {
   return (
     <button
       type="button"
       title={label}
+      data-testid={testId}
       className="flex h-7 items-center gap-1 rounded px-2 text-secondary hover:bg-hover hover:text-ink"
       onClick={onClick}
     >

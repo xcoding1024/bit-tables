@@ -60,10 +60,20 @@ sheets:
   kinds:
     rows:
       - id: weapon
-        label: 武器
+        name: 武器
       - id: armor
-        label: 防具
+        name: 防具
       - id: consumable
-        label: 消耗品
+        name: 消耗品
       - id: material
-        label: 材料
+        name: 材料
+  rarities:
+    rows:
+      - id: common
+        name: 普通
+      - id: rare
+        name: 稀有
+      - id: epic
+        name: 史诗
+      - id: legendary
+        name: 传说

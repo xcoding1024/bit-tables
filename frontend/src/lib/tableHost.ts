@@ -170,7 +170,158 @@ export function mergeSheetData(full: unknown, struct: unknown, sheetId: string, 
   return { ...rest, sheets };
 }
 
-export function runTableChecker(checkerJs: string, data: unknown, struct: unknown): Promise<TableCheckResult> {
+export type EnumRef = { tableId: string; sheetId: string };
+
+export type EnumEntry = { id: string; name: string };
+
+export type EnumCatalogItem = {
+  key: string;
+  tableId: string;
+  sheetId: string;
+  sheetName: string;
+  entries: EnumEntry[];
+};
+
+export type EnumsPayload = Record<string, EnumEntry[]>;
+
+export function enumEntryLabel(row: unknown): string {
+  const rec = asRecord(row) || {};
+  const id = String(rec.id ?? "").trim();
+  const name = String(rec.name ?? "").trim();
+  if (name) return name;
+  const label = String(rec.label ?? "").trim();
+  if (label) return label;
+  return id;
+}
+
+export function parseEnumRef(ref: string, currentTableId: string): EnumRef | null {
+  const raw = String(ref || "").trim();
+  if (!raw) return null;
+  const dot = raw.indexOf(".");
+  if (dot < 0) {
+    if (!SHEET_ID.test(raw) || !SHEET_ID.test(currentTableId)) return null;
+    return { tableId: currentTableId, sheetId: raw };
+  }
+  const tableId = raw.slice(0, dot).trim();
+  const sheetId = raw.slice(dot + 1).trim();
+  if (!SHEET_ID.test(tableId) || !SHEET_ID.test(sheetId)) return null;
+  return { tableId, sheetId };
+}
+
+export function listEnumSheets(struct: unknown): SheetInfo[] {
+  const rec = asRecord(struct);
+  const raw = rec && Array.isArray(rec.sheets) ? rec.sheets : [];
+  const out: SheetInfo[] = [];
+  for (const item of raw) {
+    const sheet = asRecord(item);
+    if (!sheet || String(sheet.kind || "").trim() !== "enum") continue;
+    const id = String(sheet.id || "").trim();
+    if (!SHEET_ID.test(id)) continue;
+    out.push({
+      id,
+      name: String(sheet.name || id),
+      fields: Array.isArray(sheet.fields) ? sheet.fields : [],
+    });
+  }
+  return out;
+}
+
+export function enumRowsFromData(data: unknown, sheetId: string): EnumEntry[] {
+  const part = sheetData(data, sheetId);
+  const rows = Array.isArray(part.rows) ? part.rows : [];
+  const out: EnumEntry[] = [];
+  for (const row of rows) {
+    const rec = asRecord(row);
+    const id = String(rec?.id ?? "").trim();
+    if (!id) continue;
+    out.push({ id, name: enumEntryLabel(row) });
+  }
+  return out;
+}
+
+export function collectEnumRefs(struct: unknown): string[] {
+  const refs = new Set<string>();
+  const rec = asRecord(struct);
+  const sheets = rec && Array.isArray(rec.sheets) ? rec.sheets : [];
+  const fieldLists: unknown[][] = [];
+  if (sheets.length) {
+    for (const item of sheets) {
+      const sheet = asRecord(item);
+      if (sheet && Array.isArray(sheet.fields)) fieldLists.push(sheet.fields);
+    }
+  } else if (Array.isArray(rec?.fields)) {
+    fieldLists.push(rec.fields);
+  }
+  for (const fields of fieldLists) {
+    for (const field of fields) {
+      const f = asRecord(field);
+      const ref = String(f?.enum ?? "").trim();
+      if (ref) refs.add(ref);
+    }
+  }
+  return [...refs];
+}
+
+export function buildEnumsCatalog(
+  tables: { id: string; struct: unknown; data: unknown }[],
+): EnumCatalogItem[] {
+  const out: EnumCatalogItem[] = [];
+  for (const table of tables) {
+    const tableId = String(table.id || "").trim();
+    if (!SHEET_ID.test(tableId)) continue;
+    for (const sheet of listEnumSheets(table.struct)) {
+      out.push({
+        key: `${tableId}.${sheet.id}`,
+        tableId,
+        sheetId: sheet.id,
+        sheetName: sheet.name,
+        entries: enumRowsFromData(table.data, sheet.id),
+      });
+    }
+  }
+  out.sort((a, b) => a.key.localeCompare(b.key));
+  return out;
+}
+
+export function findCatalogEntries(
+  catalog: EnumCatalogItem[],
+  ref: string,
+  currentTableId: string,
+): EnumEntry[] {
+  const parsed = parseEnumRef(ref, currentTableId);
+  if (!parsed) return [];
+  const key = `${parsed.tableId}.${parsed.sheetId}`;
+  const hit = catalog.find((item) => item.key === key);
+  return hit ? hit.entries : [];
+}
+
+export function buildEnumsPayload(
+  struct: unknown,
+  currentTableId: string,
+  catalog: EnumCatalogItem[],
+): EnumsPayload {
+  const payload: EnumsPayload = {};
+  for (const ref of collectEnumRefs(struct)) {
+    const entries = findCatalogEntries(catalog, ref, currentTableId);
+    payload[ref] = entries;
+    const parsed = parseEnumRef(ref, currentTableId);
+    if (parsed) {
+      const longKey = `${parsed.tableId}.${parsed.sheetId}`;
+      payload[longKey] = entries;
+      if (parsed.tableId === currentTableId) {
+        payload[parsed.sheetId] = entries;
+      }
+    }
+  }
+  return payload;
+}
+
+export function runTableChecker(
+  checkerJs: string,
+  data: unknown,
+  struct: unknown,
+  enums?: EnumsPayload,
+): Promise<TableCheckResult> {
   if (!checkerJs.trim()) {
     return Promise.resolve({ ok: true, errors: [] });
   }
@@ -179,7 +330,7 @@ export function runTableChecker(checkerJs: string, data: unknown, struct: unknow
       window.addEventListener("message", function (ev) {
         try {
           var fn = window.BitTableChecker && window.BitTableChecker.check;
-          var result = fn ? fn(ev.data.data, ev.data.struct) : { ok: true, errors: [] };
+          var result = fn ? fn(ev.data.data, ev.data.struct, ev.data.enums) : { ok: true, errors: [] };
           parent.postMessage({ type: "result", result: result }, "*");
         } catch (err) {
           parent.postMessage({ type: "result", result: { ok: false, errors: [{ path: "", message: String(err) }] } }, "*");
@@ -204,7 +355,7 @@ export function runTableChecker(checkerJs: string, data: unknown, struct: unknow
     const onMsg = (ev: MessageEvent) => {
       if (ev.source !== iframe.contentWindow || !ev.data || typeof ev.data !== "object") return;
       if (ev.data.type === "ready") {
-        iframe.contentWindow?.postMessage({ data, struct }, "*");
+        iframe.contentWindow?.postMessage({ data, struct, enums: enums || {} }, "*");
       } else if (ev.data.type === "result") {
         finish(ev.data.result as TableCheckResult);
       }

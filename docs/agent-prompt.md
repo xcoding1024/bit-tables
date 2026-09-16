@@ -12,11 +12,12 @@
 这是结构修改：只改上述结构文件；字段不兼容时才迁移 {id}_data.yaml。
 新建或补齐时必须一次生成五件套与 {id}_docs.md。
 改完必须更新 {id}_docs.md 的「结构 / 检查规则 / 导出规则」三节，使其与当前 struct / checker / export 一致。
-editor.js 必须定义 window.BitTableEditor = { mount(el, api) }，api 含 getStruct/getData/setData/save/askAI。
-checker.js 必须定义 window.BitTableChecker = { check(data, struct) }，返回 { ok, errors:[{path,message}] }。
+editor.js 必须定义 window.BitTableEditor = { mount(el, api) }，api 含 getStruct/getData/getEnums/setData/save/askAI。
+checker.js 必须定义 window.BitTableChecker = { check(data, struct, enums) }，返回 { ok, errors:[{path,message}] }。
 export.js 必须定义 window.BitTableExporter = { export(data, struct) }，返回 { files:[{name,content}] }。
 struct.yaml 推荐 id/name/default_sheet/sheets[]（每张 sheet 自带 id/name/fields[]），由该表 editor/checker/export 解释，不要假设统一 schema。
 无 sheets 时视为隐式 main，数据仍可用顶层 rows；多 sheet 写 sheets.{id}.rows。
+枚举 sheet 设 kind: enum（id+name）；字段用 enum: kinds 或 enum: other.kinds；存 id，下拉显示 name。
 checker / export 校整表，错误路径形如 sheets.items.rows.0.id。
 
 ## 本轮用户消息

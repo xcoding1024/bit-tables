@@ -21,6 +21,8 @@
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`，以及该表 editor 需要的 views/groups 等），由该表 editor/checker/export 解释
 - sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为一张隐式表 `id=main`，`fields=struct.fields`，数据仍是顶层 `rows`
 - 多 sheet 数据写在 `sheets.{id}.rows`；单 sheet / 旧表可继续只写顶层 `rows`（当作 `default_sheet` 或第一张 / `main`）
+- **枚举 sheet**：`kind: enum`，推荐字段 `id` + `name`。字段用 `enum: kinds`（本表）或 `enum: item.kinds`（他表）引用；值存 id，编辑器下拉默认显示 name（无则 label，再无则 id）。无 `enum` 时仍可用扁平 `options: a, b, c`
+- 打开配表根目录时工作台预加载全部 `kind: enum` sheet；标题栏「枚举」可搜索浏览
 
 ```yaml
 # {id}_struct.yaml
@@ -34,10 +36,17 @@ sheets:
       - key: id
         type: string
         required: true
+      - key: kind
+        type: enum
+        widget: select
+        enum: kinds
   - id: kinds
     name: 分类
+    kind: enum
     fields:
       - key: id
+        type: string
+      - key: name
         type: string
 
 # {id}_data.yaml
@@ -46,6 +55,7 @@ sheets:
     rows:
       - id: sword
         name: 铁剑
+        kind: weapon
   kinds:
     rows:
       - id: weapon
@@ -60,20 +70,20 @@ AI 生成的 JS 只在沙箱 iframe 跑（`sandbox="allow-scripts"`，禁止主�
 
 ```js
 window.BitTableEditor = {
-  mount(el, api) { /* api: getStruct/getData/setData/save/askAI */ }
+  mount(el, api) { /* api: getStruct/getData/getEnums/setData/save/askAI */ }
 };
 window.BitTableChecker = {
-  check(data, struct) { return { ok: true, errors: [] }; }
+  check(data, struct, enums) { return { ok: true, errors: [] }; }
 };
 window.BitTableExporter = {
   export(data, struct) { return { files: [{ name, content }] }; }
 };
 ```
 
-父页 → iframe：`init` / `setSheet`（tableId / sheetId / 切片后的 struct.fields + data.rows / theme；完整 `struct.sheets` 与 `data.sheets` 仍在）、`replaceData`。
+父页 → iframe：`init` / `setSheet`（tableId / sheetId / 切片后的 struct.fields + data.rows / `enums` / theme；完整 `struct.sheets` 与 `data.sheets` 仍在）、`replaceData`（可带 enums）。
 iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。工作台按 sheet 画页签；保存时把 iframe 的 `data.rows` 写回 `data.sheets[sheetId].rows`。
 
-Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。
+Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。Checker 可收到宿主注入的 `enums`。
 
 独立页上 `askAI` 提示用 Cursor / Codex 改文件；嵌入宿主时把消息交给父页。
 

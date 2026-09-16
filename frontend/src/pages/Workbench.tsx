@@ -7,6 +7,7 @@ import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
+  buildEnumsPayload,
   defaultSheetId,
   docsSection,
   listSheets,
@@ -16,6 +17,7 @@ import {
   sliceForSheet,
   stringifyTableDoc,
   type DocsKind,
+  type EnumCatalogItem,
   type SheetInfo,
   type TableCheckError,
 } from "../lib/tableHost";
@@ -54,7 +56,13 @@ function writeTableParam(id: string) {
   history.replaceState(null, "", next);
 }
 
-export default function Workbench({ rootPath }: { rootPath: string }) {
+export default function Workbench({
+  rootPath,
+  enumsCatalog = [],
+}: {
+  rootPath: string;
+  enumsCatalog?: EnumCatalogItem[];
+}) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1);
   const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1);
   const [list, setList] = useState<TableInfo[]>([]);
@@ -74,11 +82,13 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const sheetRef = useRef(sheetById);
   const tabsRef = useRef(tabs);
   const activeRef = useRef(activeId);
+  const enumsRef = useRef(enumsCatalog);
   filesRef.current = filesById;
   draftRef.current = draftById;
   sheetRef.current = sheetById;
   tabsRef.current = tabs;
   activeRef.current = activeId;
+  enumsRef.current = enumsCatalog;
 
   const files = activeId ? filesById[activeId] || null : null;
   const check = activeId ? checks[activeId] : undefined;
@@ -120,17 +130,24 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
       const struct = structOf(id);
       const sheetId = sheetOf(id, struct);
       const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
+      const enums = buildEnumsPayload(struct, cur.id, enumsRef.current);
       if (type === "replaceData") {
-        frame.contentWindow.postMessage({ type: "replaceData", data: sliced.data }, "*");
+        frame.contentWindow.postMessage({ type: "replaceData", data: sliced.data, enums }, "*");
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, theme: "dark" },
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, theme: "dark" },
         "*",
       );
     },
     [fullDataOf, sheetOf, structOf],
   );
+
+  useEffect(() => {
+    for (const id of tabsRef.current) {
+      postSlice(id, "setSheet");
+    }
+  }, [enumsCatalog, postSlice]);
 
   const applyPartial = useCallback(
     (id: string, partial: unknown) => {
@@ -145,7 +162,8 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const runCheck = useCallback(async (id: string, next: TableFiles, data?: unknown) => {
     const parsed = data ?? parseDoc(next.data);
     const struct = next.struct ? parseDoc(next.struct) : {};
-    const result = await runTableChecker(next.checker, parsed, struct);
+    const enums = buildEnumsPayload(struct, next.id, enumsRef.current);
+    const result = await runTableChecker(next.checker, parsed, struct, enums);
     setChecks((prev) => ({
       ...prev,
       [id]: {

@@ -35,13 +35,13 @@ sheets:
         type: enum
         widget: select
         group: basic
-        options: weapon, armor, consumable, material
+        enum: kinds
       - key: rarity
         label: 稀有度
         type: enum
         widget: radio
         group: basic
-        options: common, rare, epic, legendary
+        enum: rarities
       - key: desc
         label: 描述
         type: string
@@ -100,13 +100,28 @@ sheets:
         hint: 逗号分隔
   - id: kinds
     name: 分类
+    kind: enum
     fields:
       - key: id
         label: ID
         type: string
         required: true
         widget: text
-      - key: label
+      - key: name
+        label: 名称
+        type: string
+        required: true
+        widget: text
+  - id: rarities
+    name: 稀有度
+    kind: enum
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+      - key: name
         label: 名称
         type: string
         required: true

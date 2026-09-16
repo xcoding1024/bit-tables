@@ -20,6 +20,7 @@ window.BitTableEditor = {
 
     var struct = api.getStruct() || {};
     var data = normalizeData(api.getData());
+    var enumsBag = (api.getEnums && api.getEnums()) || {};
     var fields = parseFields(struct);
     var title = struct.name || "控件演示表";
     var view = "table";
@@ -40,15 +41,31 @@ window.BitTableEditor = {
       return FALLBACK_FIELDS;
     }
 
+    function enumOptions(field) {
+      var ref = field && field.enum ? String(field.enum).trim() : "";
+      if (ref && enumsBag[ref] && enumsBag[ref].length) {
+        return enumsBag[ref].map(function (item) {
+          return { id: String(item.id), name: String(item.name || item.id) };
+        });
+      }
+      var raw = field && field.options;
+      var list = Array.isArray(raw)
+        ? raw.map(String)
+        : String(raw || "")
+            .split(",")
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(Boolean);
+      return list.map(function (id) {
+        return { id: id, name: id };
+      });
+    }
+
     function optionsOf(field) {
-      var raw = field.options;
-      if (Array.isArray(raw)) return raw.map(String);
-      return String(raw || "")
-        .split(",")
-        .map(function (s) {
-          return s.trim();
-        })
-        .filter(Boolean);
+      return enumOptions(field).map(function (item) {
+        return item.id;
+      });
     }
 
     function groups() {
@@ -148,21 +165,21 @@ window.BitTableEditor = {
       }
       if (widget === "select") {
         var html = "<select " + test + ' style="' + input + '">';
-        optionsOf(field).forEach(function (opt) {
+        enumOptions(field).forEach(function (opt) {
           html +=
             '<option value="' +
-            escapeAttr(opt) +
+            escapeAttr(opt.id) +
             '"' +
-            (String(val) === opt ? " selected" : "") +
+            (String(val) === opt.id ? " selected" : "") +
             ">" +
-            escapeHtml(opt) +
+            escapeHtml(opt.name) +
             "</option>";
         });
         return html + "</select>";
       }
       if (widget === "radio") {
         var radios = '<div style="display:flex;flex-wrap:wrap;gap:8px 12px;padding-top:4px">';
-        optionsOf(field).forEach(function (opt) {
+        enumOptions(field).forEach(function (opt) {
           radios +=
             '<label style="display:flex;align-items:center;gap:4px">' +
             '<input type="radio" name="demo-' +
@@ -170,12 +187,12 @@ window.BitTableEditor = {
             "-" +
             ri +
             '" value="' +
-            escapeAttr(opt) +
+            escapeAttr(opt.id) +
             '" ' +
             test +
-            (String(val) === opt ? " checked" : "") +
+            (String(val) === opt.id ? " checked" : "") +
             " />" +
-            escapeHtml(opt) +
+            escapeHtml(opt.name) +
             "</label>";
         });
         return radios + "</div>";
@@ -376,9 +393,9 @@ window.BitTableEditor = {
       if (!field) return "";
       batchKey = field.key;
       if (batchDraft[field.key] == null) {
-        var opts = optionsOf(field);
+        var opts = enumOptions(field);
         if (field.type === "bool") batchDraft[field.key] = "true";
-        else if (opts.length) batchDraft[field.key] = opts[0];
+        else if (opts.length) batchDraft[field.key] = opts[0].id;
         else if (field.type === "int" || field.type === "float") batchDraft[field.key] = "0";
         else if (field.widget === "color") batchDraft[field.key] = "#3794ff";
         else batchDraft[field.key] = "";
@@ -542,8 +559,8 @@ window.BitTableEditor = {
         else if (f.type === "int" || f.type === "float") row[f.key] = "0";
         else if (f.widget === "color") row[f.key] = "#3794ff";
         else {
-          var opts = optionsOf(f);
-          row[f.key] = opts.length ? opts[0] : "";
+          var opts = enumOptions(f);
+          row[f.key] = opts.length ? opts[0].id : "";
         }
       });
       if (!row.id) row.id = "new_" + (data.rows.length + 1);
