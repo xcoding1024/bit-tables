@@ -1,0 +1,9 @@
+id: {{TABLE_ID}}
+name: 道具表
+fields:
+  - key: id
+    type: string
+    required: true
+  - key: name
+    type: string
+    required: true

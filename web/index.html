@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bit-tables</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --elevated: #141414;
+      --line: #2a2a2a;
+      --ink: #f5f5f5;
+      --muted: #a3a3a3;
+      --accent: #3794ff;
+      --accent-fg: #fff;
+      --hover: #1c1c1c;
+      --active: #222;
+      --danger: #f07178;
+      --success: #7fd99a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px Inter, "Segoe UI", system-ui, sans-serif; }
+    #app { display: flex; height: 100%; min-height: 0; }
+    .sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .root-path { padding: 8px 12px; border-bottom: 1px solid var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--muted); word-break: break-all; }
+    .new-wrap { padding: 12px; }
+    .btn { height: 28px; padding: 0 10px; border: 0; border-radius: 4px; cursor: pointer; background: #2a2a2a; color: var(--ink); }
+    .btn-primary { background: var(--accent); color: var(--accent-fg); width: 100%; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .list { flex: 1; overflow: auto; padding: 0 8px 8px; }
+    .item { display: block; padding: 8px; border-radius: 6px; color: inherit; text-decoration: none; margin-bottom: 4px; }
+    .item:hover { background: var(--hover); }
+    .item.active { background: var(--active); }
+    .item .hint { font-size: 11px; color: var(--muted); }
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .status { padding: 8px 16px 0; }
+    .ok { color: var(--success); }
+    .err { color: var(--danger); }
+    iframe { flex: 1; border: 0; background: var(--bg); min-height: 0; width: 100%; }
+    .empty { margin: auto; color: var(--muted); text-align: center; padding: 24px; }
+    .history { width: 320px; flex-shrink: 0; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+    .tabs { height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--line); }
+    .tab { height: 28px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+    .tab.active { background: var(--active); color: var(--ink); }
+    .turns { flex: 1; overflow: auto; padding: 12px; }
+    .turn { margin-bottom: 16px; }
+    .turn .meta { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+    .turn .body { white-space: pre-wrap; }
+    .ask-hint { padding: 8px 12px; color: var(--muted); border-top: 1px solid var(--line); }
+    body.embed .history, body.embed .root-path { display: none; }
+    .new-form { display: none; padding: 0 12px 12px; }
+    .new-form.open { display: block; }
+    input { width: 100%; height: 28px; background: #1a1a1a; border: 1px solid #3a3a3a; color: var(--ink); border-radius: 4px; padding: 0 8px; }
+  </style>
+</head>
+<body>
+  <div id="app" data-testid="tables-page">
+    <aside class="sidebar">
+      <div class="root-path" data-testid="tables-root-current"></div>
+      <div class="new-wrap">
+        <button class="btn btn-primary" type="button" data-testid="tables-new">新建表</button>
+      </div>
+      <div class="new-form" data-testid="tables-new-form">
+        <input data-testid="tables-new-id" placeholder="表 id，如 item">
+        <button class="btn btn-primary" type="button" data-testid="tables-new-submit" style="margin-top:8px">创建</button>
+      </div>
+      <div class="list" data-testid="tables-list"></div>
+    </aside>
+    <section class="main">
+      <div class="status" data-testid="tables-status"></div>
+      <div class="empty" data-testid="tables-editor-empty">选择或新建一张配置表</div>
+      <iframe data-testid="table-editor-frame" title="编辑器" sandbox="allow-scripts" hidden></iframe>
+    </section>
+    <aside class="history">
+      <div class="tabs">
+        <button class="tab active" type="button" data-mode="struct" data-testid="tables-history-struct">结构</button>
+        <button class="tab" type="button" data-mode="data" data-testid="tables-history-data">数据</button>
+      </div>
+      <div class="turns" data-testid="tables-history"></div>
+      <div class="ask-hint">改结构或数据请直接编辑表目录文件，或用 Cursor / Codex。</div>
+    </aside>
+  </div>
+  <script src="/web/host.js"></script>
+  <script src="/web/app.js"></script>
+</body>
+</html>

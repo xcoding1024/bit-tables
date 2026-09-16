@@ -1,0 +1,6 @@
+/bit-tables
+/bit-tables.exe
+*.exe
+*.test
+*.out
+.DS_Store

@@ -1,0 +1,5 @@
+rows:
+  - id: sword
+    name: 铁剑
+  - id: potion
+    name: 治疗药水
