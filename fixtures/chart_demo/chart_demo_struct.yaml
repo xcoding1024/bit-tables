@@ -1,0 +1,48 @@
+id: chart_demo
+name: 图表演示表
+desc: "展示折线、柱状、饼图等统计图；每 sheet 一类图，纯 SVG 绘制"
+default_sheet: line
+sheets:
+  - id: line
+    name: 折线图
+    fields:
+      - key: month
+        label: 月份
+        type: string
+        required: true
+        widget: text
+      - key: value
+        label: 数值
+        type: float
+        required: true
+        widget: number
+        step: 0.1
+  - id: bar
+    name: 柱状图
+    fields:
+      - key: category
+        label: 分类
+        type: string
+        required: true
+        widget: text
+      - key: value
+        label: 数值
+        type: float
+        required: true
+        widget: number
+        step: 0.1
+  - id: pie
+    name: 饼图
+    fields:
+      - key: label
+        label: 标签
+        type: string
+        required: true
+        widget: text
+      - key: value
+        label: 数值
+        type: float
+        required: true
+        widget: number
+        step: 0.1
+        min: 0

@@ -1,0 +1,35 @@
+sheets:
+  line:
+    rows:
+      - month: 1月
+        value: 42
+      - month: 2月
+        value: 55
+      - month: 3月
+        value: 48
+      - month: 4月
+        value: 67
+      - month: 5月
+        value: 73
+      - month: 6月
+        value: 81
+  bar:
+    rows:
+      - category: 武器
+        value: 128
+      - category: 防具
+        value: 96
+      - category: 消耗品
+        value: 210
+      - category: 材料
+        value: 154
+  pie:
+    rows:
+      - label: 普通
+        value: 45
+      - label: 稀有
+        value: 28
+      - label: 史诗
+        value: 18
+      - label: 传说
+        value: 9
