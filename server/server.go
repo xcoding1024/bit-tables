@@ -95,6 +95,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/tables/{id}/history", s.getHistory)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
+	mux.HandleFunc("GET /api/tables/{id}/asset", s.getAsset)
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.Handle("GET /web/", http.StripPrefix("/web/", http.FileServer(http.FS(web.FS))))
@@ -270,9 +271,25 @@ func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 	html := tables.EditorHTML(js)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, html)
+}
+
+func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	rel := r.URL.Query().Get("path")
+	abs, err := s.current().ResolveAsset(id, rel)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeErr(w, http.StatusNotFound, "not_found", "资源不存在")
+			return
+		}
+		writeTableErr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeFile(w, r, abs)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

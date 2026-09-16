@@ -40,7 +40,13 @@ func EditorHTML(editorJS string) string {
       parent.postMessage({ type: "dirty", data: data }, "*");
     },
     save: function () { parent.postMessage({ type: "save", data: data }, "*"); },
-    askAI: function (mode, prompt) { parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); }
+    askAI: function (mode, prompt) { parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); },
+    assetURL: function (rel) {
+      var m = String(location.pathname || "").match(/\/api\/tables\/([^/]+)\/editor/);
+      var id = m ? decodeURIComponent(m[1]) : "";
+      if (!id || rel == null || rel === "") return "";
+      return "/api/tables/" + encodeURIComponent(id) + "/asset?path=" + encodeURIComponent(String(rel));
+    }
   };
   function mount() {
     root.innerHTML = "";

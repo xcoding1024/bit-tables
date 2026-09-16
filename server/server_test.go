@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,11 +141,38 @@ func TestListCreateTraversalAndData(t *testing.T) {
 	if res.Code != 200 || !strings.Contains(res.Body.String(), "BitTableEditor") {
 		t.Fatalf("editor %d %s", res.Code, res.Body.String())
 	}
+	if !strings.Contains(res.Header().Get("Content-Security-Policy"), "img-src") {
+		t.Fatalf("editor csp %s", res.Header().Get("Content-Security-Policy"))
+	}
 
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/", nil))
 	if res.Code != 200 || !strings.Contains(res.Body.String(), "bit-tables") {
 		t.Fatalf("index %d %s", res.Code, res.Body.String())
+	}
+}
+
+func TestTableAsset(t *testing.T) {
+	_, h, root := testServer(t)
+	dir := filepath.Join(filepath.Dir(root.Path), "fixtures_res", "item_icons")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	icon := filepath.Join(dir, "probe.png")
+	if err := os.WriteFile(icon, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/asset?path="+url.QueryEscape("fixtures_res/item_icons/probe.png"), nil))
+	if res.Code != 200 || res.Body.String() != "png" {
+		t.Fatalf("asset %d %q", res.Code, res.Body.String())
+	}
+
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/asset?path="+url.QueryEscape("../../secret.png"), nil))
+	if res.Code == 200 {
+		t.Fatalf("escaped asset allowed")
 	}
 }
 

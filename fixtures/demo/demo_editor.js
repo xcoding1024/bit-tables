@@ -3,6 +3,7 @@ window.BitTableEditor = {
     var FALLBACK_FIELDS = [
       { key: "id", label: "ID", type: "string", widget: "text", group: "basic", required: true },
       { key: "name", label: "名称", type: "string", widget: "text", group: "basic", required: true },
+      { key: "icon", label: "图标", type: "icon", widget: "icon", group: "basic", path: "fixtures_res/item_icons/{id}.png" },
       { key: "kind", label: "分类", type: "enum", widget: "select", group: "basic", enum: "kinds" },
       { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", enum: "rarities" },
       { key: "desc", label: "描述", type: "string", widget: "textarea", group: "basic" },
@@ -158,7 +159,36 @@ window.BitTableEditor = {
 
     function batchableFields() {
       return fields.filter(function (f) {
-        return f.key !== "id";
+        return f.key !== "id" && f.widget !== "icon" && f.type !== "icon";
+      });
+    }
+
+    function iconRelPath(field, row) {
+      var tpl = (field && (field.path || field.icon)) || "";
+      return String(tpl).replace(/\{([a-zA-Z0-9_]+)\}/g, function (_, key) {
+        var v = row && row[key];
+        return v == null ? "" : String(v);
+      });
+    }
+
+    function iconSrc(field, row) {
+      var rel = iconRelPath(field, row);
+      if (!rel || /\{|\}/.test(rel) || rel.indexOf("//") >= 0) return "";
+      if (api.assetURL) return api.assetURL(rel);
+      return rel;
+    }
+
+    function refreshRowIcons(ri) {
+      var row = data.rows[ri] || {};
+      fields.forEach(function (field) {
+        if (!field || (field.widget !== "icon" && field.type !== "icon")) return;
+        var img = el.querySelector('[data-testid="demo-' + field.key + "-" + ri + '"]');
+        if (!img || img.tagName !== "IMG") return;
+        var src = iconSrc(field, row);
+        img.src = src || "";
+        img.alt = src ? iconRelPath(field, row) : "无图标";
+        img.style.opacity = src ? "1" : "0.35";
+        img.title = iconRelPath(field, row) || "";
       });
     }
 
@@ -191,6 +221,39 @@ window.BitTableEditor = {
           " />" +
           (compact ? "" : '<span style="color:#d4d4d4">开启后对玩家可见</span>') +
           "</label>"
+        );
+      }
+      if (widget === "icon" || field.type === "icon") {
+        var src = iconSrc(field, row);
+        var rel = iconRelPath(field, row);
+        var size = compact ? 36 : 48;
+        return (
+          '<div style="display:flex;align-items:center;gap:8px">' +
+          '<img ' +
+          test +
+          ' src="' +
+          escapeAttr(src) +
+          '" alt="' +
+          escapeAttr(rel || "icon") +
+          '" title="' +
+          escapeAttr(rel) +
+          '" width="' +
+          size +
+          '" height="' +
+          size +
+          '" style="width:' +
+          size +
+          "px;height:" +
+          size +
+          "px;object-fit:contain;background:#141414;border:1px solid #3a3a3a;border-radius:6px;image-rendering:auto;opacity:" +
+          (src ? "1" : "0.35") +
+          '" />' +
+          (compact
+            ? ""
+            : '<span style="color:#737373;font-size:11px;word-break:break-all">' +
+              escapeHtml(rel || "缺少 path") +
+              "</span>") +
+          "</div>"
         );
       }
       if (widget === "select") {
@@ -391,6 +454,7 @@ window.BitTableEditor = {
 
     function bindControl(root, field, ri) {
       var widget = field.widget || "text";
+      if (widget === "icon" || field.type === "icon") return;
       if (widget === "multiselect" || widget === "tags") {
         var mid = field.key + "-" + ri;
         var wrap = root.querySelector('[data-role="multi-wrap"][data-multi-id="' + mid + '"]');
@@ -419,6 +483,7 @@ window.BitTableEditor = {
         else if (field.type === "float") setRow(ri, field.key, String(Number(value) || 0));
         else if (field.type === "bool") setRow(ri, field.key, value ? "true" : "false");
         else setRow(ri, field.key, value);
+        if (field.key === "id") refreshRowIcons(ri);
       }
       if (widget === "checkbox") {
         nodes[0].addEventListener("change", function (ev) {
@@ -676,6 +741,7 @@ window.BitTableEditor = {
       fields.forEach(function (f) {
         if (!f || !f.key) return;
         if (f.key === "id") row.id = "new_" + (data.rows.length + 1);
+        else if (f.widget === "icon" || f.type === "icon") return;
         else if (f.type === "bool") row[f.key] = "true";
         else if (f.type === "int" || f.type === "float") row[f.key] = "0";
         else if (f.widget === "multiselect") row[f.key] = "";

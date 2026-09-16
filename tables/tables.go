@@ -167,7 +167,11 @@ func (r *Root) List() ([]Info, error) {
 		if !ent.IsDir() || strings.HasPrefix(ent.Name(), ".") || !ValidID(ent.Name()) {
 			continue
 		}
-		out = append(out, Inspect(filepath.Join(r.Path, ent.Name()), ent.Name()))
+		info := Inspect(filepath.Join(r.Path, ent.Name()), ent.Name())
+		if !info.HasStruct && !info.HasData && !info.HasEditor && !info.HasChecker && !info.HasExport && !info.HasDocs {
+			continue
+		}
+		out = append(out, info)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	if out == nil {
@@ -262,6 +266,46 @@ func (r *Root) EditorJS(id string) (string, error) {
 		return "", os.ErrNotExist
 	}
 	return text, nil
+}
+
+// ResolveAsset resolves a resource path for a table.
+// - Paths starting with "." are relative to the table directory.
+// - Other paths are relative to the parent of the tables root
+//   (e.g. fixtures_res/... next to the fixtures root).
+// The cleaned file must stay under the parent of the tables root.
+func (r *Root) ResolveAsset(tableID, rel string) (string, error) {
+	dir, err := r.Dir(tableID)
+	if err != nil {
+		return "", err
+	}
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "", ErrEscape
+	}
+	rel = filepath.FromSlash(rel)
+	if filepath.IsAbs(rel) {
+		return "", ErrEscape
+	}
+	base := filepath.Clean(filepath.Dir(r.Path))
+	var joined string
+	slash := filepath.ToSlash(rel)
+	if strings.HasPrefix(slash, "./") || strings.HasPrefix(slash, "../") || slash == "." || slash == ".." {
+		joined = filepath.Clean(filepath.Join(dir, rel))
+	} else {
+		joined = filepath.Clean(filepath.Join(base, rel))
+	}
+	relToBase, err := filepath.Rel(base, joined)
+	if err != nil || relToBase == ".." || strings.HasPrefix(relToBase, ".."+string(os.PathSeparator)) || filepath.IsAbs(relToBase) {
+		return "", ErrEscape
+	}
+	st, err := os.Stat(joined)
+	if err != nil {
+		return "", err
+	}
+	if st.IsDir() {
+		return "", errors.New("不是文件")
+	}
+	return joined, nil
 }
 
 func (r *Root) Signature() (string, error) {
