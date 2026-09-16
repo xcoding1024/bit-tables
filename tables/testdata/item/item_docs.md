@@ -3,16 +3,19 @@
 ## 结构
 
 - 表名：道具表
-- 字段：
+- sheet：`main`（道具），`default_sheet: main`
+- `main` 字段：
   - id：唯一标识，必填
   - name：显示名，必填
+- 数据仍可用顶层 `rows`（工作台当作 `main`），或写成 `sheets.main.rows`
 
 ## 检查规则
 
-- `id`、`name` 必填
+- 每个 sheet 的 `id`、`name` 必填
+- 有 `sheets` 时路径形如 `sheets.main.rows.0.id`；旧表仍用 `rows.0.id`
 - 对应 `{{TABLE_ID}}_checker.js` 的 `BitTableChecker.check`
 
 ## 导出规则
 
 - 对应 `{{TABLE_ID}}_export.js` 的 `BitTableExporter.export`
-- 导出 `{{TABLE_ID}}.json`（`JSON.stringify(data)`）
+- 导出 `{{TABLE_ID}}.json`（`JSON.stringify` 整表 data）

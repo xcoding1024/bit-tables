@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "js-yaml": "^5.4.2",
     "lucide-react": "^0.544.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -16,6 +17,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.2",

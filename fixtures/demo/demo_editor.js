@@ -18,8 +18,10 @@ window.BitTableEditor = {
     ];
     var GROUP_NAMES = { basic: "基础信息", value: "数值与开关", extra: "展示与扩展" };
 
+    var struct = api.getStruct() || {};
     var data = normalizeData(api.getData());
-    var fields = parseFields(api.getStruct());
+    var fields = parseFields(struct);
+    var title = struct.name || "控件演示表";
     var view = "table";
     var picked = {};
     var batchOpen = false;
@@ -339,7 +341,7 @@ window.BitTableEditor = {
       var disabled = n === 0 ? "opacity:.45;cursor:default" : "";
       html += '<div data-testid="table-editor" style="padding:16px 20px;box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">';
-      html += '<div><div style="font-weight:500">控件演示表</div>';
+      html += '<div><div style="font-weight:500">' + escapeHtml(title) + "</div>";
       html += '<div style="color:#a3a3a3;margin-top:2px">表格与卡片 · 勾选后可批量修改或删除</div></div>';
       html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
       html +=
@@ -530,22 +532,20 @@ window.BitTableEditor = {
     }
 
     function emptyRow() {
-      return {
-        id: "new_" + (data.rows.length + 1),
-        name: "",
-        kind: "material",
-        rarity: "common",
-        desc: "",
-        enabled: "true",
-        stack: "1",
-        weight: "0",
-        power: "0",
-        atk: "0",
-        def: "0",
-        color: "#3794ff",
-        available_from: "",
-        tags: "",
-      };
+      var row = {};
+      fields.forEach(function (f) {
+        if (!f || !f.key) return;
+        if (f.key === "id") row.id = "new_" + (data.rows.length + 1);
+        else if (f.type === "bool") row[f.key] = "true";
+        else if (f.type === "int" || f.type === "float") row[f.key] = "0";
+        else if (f.widget === "color") row[f.key] = "#3794ff";
+        else {
+          var opts = optionsOf(f);
+          row[f.key] = opts.length ? opts[0] : "";
+        }
+      });
+      if (!row.id) row.id = "new_" + (data.rows.length + 1);
+      return row;
     }
 
     function render() {

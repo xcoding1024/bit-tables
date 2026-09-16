@@ -18,7 +18,39 @@
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
 - 结构修改：`*_struct.yaml`、`*_editor.js`、`*_checker.js`、`*_export.js`；字段不兼容时可迁移 data；同时更新 `{id}_docs.md`
 - 数据修改：只改 `*_data.yaml`，并核对更新 `{id}_docs.md`
-- `struct.yaml` 无统一 schema，推荐 `id` / `name` / `fields[]`，由该表 editor/checker/export 解释
+- `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`，以及该表 editor 需要的 views/groups 等），由该表 editor/checker/export 解释
+- sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为一张隐式表 `id=main`，`fields=struct.fields`，数据仍是顶层 `rows`
+- 多 sheet 数据写在 `sheets.{id}.rows`；单 sheet / 旧表可继续只写顶层 `rows`（当作 `default_sheet` 或第一张 / `main`）
+
+```yaml
+# {id}_struct.yaml
+id: item
+name: 道具表
+default_sheet: items
+sheets:
+  - id: items
+    name: 道具
+    fields:
+      - key: id
+        type: string
+        required: true
+  - id: kinds
+    name: 分类
+    fields:
+      - key: id
+        type: string
+
+# {id}_data.yaml
+sheets:
+  items:
+    rows:
+      - id: sword
+        name: 铁剑
+  kinds:
+    rows:
+      - id: weapon
+        name: 武器
+```
 - `{id}_docs.md` 用 `## 结构` / `## 检查规则` / `## 导出规则` 三节说明当前表。Agent 改结构或数据后必须更新文档
 - 导出由该表 `{id}_export.js` 定义，不要发明工作台级导表 / 热更 / 共享流程
 
@@ -38,14 +70,16 @@ window.BitTableExporter = {
 };
 ```
 
-父页 → iframe：`init`（tableId / struct / data / theme）、`replaceData`。
-iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。
+父页 → iframe：`init` / `setSheet`（tableId / sheetId / 切片后的 struct.fields + data.rows / theme；完整 `struct.sheets` 与 `data.sheets` 仍在）、`replaceData`。
+iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。工作台按 sheet 画页签；保存时把 iframe 的 `data.rows` 写回 `data.sheets[sheetId].rows`。
+
+Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。
 
 独立页上 `askAI` 提示用 Cursor / Codex 改文件；嵌入宿主时把消息交给父页。
 
 保存：写 data → 隔离跑 checker → 展示错误。磁盘上五件套或 `{id}_docs.md` 变更后，SSE 推送，页面重载 data、iframe 或右栏文档。工作台本轮不执行 exporter。
 
-缺 `editor.js` 时工作台用简易回退表（解析 yaml `rows`），仍可查看/保存数据。
+缺 `editor.js` 时工作台用简易回退表（解析当前 sheet 的 `rows`），仍可查看/保存数据。回退编辑器不画 sheet 页签。
 
 右栏页签：结构、检查规则、导出规则（展示 `{id}_docs.md` 对应章节）、历史记录（该表文件的 git / svn 提交，可筛选结构 / 检查规则 / 导出规则 / 数值修改，显示作者与时间）。
 

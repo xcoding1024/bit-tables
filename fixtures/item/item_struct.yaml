@@ -1,9 +1,13 @@
 id: item
 name: 道具表
-fields:
-  - key: id
-    type: string
-    required: true
-  - key: name
-    type: string
-    required: true
+default_sheet: main
+sheets:
+  - id: main
+    name: 道具
+    fields:
+      - key: id
+        type: string
+        required: true
+      - key: name
+        type: string
+        required: true

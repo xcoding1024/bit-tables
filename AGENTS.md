@@ -16,7 +16,9 @@
 ```
 
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
-- `struct.yaml` 无统一 schema，推荐 `id` / `name` / `fields[]`，由该表 editor/checker/export 解释
+- `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`），由该表 editor/checker/export 解释
+- sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为隐式 `main`，数据仍可用顶层 `rows`
+- 多 sheet 数据写在 `sheets.{id}.rows`。editor 按当前 sheet 的 `fields` + `rows` 画一页；checker / export 校整表，路径形如 `sheets.items.rows.0.id`
 - `{id}_docs.md` 分三节：`## 结构`、`## 检查规则`、`## 导出规则`
 
 ## 结构修改

@@ -7,13 +7,32 @@ import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
+  defaultSheetId,
   docsSection,
+  listSheets,
+  mergeSheetData,
   parseTableDoc,
   runTableChecker,
+  sliceForSheet,
   stringifyTableDoc,
   type DocsKind,
+  type SheetInfo,
   type TableCheckError,
 } from "../lib/tableHost";
+
+function parseDoc(text: string): unknown {
+  try {
+    return parseTableDoc(text || "");
+  } catch {
+    return {};
+  }
+}
+
+function resolveSheetId(struct: unknown, preferred?: string): string {
+  const sheets = listSheets(struct);
+  if (preferred && sheets.some((item) => item.id === preferred)) return preferred;
+  return defaultSheetId(struct);
+}
 
 type RightTab = DocsKind | "history";
 
@@ -42,6 +61,8 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const [tabs, setTabs] = useState<string[]>([]);
   const [activeId, setActiveId] = useState("");
   const [filesById, setFilesById] = useState<Record<string, TableFiles>>({});
+  const [draftById, setDraftById] = useState<Record<string, unknown>>({});
+  const [sheetById, setSheetById] = useState<Record<string, string>>({});
   const [checks, setChecks] = useState<Record<string, TabCheck>>({});
   const [rightTab, setRightTab] = useState<RightTab>("struct");
   const [historyReload, setHistoryReload] = useState(0);
@@ -49,27 +70,81 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const [newId, setNewId] = useState("");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const filesRef = useRef(filesById);
+  const draftRef = useRef(draftById);
+  const sheetRef = useRef(sheetById);
   const tabsRef = useRef(tabs);
   const activeRef = useRef(activeId);
   filesRef.current = filesById;
+  draftRef.current = draftById;
+  sheetRef.current = sheetById;
   tabsRef.current = tabs;
   activeRef.current = activeId;
 
   const files = activeId ? filesById[activeId] || null : null;
   const check = activeId ? checks[activeId] : undefined;
   const docBody = rightTab === "history" || !files ? "" : docsSection(files.docs || "", rightTab);
+  const activeStruct = files ? parseDoc(files.struct) : {};
+  const activeSheets: SheetInfo[] = files ? listSheets(activeStruct) : [];
+  const activeSheetId = files ? resolveSheetId(activeStruct, sheetById[activeId]) : "";
+
+  const fullDataOf = useCallback((id: string, fallbackText?: string) => {
+    if (Object.prototype.hasOwnProperty.call(draftRef.current, id)) {
+      return draftRef.current[id];
+    }
+    return parseDoc(fallbackText ?? filesRef.current[id]?.data ?? "");
+  }, []);
+
+  const structOf = useCallback((id: string, fallbackText?: string) => {
+    return parseDoc(fallbackText ?? filesRef.current[id]?.struct ?? "");
+  }, []);
+
+  const sheetOf = useCallback((id: string, struct?: unknown) => {
+    return resolveSheetId(struct ?? structOf(id), sheetRef.current[id]);
+  }, [structOf]);
+
+  const rememberDraft = useCallback((id: string, data: unknown) => {
+    draftRef.current = { ...draftRef.current, [id]: data };
+    setDraftById((prev) => ({ ...prev, [id]: data }));
+  }, []);
+
+  const rememberFiles = useCallback((id: string, next: TableFiles) => {
+    filesRef.current = { ...filesRef.current, [id]: next };
+    setFilesById((prev) => ({ ...prev, [id]: next }));
+  }, []);
+
+  const postSlice = useCallback(
+    (id: string, type: "init" | "setSheet" | "replaceData") => {
+      const frame = iframeRefs.current[id];
+      const cur = filesRef.current[id];
+      if (!frame?.contentWindow || !cur) return;
+      const struct = structOf(id);
+      const sheetId = sheetOf(id, struct);
+      const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
+      if (type === "replaceData") {
+        frame.contentWindow.postMessage({ type: "replaceData", data: sliced.data }, "*");
+        return;
+      }
+      frame.contentWindow.postMessage(
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, theme: "dark" },
+        "*",
+      );
+    },
+    [fullDataOf, sheetOf, structOf],
+  );
+
+  const applyPartial = useCallback(
+    (id: string, partial: unknown) => {
+      const struct = structOf(id);
+      const merged = mergeSheetData(fullDataOf(id), struct, sheetOf(id, struct), partial);
+      rememberDraft(id, merged);
+      return merged;
+    },
+    [fullDataOf, rememberDraft, sheetOf, structOf],
+  );
 
   const runCheck = useCallback(async (id: string, next: TableFiles, data?: unknown) => {
-    const parsed = data ?? parseTableDoc(next.data);
-    let struct: unknown = {};
-    if (next.struct) {
-      const raw = next.struct.trim();
-      if (raw.charAt(0) !== "{" && raw.charAt(0) !== "[") {
-        struct = { raw: next.struct };
-      } else {
-        struct = parseTableDoc(next.struct);
-      }
-    }
+    const parsed = data ?? parseDoc(next.data);
+    const struct = next.struct ? parseDoc(next.struct) : {};
     const result = await runTableChecker(next.checker, parsed, struct);
     setChecks((prev) => ({
       ...prev,
@@ -99,7 +174,15 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
       setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]));
       setActiveId(id);
       const next = await tablesApi.files(id);
-      setFilesById((prev) => ({ ...prev, [id]: next }));
+      const struct = parseDoc(next.struct);
+      const data = parseDoc(next.data);
+      rememberDraft(id, data);
+      setSheetById((prev) => {
+        const sheetId = resolveSheetId(struct, prev[id]);
+        sheetRef.current = { ...sheetRef.current, [id]: sheetId };
+        return { ...prev, [id]: sheetId };
+      });
+      rememberFiles(id, next);
       setChecks((prev) => ({
         ...prev,
         [id]: {
@@ -110,11 +193,11 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
         },
       }));
       if (!remount) {
-        iframeRefs.current[id]?.contentWindow?.postMessage({ type: "replaceData", data: parseTableDoc(next.data) }, "*");
+        postSlice(id, "replaceData");
       }
-      await runCheck(id, next);
+      await runCheck(id, next, data);
     },
-    [runCheck],
+    [postSlice, rememberDraft, rememberFiles, runCheck],
   );
 
   const closeTab = useCallback(
@@ -124,11 +207,24 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
       setFilesById((prev) => {
         const copy = { ...prev };
         delete copy[id];
+        filesRef.current = copy;
         return copy;
       });
       setChecks((prev) => {
         const copy = { ...prev };
         delete copy[id];
+        return copy;
+      });
+      setDraftById((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        draftRef.current = copy;
+        return copy;
+      });
+      setSheetById((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        sheetRef.current = copy;
         return copy;
       });
       delete iframeRefs.current[id];
@@ -180,24 +276,19 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
       const msg = ev.data as { type?: string; data?: unknown };
       const cur = filesRef.current[id];
       if (msg.type === "ready" && cur && frame) {
-        let struct: unknown = cur.struct;
-        try {
-          struct = parseTableDoc(cur.struct);
-        } catch {
-          struct = cur.struct;
-        }
-        frame.contentWindow?.postMessage(
-          { type: "init", tableId: cur.id, struct, data: parseTableDoc(cur.data), theme: "dark" },
-          "*",
-        );
+        postSlice(id, "init");
+      } else if (msg.type === "dirty") {
+        applyPartial(id, msg.data);
       } else if (msg.type === "save") {
         if (!cur) return;
+        const merged = applyPartial(id, msg.data);
         void tablesApi
-          .putData(cur.id, stringifyTableDoc(msg.data))
+          .putData(cur.id, stringifyTableDoc(merged))
           .then(() => tablesApi.files(cur.id))
           .then((next) => {
-            setFilesById((prev) => ({ ...prev, [id]: next }));
-            return runCheck(id, next, msg.data);
+            rememberFiles(id, next);
+            rememberDraft(id, parseDoc(next.data));
+            return runCheck(id, next, parseDoc(next.data));
           })
           .catch((err: unknown) => {
             setChecks((prev) => ({
@@ -230,7 +321,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [runCheck]);
+  }, [applyPartial, postSlice, rememberDraft, rememberFiles, runCheck]);
 
   useEffect(() => {
     if (!window.EventSource) return;
@@ -247,21 +338,27 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
           }
           const prev = filesRef.current[id];
           const next = await tablesApi.files(id);
-          setFilesById((cur) => ({ ...cur, [id]: next }));
+          rememberFiles(id, next);
+          rememberDraft(id, parseDoc(next.data));
+          setSheetById((cur) => {
+            const sheetId = resolveSheetId(parseDoc(next.struct), cur[id]);
+            sheetRef.current = { ...sheetRef.current, [id]: sheetId };
+            return { ...cur, [id]: sheetId };
+          });
           if (prev && (next.editor !== prev.editor || next.struct !== prev.struct)) {
             setChecks((cur) => ({
               ...cur,
               [id]: { ...cur[id], ok: cur[id]?.ok || false, errors: cur[id]?.errors || [], error: "", editorKey: (cur[id]?.editorKey || 0) + 1 },
             }));
           } else {
-            iframeRefs.current[id]?.contentWindow?.postMessage({ type: "replaceData", data: parseTableDoc(next.data) }, "*");
-            await runCheck(id, next);
+            postSlice(id, "replaceData");
+            await runCheck(id, next, parseDoc(next.data));
           }
         }
       })().catch(() => undefined);
     });
     return () => es.close();
-  }, [closeTab, loadList, runCheck]);
+  }, [closeTab, loadList, postSlice, rememberDraft, rememberFiles, runCheck]);
 
   async function handleCreate() {
     const id = newId.trim();
@@ -425,6 +522,31 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
               })
             )}
           </div>
+          {activeId && activeSheets.length ? (
+            <div className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-line bg-bg" data-testid="tables-sheets">
+              {activeSheets.map((sheet) => {
+                const active = sheet.id === activeSheetId;
+                return (
+                  <button
+                    key={sheet.id}
+                    type="button"
+                    data-testid={`tables-sheet-${sheet.id}`}
+                    className={`max-w-[180px] shrink-0 truncate px-3 ${
+                      active ? "border-b-2 border-accent text-ink" : "text-muted hover:bg-hover"
+                    }`}
+                    onClick={() => {
+                      if (sheet.id === sheetRef.current[activeId]) return;
+                      sheetRef.current = { ...sheetRef.current, [activeId]: sheet.id };
+                      setSheetById((prev) => ({ ...prev, [activeId]: sheet.id }));
+                      postSlice(activeId, "setSheet");
+                    }}
+                  >
+                    {sheet.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           <div className="relative min-h-0 flex-1">
             {tabs.length === 0 ? (
               <div className="flex h-full items-center justify-center text-muted" data-testid="tables-editor-empty">

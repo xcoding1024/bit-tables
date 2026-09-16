@@ -24,6 +24,7 @@ func EditorHTML(editorJS string) string {
   var root = document.getElementById("root");
   var struct = null;
   var data = null;
+  var sheetId = "";
   var api = {
     getStruct: function () { return struct; },
     getData: function () { return data; },
@@ -43,9 +44,10 @@ func EditorHTML(editorJS string) string {
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "init") {
-      struct = msg.struct;
-      data = msg.data;
+    if (msg.type === "init" || msg.type === "setSheet") {
+      if (msg.struct != null) struct = msg.struct;
+      if (msg.data != null) data = msg.data;
+      if (msg.sheetId != null) sheetId = msg.sheetId;
       mount();
     } else if (msg.type === "replaceData") {
       data = msg.data;

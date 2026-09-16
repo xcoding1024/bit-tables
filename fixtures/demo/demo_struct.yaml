@@ -1,6 +1,7 @@
 id: demo
 name: 控件演示表
 desc: 覆盖常用字段类型与编辑器控件，支持表格与卡片，以及批量修改/删除
+default_sheet: items
 views:
   - table
   - card
@@ -12,85 +13,101 @@ groups:
     name: 数值与开关
   - id: extra
     name: 展示与扩展
-fields:
-  - key: id
-    label: ID
-    type: string
-    required: true
-    widget: text
-    group: basic
-    hint: 英文标识，创建后不建议改
-  - key: name
-    label: 名称
-    type: string
-    required: true
-    widget: text
-    group: basic
-  - key: kind
-    label: 分类
-    type: enum
-    widget: select
-    group: basic
-    options: weapon, armor, consumable, material
-  - key: rarity
-    label: 稀有度
-    type: enum
-    widget: radio
-    group: basic
-    options: common, rare, epic, legendary
-  - key: desc
-    label: 描述
-    type: string
-    widget: textarea
-    group: basic
-  - key: enabled
-    label: 启用
-    type: bool
-    widget: checkbox
-    group: value
-  - key: stack
-    label: 堆叠上限
-    type: int
-    widget: number
-    group: value
-    min: 1
-    max: 999
-  - key: weight
-    label: 重量
-    type: float
-    widget: number
-    group: value
-    step: 0.1
-  - key: power
-    label: 强度
-    type: int
-    widget: range
-    group: value
-    min: 0
-    max: 100
-  - key: atk
-    label: 攻击
-    type: int
-    widget: number
-    group: value
-  - key: def
-    label: 防御
-    type: int
-    widget: number
-    group: value
-  - key: color
-    label: 品质色
-    type: string
-    widget: color
-    group: extra
-  - key: available_from
-    label: 上架日期
-    type: date
-    widget: date
-    group: extra
-  - key: tags
-    label: 标签
-    type: string_list
-    widget: tags
-    group: extra
-    hint: 逗号分隔
+sheets:
+  - id: items
+    name: 道具
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+        group: basic
+        hint: 英文标识，创建后不建议改
+      - key: name
+        label: 名称
+        type: string
+        required: true
+        widget: text
+        group: basic
+      - key: kind
+        label: 分类
+        type: enum
+        widget: select
+        group: basic
+        options: weapon, armor, consumable, material
+      - key: rarity
+        label: 稀有度
+        type: enum
+        widget: radio
+        group: basic
+        options: common, rare, epic, legendary
+      - key: desc
+        label: 描述
+        type: string
+        widget: textarea
+        group: basic
+      - key: enabled
+        label: 启用
+        type: bool
+        widget: checkbox
+        group: value
+      - key: stack
+        label: 堆叠上限
+        type: int
+        widget: number
+        group: value
+        min: 1
+        max: 999
+      - key: weight
+        label: 重量
+        type: float
+        widget: number
+        group: value
+        step: 0.1
+      - key: power
+        label: 强度
+        type: int
+        widget: range
+        group: value
+        min: 0
+        max: 100
+      - key: atk
+        label: 攻击
+        type: int
+        widget: number
+        group: value
+      - key: def
+        label: 防御
+        type: int
+        widget: number
+        group: value
+      - key: color
+        label: 品质色
+        type: string
+        widget: color
+        group: extra
+      - key: available_from
+        label: 上架日期
+        type: date
+        widget: date
+        group: extra
+      - key: tags
+        label: 标签
+        type: string_list
+        widget: tags
+        group: extra
+        hint: 逗号分隔
+  - id: kinds
+    name: 分类
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+      - key: label
+        label: 名称
+        type: string
+        required: true
+        widget: text
