@@ -417,7 +417,9 @@ window.BitTableEditor = {
 
     function renderTable(rows) {
       var allOn = rows.length > 0 && selectedIndexes().length === rows.length;
-      var html = '<div data-testid="demo-table" style="overflow:auto;border:1px solid #3a3a3a;border-radius:8px;flex:1;min-height:0">';
+      var html =
+        '<div style="flex:1;min-height:0;overflow:hidden">' +
+        '<div data-testid="demo-table" style="width:100%;overflow-x:auto;overflow-y:hidden;border:1px solid #3a3a3a;border-radius:8px">';
       html += '<table style="width:max-content;min-width:100%;border-collapse:collapse">';
       html += "<thead><tr>";
       html +=
@@ -468,7 +470,7 @@ window.BitTableEditor = {
           btn("danger") +
           '">删除</button></td></tr>';
       });
-      html += "</tbody></table></div>";
+      html += "</tbody></table></div></div>";
       return html;
     }
 
@@ -548,6 +550,32 @@ window.BitTableEditor = {
       return row;
     }
 
+    function syncTableScroll() {
+      var wrap = el.querySelector("[data-testid=demo-table]");
+      if (!wrap) return;
+      var holder = wrap.parentElement;
+      var table = wrap.querySelector("table");
+      if (!holder || !table) return;
+      wrap.style.height = "auto";
+      wrap.style.maxHeight = "";
+      wrap.style.overflowX = "auto";
+      wrap.style.overflowY = "hidden";
+      var maxH = holder.clientHeight;
+      if (maxH <= 0) return;
+      var tableH = table.offsetHeight;
+      var hBar = wrap.scrollWidth > wrap.clientWidth ? wrap.offsetHeight - wrap.clientHeight : 0;
+      if (hBar < 0) hBar = 0;
+      if (!hBar && wrap.scrollWidth > wrap.clientWidth) hBar = 10;
+      var need = tableH + hBar;
+      if (need > maxH) {
+        wrap.style.height = maxH + "px";
+        wrap.style.overflowY = "auto";
+      } else {
+        wrap.style.height = need + "px";
+        wrap.style.overflowY = "hidden";
+      }
+    }
+
     function render() {
       var rows = data.rows;
       var html = toolbar("");
@@ -560,6 +588,14 @@ window.BitTableEditor = {
           bindControl(el, field, ri);
         });
       });
+
+      syncTableScroll();
+      if (!el._bitResizeBound) {
+        el._bitResizeBound = true;
+        window.addEventListener("resize", function () {
+          syncTableScroll();
+        });
+      }
 
       el.querySelectorAll("[data-role=remove]").forEach(function (btn) {
         btn.addEventListener("click", function () {

@@ -10,8 +10,13 @@ func EditorHTML(editorJS string) string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html,body,#root{margin:0;height:100%;background:#0a0a0a;color:#f5f5f5;font:13px Inter,Segoe UI,system-ui,sans-serif}
-  *{box-sizing:border-box}
+  html,body,#root{margin:0;height:100%;overflow:hidden;background:#0a0a0a;color:#f5f5f5;font:13px Inter,Segoe UI,system-ui,sans-serif;color-scheme:dark}
+  *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:#525252 #1a1a1a}
+  *::-webkit-scrollbar{width:8px;height:8px}
+  *::-webkit-scrollbar-track{background:#1a1a1a}
+  *::-webkit-scrollbar-thumb{background:#525252;border-radius:4px}
+  *::-webkit-scrollbar-thumb:hover{background:#737373}
+  *::-webkit-scrollbar-corner{background:#1a1a1a}
 </style>
 </head>
 <body>

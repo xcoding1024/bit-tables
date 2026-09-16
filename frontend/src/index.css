@@ -52,7 +52,29 @@ body {
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-color: var(--border-strong) var(--bg-elevated);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-elevated);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--bg-elevated);
 }
 
 .bg-titlebar {

@@ -481,7 +481,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col bg-bg">
-          <div className="flex h-8 shrink-0 items-stretch overflow-x-auto bg-elevated" data-testid="tables-tabs">
+          <div className="flex h-8 shrink-0 items-stretch overflow-x-auto overflow-y-hidden bg-elevated" data-testid="tables-tabs">
             {tabs.length === 0 ? (
               <div className="flex items-center px-3 text-muted">未打开页签</div>
             ) : (
@@ -522,31 +522,6 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
               })
             )}
           </div>
-          {activeId && activeSheets.length ? (
-            <div className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-line bg-bg" data-testid="tables-sheets">
-              {activeSheets.map((sheet) => {
-                const active = sheet.id === activeSheetId;
-                return (
-                  <button
-                    key={sheet.id}
-                    type="button"
-                    data-testid={`tables-sheet-${sheet.id}`}
-                    className={`max-w-[180px] shrink-0 truncate px-3 ${
-                      active ? "border-b-2 border-accent text-ink" : "text-muted hover:bg-hover"
-                    }`}
-                    onClick={() => {
-                      if (sheet.id === sheetRef.current[activeId]) return;
-                      sheetRef.current = { ...sheetRef.current, [activeId]: sheet.id };
-                      setSheetById((prev) => ({ ...prev, [activeId]: sheet.id }));
-                      postSlice(activeId, "setSheet");
-                    }}
-                  >
-                    {sheet.name}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
           <div className="relative min-h-0 flex-1">
             {tabs.length === 0 ? (
               <div className="flex h-full items-center justify-center text-muted" data-testid="tables-editor-empty">
@@ -568,6 +543,31 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
               ))
             )}
           </div>
+          {activeId && activeSheets.length ? (
+            <div className="flex h-8 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-t border-line bg-elevated" data-testid="tables-sheets">
+              {activeSheets.map((sheet) => {
+                const active = sheet.id === activeSheetId;
+                return (
+                  <button
+                    key={sheet.id}
+                    type="button"
+                    data-testid={`tables-sheet-${sheet.id}`}
+                    className={`max-w-[180px] shrink-0 truncate px-3 ${
+                      active ? "border-b-2 border-accent bg-bg text-ink" : "text-muted hover:bg-hover"
+                    }`}
+                    onClick={() => {
+                      if (sheet.id === sheetRef.current[activeId]) return;
+                      sheetRef.current = { ...sheetRef.current, [activeId]: sheet.id };
+                      setSheetById((prev) => ({ ...prev, [activeId]: sheet.id }));
+                      postSlice(activeId, "setSheet");
+                    }}
+                  >
+                    {sheet.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </section>
 
         <aside className="relative flex shrink-0 flex-col bg-sidebar" style={{ width: right.displayWidth }}>
