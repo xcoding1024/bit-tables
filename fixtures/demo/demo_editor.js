@@ -13,8 +13,38 @@ window.BitTableEditor = {
       { key: "power", label: "强度", type: "int", widget: "range", group: "value", min: 0, max: 100 },
       { key: "available_from", label: "上架日期", type: "date", widget: "date", group: "extra" },
       { key: "tags", label: "标签", type: "enum", widget: "multiselect", group: "extra", enum: "tags" },
+      { key: "params", label: "自定义参数", type: "object", widget: "params", group: "extra" },
     ];
     var GROUP_NAMES = { basic: "基础信息", value: "数值与开关", extra: "展示与扩展" };
+    // 按分类写死不同的自定义参数形态（表格摘要 + 弹窗共用）
+    var PARAM_SCHEMAS = {
+      weapon: [
+        { key: "atk", label: "攻击", type: "int", min: 0, max: 9999 },
+        { key: "crit", label: "暴击率", type: "float", min: 0, max: 1, step: 0.01 },
+        { key: "durability", label: "耐久", type: "int", min: 0, max: 9999 },
+      ],
+      armor: [
+        { key: "def", label: "防御", type: "int", min: 0, max: 9999 },
+        { key: "resist_fire", label: "火抗", type: "int", min: 0, max: 100 },
+        { key: "durability", label: "耐久", type: "int", min: 0, max: 9999 },
+      ],
+      consumable: [
+        { key: "heal", label: "治疗量", type: "int", min: 0, max: 9999 },
+        { key: "duration", label: "持续秒数", type: "int", min: 0, max: 3600 },
+        { key: "cooldown", label: "冷却秒数", type: "int", min: 0, max: 3600 },
+      ],
+      material: [
+        { key: "purity", label: "纯度", type: "float", min: 0, max: 1, step: 0.01 },
+        { key: "craft_bonus", label: "锻造加成", type: "int", min: 0, max: 100 },
+        { key: "refine_cost", label: "精炼消耗", type: "int", min: 0, max: 9999 },
+      ],
+    };
+    var PARAM_SCHEMA_TITLES = {
+      weapon: "武器参数",
+      armor: "防具参数",
+      consumable: "消耗品参数",
+      material: "材料参数",
+    };
 
     var struct = api.getStruct() || {};
     var data = normalizeData(api.getData());
@@ -27,6 +57,8 @@ window.BitTableEditor = {
     var batchKey = "kind";
     var batchDraft = {};
     var openMultiKey = null;
+    var paramsEditRi = null;
+    var paramsDraft = null;
 
     function normalizeData(raw) {
       var next = raw && typeof raw === "object" ? raw : { rows: [] };
@@ -159,8 +191,58 @@ window.BitTableEditor = {
 
     function batchableFields() {
       return fields.filter(function (f) {
-        return f.key !== "id" && f.widget !== "icon" && f.type !== "icon";
+        return (
+          f.key !== "id" &&
+          f.widget !== "icon" &&
+          f.type !== "icon" &&
+          f.widget !== "params" &&
+          f.type !== "object"
+        );
       });
+    }
+
+    function paramFieldsFor(kind) {
+      var key = String(kind || "").trim();
+      return PARAM_SCHEMAS[key] || PARAM_SCHEMAS.weapon;
+    }
+
+    function defaultParams(kind) {
+      var out = {};
+      paramFieldsFor(kind).forEach(function (f) {
+        out[f.key] = 0;
+      });
+      return out;
+    }
+
+    function normalizeParams(val, kind) {
+      var out = defaultParams(kind);
+      if (!val || typeof val !== "object" || Array.isArray(val)) return out;
+      paramFieldsFor(kind).forEach(function (f) {
+        if (val[f.key] == null || val[f.key] === "") return;
+        var n = Number(val[f.key]);
+        out[f.key] = isNaN(n) ? 0 : n;
+      });
+      return out;
+    }
+
+    function formatParamValue(field, value) {
+      var n = Number(value);
+      if (isNaN(n) || !n) return "";
+      if (field.key === "crit" || field.key === "purity") {
+        return field.label + " " + Math.round(n * 1000) / 10 + "%";
+      }
+      return field.label + " " + n;
+    }
+
+    function paramsSummary(val, kind) {
+      var fields = paramFieldsFor(kind);
+      var p = normalizeParams(val, kind);
+      var parts = [];
+      fields.forEach(function (f) {
+        var text = formatParamValue(f, p[f.key]);
+        if (text) parts.push(text);
+      });
+      return parts.length ? parts.join(" · ") : "未设置";
     }
 
     function iconRelPath(field, row) {
@@ -254,6 +336,24 @@ window.BitTableEditor = {
               escapeHtml(rel || "缺少 path") +
               "</span>") +
           "</div>"
+        );
+      }
+      if (widget === "params" || field.type === "object") {
+        var summary = paramsSummary(val, row.kind);
+        return (
+          '<button type="button" data-role="params-open" ' +
+          test +
+          ' style="' +
+          input +
+          ";min-width:" +
+          (compact ? "140px" : "100%") +
+          ';display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer">' +
+          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;' +
+          (summary === "未设置" ? "color:#737373" : "color:#f5f5f5") +
+          '">' +
+          escapeHtml(summary) +
+          "</span>" +
+          '<span style="color:#a3a3a3;flex-shrink:0">编辑</span></button>'
         );
       }
       if (widget === "select") {
@@ -452,9 +552,129 @@ window.BitTableEditor = {
       }
     }
 
+    function removeParamsDialog() {
+      var old = el.querySelector('[data-role="params-dialog"]');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+
+    function placeParamsDialog() {
+      removeParamsDialog();
+      if (paramsEditRi == null || !data.rows[paramsEditRi]) {
+        paramsEditRi = null;
+        paramsDraft = null;
+        return;
+      }
+      var row = data.rows[paramsEditRi] || {};
+      var kind = row.kind;
+      var fields = paramFieldsFor(kind);
+      if (!paramsDraft) paramsDraft = normalizeParams(row.params, kind);
+      var overlay = document.createElement("div");
+      overlay.setAttribute("data-role", "params-dialog");
+      overlay.style.cssText =
+        "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+      var panel =
+        '<div data-role="params-panel" style="width:min(420px,100%);background:#141414;border:1px solid #3a3a3a;border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,.55);padding:16px">';
+      panel +=
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">' +
+        "<div><div style=\"font-size:14px;color:#f5f5f5\">" +
+        escapeHtml(PARAM_SCHEMA_TITLES[kind] || "编辑自定义参数") +
+        '</div><div style="margin-top:2px;color:#737373;font-size:12px">' +
+        escapeHtml(row.name || row.id || "行 " + (paramsEditRi + 1)) +
+        " · " +
+        escapeHtml(kind || "unknown") +
+        "</div></div>" +
+        '<button type="button" data-role="params-close" style="height:28px;padding:0 10px;background:#2a2a2a;color:#f5f5f5;border:0;border-radius:4px;cursor:pointer">关闭</button></div>';
+      panel += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">';
+      fields.forEach(function (f) {
+        var v = paramsDraft[f.key];
+        panel +=
+          '<label style="display:block"><div style="margin-bottom:4px;color:#a3a3a3">' +
+          escapeHtml(f.label) +
+          '</div><input data-role="params-field" data-key="' +
+          escapeAttr(f.key) +
+          '" type="number" value="' +
+          escapeAttr(v) +
+          '"' +
+          (f.min != null ? " min=" + f.min : "") +
+          (f.max != null ? " max=" + f.max : "") +
+          (f.step != null ? " step=" + f.step : f.type === "float" ? " step=0.01" : "") +
+          ' style="width:100%;height:28px;background:#1a1a1a;border:1px solid #3a3a3a;color:#f5f5f5;border-radius:4px;padding:0 8px" /></label>';
+      });
+      panel += "</div>";
+      panel +=
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+        '<button type="button" data-role="params-cancel" style="height:28px;padding:0 12px;background:transparent;color:#f5f5f5;border:1px solid #3a3a3a;border-radius:4px;cursor:pointer">取消</button>' +
+        '<button type="button" data-role="params-save" style="height:28px;padding:0 12px;background:#3794ff;color:#fff;border:0;border-radius:4px;cursor:pointer">确定</button></div>';
+      panel += "</div>";
+      overlay.innerHTML = panel;
+      el.appendChild(overlay);
+      overlay.addEventListener("click", function (ev) {
+        if (ev.target === overlay) {
+          paramsEditRi = null;
+          paramsDraft = null;
+          render();
+        }
+      });
+      var panelEl = overlay.querySelector('[data-role="params-panel"]');
+      if (panelEl) {
+        panelEl.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+        });
+      }
+      overlay.querySelectorAll('[data-role="params-field"]').forEach(function (input) {
+        input.addEventListener("change", function () {
+          var key = input.getAttribute("data-key");
+          var meta = null;
+          for (var i = 0; i < fields.length; i++) {
+            if (fields[i].key === key) meta = fields[i];
+          }
+          var n = meta && meta.type === "int" ? parseInt(input.value, 10) : Number(input.value);
+          if (isNaN(n)) n = 0;
+          if (meta && meta.min != null && n < meta.min) n = meta.min;
+          if (meta && meta.max != null && n > meta.max) n = meta.max;
+          paramsDraft[key] = n;
+          input.value = String(n);
+        });
+      });
+      function closeDialog() {
+        paramsEditRi = null;
+        paramsDraft = null;
+        render();
+      }
+      var closeBtn = overlay.querySelector('[data-role="params-close"]');
+      var cancelBtn = overlay.querySelector('[data-role="params-cancel"]');
+      if (closeBtn) closeBtn.addEventListener("click", closeDialog);
+      if (cancelBtn) cancelBtn.addEventListener("click", closeDialog);
+      var saveBtn = overlay.querySelector('[data-role="params-save"]');
+      if (saveBtn) {
+        saveBtn.addEventListener("click", function () {
+          overlay.querySelectorAll('[data-role="params-field"]').forEach(function (input) {
+            input.dispatchEvent(new Event("change"));
+          });
+          setRow(paramsEditRi, "params", normalizeParams(paramsDraft, kind));
+          paramsEditRi = null;
+          paramsDraft = null;
+          render();
+        });
+      }
+    }
+
     function bindControl(root, field, ri) {
       var widget = field.widget || "text";
       if (widget === "icon" || field.type === "icon") return;
+      if (widget === "params" || field.type === "object") {
+        var btnOpen = root.querySelector('[data-testid="demo-' + field.key + "-" + ri + '"]');
+        if (!btnOpen) return;
+        btnOpen.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var row = data.rows[ri] || {};
+          paramsEditRi = ri;
+          paramsDraft = normalizeParams(row.params, row.kind);
+          render();
+        });
+        return;
+      }
       if (widget === "multiselect" || widget === "tags") {
         var mid = field.key + "-" + ri;
         var wrap = root.querySelector('[data-role="multi-wrap"][data-multi-id="' + mid + '"]');
@@ -484,6 +704,12 @@ window.BitTableEditor = {
         else if (field.type === "bool") setRow(ri, field.key, value ? "true" : "false");
         else setRow(ri, field.key, value);
         if (field.key === "id") refreshRowIcons(ri);
+        if (field.key === "kind") {
+          var row = data.rows[ri] || {};
+          row.params = normalizeParams(row.params, value);
+          api.setData(data);
+          render();
+        }
       }
       if (widget === "checkbox") {
         nodes[0].addEventListener("change", function (ev) {
@@ -715,7 +941,9 @@ window.BitTableEditor = {
               field.widget === "textarea" ||
               field.widget === "radio" ||
               field.widget === "multiselect" ||
-              field.widget === "tags";
+              field.widget === "tags" ||
+              field.widget === "params" ||
+              field.type === "object";
             html +=
               '<label style="display:block' +
               (wide ? ";grid-column:1/-1" : "") +
@@ -742,6 +970,7 @@ window.BitTableEditor = {
         if (!f || !f.key) return;
         if (f.key === "id") row.id = "new_" + (data.rows.length + 1);
         else if (f.widget === "icon" || f.type === "icon") return;
+        else if (f.widget === "params" || f.type === "object") row[f.key] = defaultParams(row.kind || "weapon");
         else if (f.type === "bool") row[f.key] = "true";
         else if (f.type === "int" || f.type === "float") row[f.key] = "0";
         else if (f.widget === "multiselect") row[f.key] = "";
@@ -792,6 +1021,7 @@ window.BitTableEditor = {
           bindControl(el, field, ri);
         });
       });
+      if (paramsEditRi != null) placeParamsDialog();
 
       syncTableScroll();
       if (!el._bitResizeBound) {

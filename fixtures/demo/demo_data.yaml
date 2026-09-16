@@ -12,6 +12,10 @@ sheets:
         power: 42
         available_from: 2026-01-01
         tags: melee, starter
+        params:
+          atk: 18
+          crit: 0.05
+          durability: 120
       - id: health_potion
         name: 治疗药水
         kind: consumable
@@ -23,6 +27,10 @@ sheets:
         power: 15
         available_from: 2026-02-10
         tags: heal, consumable
+        params:
+          heal: 50
+          duration: 0
+          cooldown: 8
       - id: dragon_mail
         name: 龙鳞甲
         kind: armor
@@ -34,6 +42,10 @@ sheets:
         power: 96
         available_from: 2026-09-01
         tags: armor, fire, late
+        params:
+          def: 48
+          resist_fire: 35
+          durability: 260
       - id: magic_ore
         name: 魔晶矿
         kind: material
@@ -45,6 +57,10 @@ sheets:
         power: 60
         available_from: 2026-03-20
         tags: craft, rare
+        params:
+          purity: 0.82
+          craft_bonus: 15
+          refine_cost: 3
   kinds:
     rows:
       - id: weapon

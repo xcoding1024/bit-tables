@@ -91,6 +91,12 @@ sheets:
         group: extra
         enum: tags
         hint: 下拉多选，存枚举 id
+      - key: params
+        label: 自定义参数
+        type: object
+        widget: params
+        group: extra
+        hint: 对象结构随 kind 变化；表格摘要 + 弹窗编辑（形态由 editor 按分类写死）
   - id: kinds
     name: 分类
     kind: enum

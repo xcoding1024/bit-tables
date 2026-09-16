@@ -102,6 +102,48 @@ window.BitTableChecker = {
         if (row.power != null && row.power !== "" && (isNaN(power) || power < 0 || power > 100)) {
           errors.push({ path: prefix + ".power", message: "强度须在 0–100" });
         }
+        if (row.params != null && row.params !== "") {
+          if (typeof row.params !== "object" || Array.isArray(row.params)) {
+            errors.push({ path: prefix + ".params", message: "自定义参数须为对象" });
+          } else {
+            var kind = String(row.kind || "");
+            var schema = {
+              weapon: {
+                atk: { min: 0 },
+                crit: { min: 0, max: 1 },
+                durability: { min: 0 },
+              },
+              armor: {
+                def: { min: 0 },
+                resist_fire: { min: 0, max: 100 },
+                durability: { min: 0 },
+              },
+              consumable: {
+                heal: { min: 0 },
+                duration: { min: 0 },
+                cooldown: { min: 0 },
+              },
+              material: {
+                purity: { min: 0, max: 1 },
+                craft_bonus: { min: 0, max: 100 },
+                refine_cost: { min: 0 },
+              },
+            }[kind];
+            if (schema) {
+              Object.keys(schema).forEach(function (k) {
+                if (row.params[k] == null || row.params[k] === "") return;
+                var n = Number(row.params[k]);
+                var rule = schema[k];
+                if (isNaN(n) || (rule.min != null && n < rule.min) || (rule.max != null && n > rule.max)) {
+                  errors.push({
+                    path: prefix + ".params." + k,
+                    message: k + " 超出 " + kind + " 参数范围",
+                  });
+                }
+              });
+            }
+          }
+        }
       }
     }
 
