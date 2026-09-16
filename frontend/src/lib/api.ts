@@ -4,6 +4,8 @@ export type TableInfo = {
   hasData: boolean;
   hasEditor: boolean;
   hasChecker: boolean;
+  hasExport: boolean;
+  hasDocs: boolean;
   complete: boolean;
 };
 
@@ -12,7 +14,8 @@ export type TableFiles = TableInfo & {
   data: string;
   editor: string;
   checker: string;
-  history: string;
+  export: string;
+  docs: string;
 };
 
 export type RootInfo = {

@@ -5,13 +5,15 @@ import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
-  historySection,
-  parseHistoryTurns,
+  docsSection,
   parseTableDoc,
   runTableChecker,
   stringifyTableDoc,
+  type DocsKind,
   type TableCheckError,
 } from "../lib/tableHost";
+
+type RightTab = DocsKind | "history";
 
 type TabCheck = {
   ok: boolean;
@@ -39,7 +41,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const [activeId, setActiveId] = useState("");
   const [filesById, setFilesById] = useState<Record<string, TableFiles>>({});
   const [checks, setChecks] = useState<Record<string, TabCheck>>({});
-  const [mode, setMode] = useState<"struct" | "data">("struct");
+  const [rightTab, setRightTab] = useState<RightTab>("struct");
   const [newOpen, setNewOpen] = useState(false);
   const [newId, setNewId] = useState("");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
@@ -52,7 +54,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
 
   const files = activeId ? filesById[activeId] || null : null;
   const check = activeId ? checks[activeId] : undefined;
-  const turns = parseHistoryTurns(historySection(files?.history || "", mode));
+  const docBody = rightTab === "history" || !files ? "" : docsSection(files.docs || "", rightTab);
 
   const runCheck = useCallback(async (id: string, next: TableFiles, data?: unknown) => {
     const parsed = data ?? parseTableDoc(next.data);
@@ -360,7 +362,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
                       }
                     >
                       <div className="truncate text-[13px]">{item.id}</div>
-                      {item.complete ? null : <div className="text-[11px] text-muted">四件套不完整</div>}
+                      {item.complete ? null : <div className="text-[11px] text-muted">五件套不完整</div>}
                     </button>
                   ))
                 )}
@@ -463,24 +465,25 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
             </button>
           ) : (
             <>
-              <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line px-2">
-                <span className="mr-1 text-muted">编辑</span>
-                <button
-                  type="button"
-                  data-testid="tables-history-struct"
-                  className={`h-7 rounded px-2 ${mode === "struct" ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
-                  onClick={() => setMode("struct")}
-                >
-                  结构
-                </button>
-                <button
-                  type="button"
-                  data-testid="tables-history-data"
-                  className={`h-7 rounded px-2 ${mode === "data" ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
-                  onClick={() => setMode("data")}
-                >
-                  数据
-                </button>
+              <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line px-2 py-1">
+                {(
+                  [
+                    ["struct", "结构"],
+                    ["check", "检查规则"],
+                    ["export", "导出规则"],
+                    ["history", "历史记录"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    data-testid={`tables-docs-${id}`}
+                    className={`h-7 rounded px-2 ${rightTab === id ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
+                    onClick={() => setRightTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
                 <div className="min-w-0 flex-1" />
                 <button
                   type="button"
@@ -492,26 +495,18 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
                   <ChevronRight size={14} />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-auto px-3 py-3" data-testid="tables-history">
+              <div className="min-h-0 flex-1 overflow-auto px-3 py-3" data-testid="tables-docs">
                 {!activeId ? (
-                  <div className="text-muted">打开配置表后显示历史</div>
-                ) : turns.length === 0 ? (
-                  <div className="text-muted">暂无{mode === "struct" ? "结构" : "数据"}历史</div>
+                  <div className="text-muted">打开配置表后显示文档</div>
+                ) : rightTab === "history" ? (
+                  <div className="text-muted">历史记录稍后提供</div>
+                ) : docBody ? (
+                  <div className="whitespace-pre-wrap">{docBody}</div>
                 ) : (
-                  turns.map((turn, i) => (
-                    <div key={`${turn.when}-${i}`} className="mb-4">
-                      <div className="mb-1 text-[11px] text-muted">
-                        {turn.when} · {turn.who}
-                      </div>
-                      <div className="whitespace-pre-wrap">
-                        {turn.user}
-                        {turn.agent ? `\n\n${turn.agent}` : ""}
-                      </div>
-                    </div>
-                  ))
+                  <div className="text-muted">暂无{rightTab === "struct" ? "结构" : rightTab === "check" ? "检查规则" : "导出规则"}说明</div>
                 )}
               </div>
-              <div className="border-t border-line px-3 py-2 text-muted">改结构或数据请直接编辑表目录文件，或用 Cursor / Codex。</div>
+              <div className="border-t border-line px-3 py-2 text-muted">改结构或数据请直接编辑表目录文件，或用 Cursor / Codex，并更新 docs。</div>
             </>
           )}
         </aside>

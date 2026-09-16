@@ -13,55 +13,23 @@ export function unquoteYAML(value: string): string {
   return t;
 }
 
-export type HistoryTurn = {
-  when: string;
-  who: string;
-  user: string;
-  agent: string;
-};
+export type DocsKind = "struct" | "check" | "export";
 
-export function historySection(text: string, mode: "struct" | "data"): string {
+function docsHeading(kind: DocsKind): string {
+  if (kind === "check") return "## 检查规则";
+  if (kind === "export") return "## 导出规则";
+  return "## 结构";
+}
+
+export function docsSection(text: string, kind: DocsKind): string {
   const src = (text || "").replace(/\r\n/g, "\n");
-  const tag = mode === "struct" ? "struct" : "data";
-  const open = `<!-- bit-history:${tag} -->`;
-  const close = `<!-- /bit-history:${tag} -->`;
-  const a = src.indexOf(open);
-  const b = src.indexOf(close);
-  if (a >= 0 && b > a) {
-    return src.slice(a + open.length, b).trim();
-  }
-  const heading = mode === "struct" ? "## 结构" : "## 数据";
-  const other = mode === "struct" ? "## 数据" : "## 结构";
+  const heading = docsHeading(kind);
   const start = src.indexOf(heading);
   if (start < 0) return "";
   let body = src.slice(start + heading.length);
-  const cut = body.indexOf("\n" + other);
+  const cut = body.indexOf("\n## ");
   if (cut >= 0) body = body.slice(0, cut);
   return body.trim();
-}
-
-export function parseHistoryTurns(section: string): HistoryTurn[] {
-  const src = (section || "").replace(/\r\n/g, "\n");
-  if (!src.trim()) return [];
-  const turnRe = /^### (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{2}:\d{2}) · (.+)$/gm;
-  const matches = [...src.matchAll(turnRe)];
-  if (!matches.length) return [];
-  return matches.map((m, i) => {
-    const start = (m.index || 0) + m[0].length;
-    const end = i + 1 < matches.length ? matches[i + 1].index || src.length : src.length;
-    const body = src.slice(start, end);
-    const userAt = body.indexOf("**用户**");
-    const agentAt = body.indexOf("**Agent**");
-    let user = "";
-    let agent = "";
-    if (userAt >= 0) {
-      user = body.slice(userAt + "**用户**".length, agentAt >= 0 ? agentAt : undefined).trim();
-    }
-    if (agentAt >= 0) {
-      agent = body.slice(agentAt + "**Agent**".length).trim();
-    }
-    return { when: m[1], who: m[2].trim(), user, agent };
-  });
 }
 
 export function parseTableDoc(text: string): unknown {

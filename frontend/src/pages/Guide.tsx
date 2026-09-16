@@ -16,7 +16,7 @@ export default function Guide({
     <div className="m-auto max-w-[420px] px-6 text-center" data-testid="tables-guide">
       <Table2 className="mx-auto mb-3 text-muted" size={28} />
       <div className="mb-1 font-medium">打开配表目录</div>
-      <div className="mb-4 text-muted">每张表是一个子目录，里面是四件套 + history.md。</div>
+      <div className="mb-4 text-muted">每张表是一个子目录，里面是五件套 + docs。</div>
       {error ? <div className="mb-3 text-danger">{error}</div> : null}
       <div className="flex justify-center gap-2">
         <Btn variant="primary" data-testid="tables-open" onClick={onOpen}>

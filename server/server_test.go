@@ -148,32 +148,20 @@ func TestListCreateTraversalAndData(t *testing.T) {
 	}
 }
 
-func TestAppendHistoryAPI(t *testing.T) {
+func TestFilesIncludeDocsAndExport(t *testing.T) {
 	_, h, _ := testServer(t)
 	res := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/tables/item/history", strings.NewReader(`{"mode":"struct","who":"demo","user":"生成技能表","agent":"已生成四件套","when":"2026-09-16 10:00:00 +08:00"}`))
-	req.Header.Set("Content-Type", "application/json")
-	h.ServeHTTP(res, req)
-	if res.Code != 200 {
-		t.Fatalf("history %d %s", res.Code, res.Body.String())
-	}
-	res = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/api/tables/item/history", strings.NewReader(`{"mode":"data","who":"demo","user":"加一行","agent":"已更新数据","when":"2026-09-16 10:01:00 +08:00"}`))
-	req.Header.Set("Content-Type", "application/json")
-	h.ServeHTTP(res, req)
-	if res.Code != 200 {
-		t.Fatalf("history data %d %s", res.Code, res.Body.String())
-	}
-	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/files", nil))
 	var files tables.Files
 	decodeOK(t, res, &files)
-	_, structBody, dataBody := tables.SplitHistory(files.History, "item")
-	if !strings.Contains(structBody, "生成技能表") || strings.Contains(dataBody, "生成技能表") {
-		t.Fatalf("leak %s", files.History)
+	if !files.HasExport || !strings.Contains(files.Export, "BitTableExporter") {
+		t.Fatalf("export %#v", files)
 	}
-	if !strings.Contains(dataBody, "加一行") {
-		t.Fatalf("data missing %s", files.History)
+	if !files.HasDocs || tables.DocsSection(files.Docs, tables.ModeStruct) == "" {
+		t.Fatalf("docs %s", files.Docs)
+	}
+	if !strings.Contains(files.Docs, "## 检查规则") || !strings.Contains(files.Docs, "## 导出规则") {
+		t.Fatalf("docs headings %s", files.Docs)
 	}
 }
 
@@ -282,8 +270,11 @@ func TestCreateEmptyTableUsesFallbackEditor(t *testing.T) {
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/skill/files", nil))
 	var files tables.Files
 	decodeOK(t, res, &files)
-	if !strings.Contains(files.History, "<!-- bit-history:struct -->") {
-		t.Fatalf("empty history %s", files.History)
+	if !files.HasDocs || !strings.Contains(files.Docs, "## 结构") || !strings.Contains(files.Docs, "## 检查规则") || !strings.Contains(files.Docs, "## 导出规则") {
+		t.Fatalf("empty docs %s", files.Docs)
+	}
+	if files.HasExport || files.Export != "" {
+		t.Fatalf("empty table should not have export: %#v", files)
 	}
 }
 

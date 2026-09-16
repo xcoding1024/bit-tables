@@ -5,7 +5,7 @@ export const LEFT_MAX = 420;
 export const LEFT_DEFAULT = 244;
 export const RIGHT_MIN = 220;
 export const RIGHT_MAX = 480;
-export const RIGHT_DEFAULT = 320;
+export const RIGHT_DEFAULT = 360;
 export const RAIL = 36;
 
 function clamp(n: number, min: number, max: number) {

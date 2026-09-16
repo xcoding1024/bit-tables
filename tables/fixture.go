@@ -21,6 +21,8 @@ func CopyItemFixture(dir, tableID string) error {
 		{"item_data.yaml", "data.yaml"},
 		{"item_editor.js", "editor.js"},
 		{"item_checker.js", "checker.js"},
+		{"item_export.js", "export.js"},
+		{"item_docs.md", "docs.md"},
 	}
 	for _, item := range mapping {
 		b, err := itemFixtureFS.ReadFile("testdata/item/" + item.src)
@@ -32,7 +34,7 @@ func CopyItemFixture(dir, tableID string) error {
 			return err
 		}
 	}
-	return EnsureHistory(dir, tableID)
+	return EnsureDocs(dir, tableID)
 }
 
 func (r *Root) SeedItem(tableID string) error {

@@ -1,6 +1,6 @@
 # bit-tables
 
-本机配表工作台：每张表是子目录里的四件套 + `history.md`。桌面应用直接打开窗口，不必再开浏览器。Cursor / Codex 仍直接改磁盘上的 YAML 与脚本。
+本机配表工作台：每张表是子目录里的五件套 + `{id}_docs.md`。桌面应用直接打开窗口，不必再开浏览器。Cursor / Codex 仍直接改磁盘上的 YAML 与脚本。
 
 约定见 [docs/spec.md](docs/spec.md)。Agent 提示见 [AGENTS.md](AGENTS.md)。
 

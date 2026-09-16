@@ -93,7 +93,6 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/tables/{id}", s.deleteTable)
 	mux.HandleFunc("GET /api/tables/{id}/files", s.getFiles)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
-	mux.HandleFunc("POST /api/tables/{id}/history", s.postHistory)
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /{$}", s.index)
@@ -243,32 +242,6 @@ func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"id": id, "data": files.Data})
 }
 
-func (s *Server) postHistory(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Mode  string `json:"mode"`
-		Who   string `json:"who"`
-		User  string `json:"user"`
-		Agent string `json:"agent"`
-		When  string `json:"when"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
-		return
-	}
-	id := r.PathValue("id")
-	root := s.current()
-	if err := root.AppendHistory(id, strings.TrimSpace(req.Mode), req.Who, req.User, req.Agent, req.When); err != nil {
-		writeTableErr(w, err)
-		return
-	}
-	files, err := root.Files(id)
-	if err != nil {
-		writeTableErr(w, err)
-		return
-	}
-	writeOK(w, map[string]any{"id": id, "history": files.History})
-}
-
 func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	js, err := s.current().EditorJS(id)
@@ -363,8 +336,6 @@ func writeTableErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
 	case errors.Is(err, tables.ErrExists):
 		writeErr(w, http.StatusConflict, "exists", err.Error())
-	case errors.Is(err, tables.ErrBadMode):
-		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
 	case os.IsNotExist(err):
 		writeErr(w, http.StatusNotFound, "not_found", "目录或文件不存在")
 	default:

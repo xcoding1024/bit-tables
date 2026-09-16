@@ -1,13 +1,79 @@
 #!/usr/bin/env node
 "use strict";
 
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 const DEV_SERVER_URL = process.env.DEV_SERVER_URL || "http://127.0.0.1:5173";
+const API_ADDR = process.env.BIT_TABLES_ADDR || "127.0.0.1:18780";
+
+function portFromURL(url, fallback) {
+  try {
+    return Number(new URL(url).port) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function portFromAddr(addr, fallback) {
+  const m = String(addr || "").match(/:(\d+)\s*$/);
+  return m ? Number(m[1]) : fallback;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function pidsOnPort(port) {
+  const pids = new Set();
+  if (process.platform === "win32") {
+    const out = spawnSync("netstat", ["-ano"], { encoding: "utf8" });
+    for (const line of String(out.stdout || "").split(/\r?\n/)) {
+      if (!/\bLISTENING\b/i.test(line)) continue;
+      const parts = line.trim().split(/\s+/);
+      const local = parts[1] || "";
+      if (!local.endsWith(":" + port)) continue;
+      const pid = Number(parts[parts.length - 1]);
+      if (pid > 0 && pid !== process.pid) pids.add(pid);
+    }
+    return [...pids];
+  }
+  const out = spawnSync("lsof", ["-ti", `TCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" });
+  for (const part of String(out.stdout || "").split(/\s+/)) {
+    const pid = Number(part);
+    if (pid > 0 && pid !== process.pid) pids.add(pid);
+  }
+  return [...pids];
+}
+
+function killPids(pids) {
+  for (const pid of pids) {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore", windowsHide: true });
+    } else {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+}
+
+async function freePorts(ports) {
+  for (const port of ports) {
+    for (let i = 0; i < 12; i++) {
+      const pids = pidsOnPort(port);
+      if (!pids.length) break;
+      if (i === 0) console.log(`==> kill :${port}  ${pids.join(", ")}`);
+      killPids(pids);
+      await sleep(150);
+    }
+  }
+}
 
 function waitHttp(url, tries = 80) {
   return new Promise((resolve, reject) => {
@@ -72,6 +138,7 @@ function npmInstallIfNeeded(dir) {
 
 async function main() {
   process.chdir(ROOT);
+  await freePorts([portFromURL(DEV_SERVER_URL, 5173), portFromAddr(API_ADDR, 18780)]);
   await npmInstallIfNeeded(ROOT);
   await npmInstallIfNeeded(path.join(ROOT, "frontend"));
 

@@ -11,17 +11,17 @@ import (
 
 const (
 	ModeStruct = "struct"
-	ModeData   = "data"
+	ModeCheck  = "check"
+	ModeExport = "export"
 	IDPattern  = `^[a-z][a-z0-9_]{0,31}$`
 )
 
 var (
 	idRe = regexp.MustCompile(IDPattern)
 
-	ErrBadID   = errors.New("表 id 无效")
-	ErrEscape  = errors.New("路径超出配表根目录")
-	ErrExists  = errors.New("表已存在")
-	ErrBadMode = errors.New("mode 必须是 struct 或 data")
+	ErrBadID  = errors.New("表 id 无效")
+	ErrEscape = errors.New("路径超出配表根目录")
+	ErrExists = errors.New("表已存在")
 )
 
 type Info struct {
@@ -30,6 +30,8 @@ type Info struct {
 	HasData    bool   `json:"hasData"`
 	HasEditor  bool   `json:"hasEditor"`
 	HasChecker bool   `json:"hasChecker"`
+	HasExport  bool   `json:"hasExport"`
+	HasDocs    bool   `json:"hasDocs"`
 	Complete   bool   `json:"complete"`
 }
 
@@ -39,7 +41,8 @@ type Files struct {
 	Data    string `json:"data"`
 	Editor  string `json:"editor"`
 	Checker string `json:"checker"`
-	History string `json:"history"`
+	Export  string `json:"export"`
+	Docs    string `json:"docs"`
 }
 
 type Root struct {
@@ -147,7 +150,9 @@ func Inspect(dir, tableID string) Info {
 	_, info.HasData = readFile(dir, tableID, "data.yaml")
 	_, info.HasEditor = readFile(dir, tableID, "editor.js")
 	_, info.HasChecker = readFile(dir, tableID, "checker.js")
-	info.Complete = info.HasStruct && info.HasData && info.HasEditor && info.HasChecker
+	_, info.HasExport = readFile(dir, tableID, "export.js")
+	_, info.HasDocs = readFile(dir, tableID, "docs.md")
+	info.Complete = info.HasStruct && info.HasData && info.HasEditor && info.HasChecker && info.HasExport
 	return info
 }
 
@@ -181,7 +186,7 @@ func (r *Root) Create(id string) (Info, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Info{}, err
 	}
-	if err := EnsureHistory(dir, id); err != nil {
+	if err := EnsureDocs(dir, id); err != nil {
 		return Info{}, err
 	}
 	return Inspect(dir, id), nil
@@ -210,7 +215,8 @@ func (r *Root) Files(id string) (Files, error) {
 	dataText, hasData := readFile(dir, id, "data.yaml")
 	editor, hasEditor := readFile(dir, id, "editor.js")
 	checker, hasChecker := readFile(dir, id, "checker.js")
-	history, _ := ReadHistory(dir)
+	exportText, hasExport := readFile(dir, id, "export.js")
+	docs, hasDocs := ReadDocs(dir, id)
 	return Files{
 		Info: Info{
 			ID:         id,
@@ -218,13 +224,16 @@ func (r *Root) Files(id string) (Files, error) {
 			HasData:    hasData,
 			HasEditor:  hasEditor,
 			HasChecker: hasChecker,
-			Complete:   hasStruct && hasData && hasEditor && hasChecker,
+			HasExport:  hasExport,
+			HasDocs:    hasDocs,
+			Complete:   hasStruct && hasData && hasEditor && hasChecker && hasExport,
 		},
 		Struct:  structText,
 		Data:    dataText,
 		Editor:  editor,
 		Checker: checker,
-		History: history,
+		Export:  exportText,
+		Docs:    docs,
 	}, nil
 }
 
