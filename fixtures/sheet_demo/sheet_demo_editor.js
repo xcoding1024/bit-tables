@@ -53,6 +53,8 @@ window.BitTableEditor = {
     var title = struct.name || "Sheet 控件演示表";
     var view = "table";
     var picked = {};
+    var colFilters = {};
+    var openFilterKey = null;
     var batchOpen = false;
     var batchKey = "kind";
     var batchDraft = {};
@@ -179,6 +181,210 @@ window.BitTableEditor = {
         .sort(function (a, b) {
           return a - b;
         });
+    }
+
+    function rowFilterText(field, row) {
+      if (!field || !field.key) return "";
+      if (field.widget === "params" || field.type === "object") return paramsSummary(row[field.key], row.kind);
+      if (field.widget === "icon" || field.type === "icon") return iconRelPath(field, row);
+      if (field.widget === "multiselect" || field.widget === "tags") return multiSummary(field, row[field.key]);
+      if (field.type === "bool") return truthy(row[field.key]) ? "true" : "false";
+      var val = row[field.key] == null ? "" : row[field.key];
+      if (field.enum || field.type === "enum") {
+        var name = "";
+        enumOptions(field).forEach(function (opt) {
+          if (String(opt.id) === String(val)) name = opt.name;
+        });
+        return String(val) + (name ? " " + name : "");
+      }
+      return String(val);
+    }
+
+    function rowMatchesFilters(row) {
+      for (var i = 0; i < fields.length; i++) {
+        var field = fields[i];
+        if (!field || !field.key) continue;
+        if (field.widget === "icon" || field.type === "icon") continue;
+        var q = String(colFilters[field.key] == null ? "" : colFilters[field.key]).trim();
+        if (!q) continue;
+        if (field.type === "bool") {
+          if ((truthy(row[field.key]) ? "true" : "false") !== q) return false;
+          continue;
+        }
+        if ((field.enum || field.type === "enum") && field.widget !== "multiselect" && field.widget !== "tags") {
+          if (String(row[field.key] == null ? "" : row[field.key]) !== q) return false;
+          continue;
+        }
+        if (rowFilterText(field, row).toLowerCase().indexOf(q.toLowerCase()) < 0) return false;
+      }
+      return true;
+    }
+
+    function filteredRowIndexes() {
+      var out = [];
+      data.rows.forEach(function (row, i) {
+        if (rowMatchesFilters(row || {})) out.push(i);
+      });
+      return out;
+    }
+
+    function hasActiveFilters() {
+      return fields.some(function (field) {
+        return field && field.key && String(colFilters[field.key] || "").trim();
+      });
+    }
+
+    function filterIconSvg(active) {
+      var color = active ? "#3794ff" : "#a3a3a3";
+      return (
+        '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" style="display:block">' +
+        '<path fill="' +
+        color +
+        '" d="M1.2 2.2h9.6L7.1 6.5v3.2L4.9 11V6.5L1.2 2.2z"/></svg>'
+      );
+    }
+
+    function filterableField(field) {
+      return field && field.key && field.widget !== "icon" && field.type !== "icon";
+    }
+
+    function removeFilterMenu() {
+      var old = el.querySelector('[data-role="col-filter-menu"]');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+
+    function placeFilterMenu(field) {
+      removeFilterMenu();
+      if (!field || !filterableField(field)) {
+        openFilterKey = null;
+        return;
+      }
+      var btn = el.querySelector('[data-role="col-filter-btn"][data-key="' + field.key + '"]');
+      if (!btn) return;
+      var rect = btn.getBoundingClientRect();
+      var cur = colFilters[field.key] == null ? "" : String(colFilters[field.key]);
+      var menu = document.createElement("div");
+      menu.setAttribute("data-role", "col-filter-menu");
+      menu.setAttribute("data-key", field.key);
+      var inputHtml = "";
+      var inputStyle =
+        "width:100%;height:28px;background:#1a1a1a;border:1px solid #3a3a3a;color:#f5f5f5;border-radius:4px;padding:0 8px;box-sizing:border-box";
+      if (field.type === "bool") {
+        inputHtml =
+          '<select data-role="col-filter-input" style="' +
+          inputStyle +
+          '"><option value="">全部</option>' +
+          '<option value="true"' +
+          (cur === "true" ? " selected" : "") +
+          ">开启</option>" +
+          '<option value="false"' +
+          (cur === "false" ? " selected" : "") +
+          ">关闭</option></select>";
+      } else if (
+        (field.enum || field.type === "enum") &&
+        field.widget !== "multiselect" &&
+        field.widget !== "tags"
+      ) {
+        inputHtml = '<select data-role="col-filter-input" style="' + inputStyle + '"><option value="">全部</option>';
+        enumOptions(field).forEach(function (opt) {
+          inputHtml +=
+            '<option value="' +
+            escapeAttr(opt.id) +
+            '"' +
+            (cur === String(opt.id) ? " selected" : "") +
+            ">" +
+            escapeHtml(opt.name) +
+            "</option>";
+        });
+        inputHtml += "</select>";
+      } else {
+        inputHtml =
+          '<input data-role="col-filter-input" type="text" value="' +
+          escapeAttr(cur) +
+          '" placeholder="包含文字…" style="' +
+          inputStyle +
+          '" />';
+      }
+      menu.innerHTML =
+        '<div style="margin-bottom:8px;color:#d4d4d4;font-size:12px">筛选 · ' +
+        escapeHtml(field.label || field.key) +
+        "</div>" +
+        inputHtml +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">' +
+        '<button type="button" data-role="col-filter-clear" style="height:26px;padding:0 10px;background:transparent;color:#f5f5f5;border:1px solid #3a3a3a;border-radius:4px;cursor:pointer">清除</button>' +
+        '<button type="button" data-role="col-filter-ok" style="height:26px;padding:0 10px;background:#3794ff;color:#fff;border:0;border-radius:4px;cursor:pointer">确定</button></div>';
+      var width = 220;
+      var left = Math.min(rect.left, window.innerWidth - width - 8);
+      if (left < 8) left = 8;
+      var top = rect.bottom + 4;
+      if (top + 160 > window.innerHeight) {
+        top = Math.max(8, rect.top - 164);
+      }
+      menu.style.cssText =
+        "position:fixed;z-index:10000;width:" +
+        width +
+        "px;left:" +
+        left +
+        "px;top:" +
+        top +
+        "px;background:#141414;border:1px solid #3a3a3a;border-radius:8px;padding:10px;box-shadow:0 12px 32px rgba(0,0,0,.55)";
+      el.appendChild(menu);
+      menu.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+      });
+      var input = menu.querySelector('[data-role="col-filter-input"]');
+      var clear = menu.querySelector('[data-role="col-filter-clear"]');
+      var ok = menu.querySelector('[data-role="col-filter-ok"]');
+      function applyAndClose(next) {
+        colFilters[field.key] = next == null ? "" : String(next);
+        openFilterKey = null;
+        removeFilterMenu();
+        render();
+      }
+      if (clear) {
+        clear.addEventListener("click", function () {
+          applyAndClose("");
+        });
+      }
+      if (ok) {
+        ok.addEventListener("click", function () {
+          applyAndClose(input ? input.value : "");
+        });
+      }
+      if (input) {
+        if (input.tagName === "SELECT") {
+          input.addEventListener("change", function () {
+            applyAndClose(input.value);
+          });
+        } else {
+          input.focus();
+          input.addEventListener("keydown", function (ev) {
+            if (ev.key === "Enter") {
+              ev.preventDefault();
+              applyAndClose(input.value);
+            } else if (ev.key === "Escape") {
+              ev.preventDefault();
+              openFilterKey = null;
+              removeFilterMenu();
+              render();
+            }
+          });
+        }
+      }
+    }
+
+    function headerFilterBtn(field) {
+      if (!filterableField(field)) return "";
+      var active = String(colFilters[field.key] || "").trim();
+      return (
+        '<button type="button" data-role="col-filter-btn" data-key="' +
+        escapeAttr(field.key) +
+        '" title="筛选" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:4px;padding:0;border:0;border-radius:3px;cursor:pointer;background:' +
+        (active || openFilterKey === field.key ? "#243044" : "transparent") +
+        '">' +
+        filterIconSvg(Boolean(active) || openFilterKey === field.key) +
+        "</button>"
+      );
     }
 
     function coerce(field, value) {
@@ -767,7 +973,7 @@ window.BitTableEditor = {
       html += '<div data-testid="table-editor" style="padding:16px 20px;box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">';
       html += '<div><div style="font-weight:500">' + escapeHtml(title) + "</div>";
-      html += '<div style="color:#a3a3a3;margin-top:2px">表格与卡片 · 勾选后可批量修改或删除</div></div>';
+      html += '<div style="color:#a3a3a3;margin-top:2px">表格与卡片 · 表头漏斗可筛选 · 勾选后可批量修改或删除</div></div>';
       html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
       html +=
         '<div style="display:flex;padding:2px;border:1px solid #3a3a3a;border-radius:6px">' +
@@ -777,6 +983,12 @@ window.BitTableEditor = {
         '<button type="button" data-testid="demo-view-card" style="' +
         tabStyle(view === "card") +
         '">卡片</button></div>';
+      if (view === "table" && hasActiveFilters()) {
+        html +=
+          '<button type="button" data-testid="demo-filter-clear" style="' +
+          btn("ghost") +
+          '">清除筛选</button>';
+      }
       html += '<span data-testid="demo-selected-count" style="color:#a3a3a3;min-width:64px">已选 ' + n + " 行</span>";
       html +=
         '<button type="button" data-testid="demo-batch-edit" ' +
@@ -840,39 +1052,46 @@ window.BitTableEditor = {
       return html;
     }
 
-    function renderTable(rows) {
-      var allOn = rows.length > 0 && selectedIndexes().length === rows.length;
+    function renderTable() {
+      var idxs = filteredRowIndexes();
+      var allOn = idxs.length > 0 && idxs.every(function (i) {
+        return picked[i];
+      });
       var html =
         '<div style="flex:1;min-height:0;overflow:hidden">' +
         '<div data-testid="demo-table" style="width:100%;overflow-x:auto;overflow-y:hidden;border:1px solid #3a3a3a;border-radius:8px">';
       html += '<table style="width:max-content;min-width:100%;border-collapse:collapse">';
       html += "<thead><tr>";
       html +=
-        '<th style="position:sticky;top:0;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a">' +
+        '<th style="position:sticky;top:0;z-index:2;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a">' +
         '<input type="checkbox" data-testid="demo-pick-all"' +
         (allOn ? " checked" : "") +
         " /></th>";
       fields.forEach(function (field) {
         html +=
-          '<th style="position:sticky;top:0;background:#1a1a1a;text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap">' +
+          '<th style="position:sticky;top:0;z-index:2;background:#1a1a1a;text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap">' +
+          '<span style="display:inline-flex;align-items:center;gap:2px">' +
           escapeHtml(field.label || field.key) +
-          "</th>";
+          headerFilterBtn(field) +
+          "</span></th>";
       });
       html +=
-        '<th style="position:sticky;top:0;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;color:#a3a3a3">操作</th></tr></thead><tbody>';
-      if (!rows.length) {
+        '<th style="position:sticky;top:0;z-index:2;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;color:#a3a3a3">操作</th></tr></thead><tbody>';
+      if (!idxs.length) {
         html +=
           '<tr><td colspan="' +
           (fields.length + 2) +
-          '" style="padding:24px;text-align:center;color:#a3a3a3">暂无行，点击「新增一行」</td></tr>';
+          '" style="padding:24px;text-align:center;color:#a3a3a3">' +
+          (data.rows.length ? "无匹配行，试试清除筛选" : "暂无行，点击「新增一行」") +
+          "</td></tr>";
       }
-      rows.forEach(function (row, ri) {
-        row = row || {};
+      idxs.forEach(function (ri, vis) {
+        var row = data.rows[ri] || {};
         html +=
           '<tr data-testid="demo-row-' +
           ri +
           '" style="background:' +
-          (picked[ri] ? "#1c2430" : ri % 2 ? "#111" : "#0a0a0a") +
+          (picked[ri] ? "#1c2430" : vis % 2 ? "#111" : "#0a0a0a") +
           '">';
         html +=
           '<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center">' +
@@ -1015,16 +1234,60 @@ window.BitTableEditor = {
       var savedScrollLeft = prevTable ? prevTable.scrollLeft : 0;
       var savedScrollTop = prevTable ? prevTable.scrollTop : 0;
       var html = toolbar("");
-      html += view === "table" ? renderTable(rows) : renderCards(rows);
+      html += view === "table" ? renderTable() : renderCards(rows);
       html += "</div>";
       el.innerHTML = html;
 
-      rows.forEach(function (_, ri) {
+      var visible = view === "table" ? filteredRowIndexes() : rows.map(function (_, i) {
+        return i;
+      });
+      visible.forEach(function (ri) {
         fields.forEach(function (field) {
           bindControl(el, field, ri);
         });
       });
       if (paramsEditRi != null) placeParamsDialog();
+
+      el.querySelectorAll('[data-role="col-filter-btn"]').forEach(function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var key = btn.getAttribute("data-key");
+          openFilterKey = openFilterKey === key ? null : key;
+          render();
+        });
+      });
+      if (openFilterKey) {
+        var filterField = fieldByKey(openFilterKey);
+        if (filterField) placeFilterMenu(filterField);
+        else openFilterKey = null;
+      }
+      var clearBtn = el.querySelector("[data-testid=demo-filter-clear]");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function () {
+          colFilters = {};
+          openFilterKey = null;
+          removeFilterMenu();
+          render();
+        });
+      }
+      if (!el._bitFilterCloseBound) {
+        el._bitFilterCloseBound = true;
+        document.addEventListener("click", function (ev) {
+          if (!openFilterKey) return;
+          var target = ev.target;
+          if (
+            target &&
+            target.closest &&
+            (target.closest('[data-role="col-filter-menu"]') || target.closest('[data-role="col-filter-btn"]'))
+          ) {
+            return;
+          }
+          openFilterKey = null;
+          removeFilterMenu();
+          render();
+        });
+      }
 
       syncTableScroll();
       var nextTable = el.querySelector("[data-testid=demo-table]");
@@ -1133,10 +1396,14 @@ window.BitTableEditor = {
       var pickAll = el.querySelector("[data-testid=demo-pick-all]");
       if (pickAll) {
         pickAll.addEventListener("change", function () {
-          picked = {};
+          var idxs = filteredRowIndexes();
           if (pickAll.checked) {
-            data.rows.forEach(function (_, i) {
+            idxs.forEach(function (i) {
               picked[i] = true;
+            });
+          } else {
+            idxs.forEach(function (i) {
+              delete picked[i];
             });
           }
           render();
