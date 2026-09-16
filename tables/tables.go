@@ -13,6 +13,7 @@ const (
 	ModeStruct = "struct"
 	ModeCheck  = "check"
 	ModeExport = "export"
+	ModeData   = "data"
 	IDPattern  = `^[a-z][a-z0-9_]{0,31}$`
 )
 

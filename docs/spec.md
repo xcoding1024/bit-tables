@@ -1,6 +1,6 @@
 # bit-tables
 
-本机配表协议：每张表是子目录里的五件套 + `{id}_docs.md`。结构/编辑器/检查器/导出脚本与数据分开。不做热更、工作台级导表、SVN 或团队共享。
+本机配表协议：每张表是子目录里的五件套 + `{id}_docs.md`。结构/编辑器/检查器/导出脚本与数据分开。不做热更、工作台级导表或团队共享。历史记录只读 git / svn 提交。
 
 ## 目录
 
@@ -47,7 +47,7 @@ iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。
 
 缺 `editor.js` 时工作台用简易回退表（解析 yaml `rows`），仍可查看/保存数据。
 
-右栏页签：结构、检查规则、导出规则（展示 `{id}_docs.md` 对应章节）、历史记录（先留空）。
+右栏页签：结构、检查规则、导出规则（展示 `{id}_docs.md` 对应章节）、历史记录（该表文件的 git / svn 提交，可筛选结构 / 检查规则 / 导出规则 / 数值修改，显示作者与时间）。
 
 ## 本机接口
 
@@ -62,6 +62,7 @@ iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。
 | POST | `/api/tables` | `{ id }` 建空表目录（并写空 `{id}_docs.md`） |
 | DELETE | `/api/tables/{id}` | 删除表目录 |
 | GET | `/api/tables/{id}/files` | 五件套文本 + `docs` |
+| GET | `/api/tables/{id}/history` | `{ vcs, entries[] }` 表文件提交；`?kinds=struct,check,export,data` 可选 |
 | PUT | `/api/tables/{id}/data` | `{ data }` 只写 data |
 | GET | `/api/tables/{id}/editor` | iframe HTML 壳（内联 editor.js） |
 | GET | `/api/events` | SSE：`file_changed`，data 为 `{ tableId, kind }` |

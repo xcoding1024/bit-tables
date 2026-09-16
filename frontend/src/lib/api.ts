@@ -18,6 +18,22 @@ export type TableFiles = TableInfo & {
   docs: string;
 };
 
+export type HistoryKind = "struct" | "check" | "export" | "data";
+
+export type HistoryEntry = {
+  id: string;
+  author: string;
+  when: string;
+  message: string;
+  kinds: HistoryKind[];
+};
+
+export type TableHistory = {
+  id: string;
+  vcs: "git" | "svn" | "";
+  entries: HistoryEntry[];
+};
+
 export type RootInfo = {
   path: string;
   guide?: boolean;
@@ -60,6 +76,7 @@ export const tablesApi = {
       body: JSON.stringify({ id }),
     }),
   files: (id: string) => api<TableFiles>(`/api/tables/${encodeURIComponent(id)}/files`),
+  history: (id: string) => api<TableHistory>(`/api/tables/${encodeURIComponent(id)}/history`),
   putData: (id: string, data: string) =>
     api<{ id: string; data: string }>(`/api/tables/${encodeURIComponent(id)}/data`, {
       method: "PUT",

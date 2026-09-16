@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
+import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
@@ -43,6 +44,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
   const [filesById, setFilesById] = useState<Record<string, TableFiles>>({});
   const [checks, setChecks] = useState<Record<string, TabCheck>>({});
   const [rightTab, setRightTab] = useState<RightTab>("struct");
+  const [historyReload, setHistoryReload] = useState(0);
   const [newOpen, setNewOpen] = useState(false);
   const [newId, setNewId] = useState("");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
@@ -236,6 +238,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
     es.addEventListener("file_changed", () => {
       void (async () => {
         const tables = await loadList();
+        setHistoryReload((n) => n + 1);
         const ids = tables.map((item) => item.id);
         for (const id of [...tabsRef.current]) {
           if (!ids.includes(id)) {
@@ -496,18 +499,20 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
                   <ChevronRight size={14} />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-auto px-3 py-3" data-testid="tables-docs">
+              <div
+                className={`min-h-0 flex-1 px-3 py-3 ${rightTab === "history" ? "overflow-hidden" : "overflow-auto"}`}
+                data-testid="tables-docs"
+              >
                 {!activeId ? (
                   <div className="text-muted">打开配置表后显示文档</div>
                 ) : rightTab === "history" ? (
-                  <div className="text-muted">历史记录稍后提供</div>
+                  <TableHistoryPanel tableId={activeId} reloadKey={historyReload} />
                 ) : docBody ? (
                   <DocsMarkdown text={docBody} />
                 ) : (
                   <div className="text-muted">暂无{rightTab === "struct" ? "结构" : rightTab === "check" ? "检查规则" : "导出规则"}说明</div>
                 )}
               </div>
-              <div className="border-t border-line px-3 py-2 text-muted">改结构或数据请直接编辑表目录文件，或用 Cursor / Codex，并更新 docs。</div>
             </>
           )}
         </aside>

@@ -165,6 +165,17 @@ func TestFilesIncludeDocsAndExport(t *testing.T) {
 	}
 }
 
+func TestHistoryAPIWithoutVCS(t *testing.T) {
+	_, h, _ := testServer(t)
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/history", nil))
+	var hist tables.History
+	decodeOK(t, res, &hist)
+	if hist.ID != "item" || hist.VCS != "" || hist.Entries == nil {
+		t.Fatalf("%#v", hist)
+	}
+}
+
 func TestPutRootSwitchesDirectory(t *testing.T) {
 	_, h, _ := testServer(t)
 	other, err := tables.SeedRoot(t.TempDir())

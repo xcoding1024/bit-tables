@@ -92,6 +92,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/tables", s.createTable)
 	mux.HandleFunc("DELETE /api/tables/{id}", s.deleteTable)
 	mux.HandleFunc("GET /api/tables/{id}/files", s.getFiles)
+	mux.HandleFunc("GET /api/tables/{id}/history", s.getHistory)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
 	mux.HandleFunc("GET /api/events", s.events)
@@ -218,6 +219,19 @@ func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, files)
+}
+
+func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
+	var kinds []string
+	if raw := strings.TrimSpace(r.URL.Query().Get("kinds")); raw != "" {
+		kinds = strings.Split(raw, ",")
+	}
+	hist, err := s.current().History(r.PathValue("id"), kinds)
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	writeOK(w, hist)
 }
 
 func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
