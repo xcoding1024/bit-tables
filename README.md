@@ -20,6 +20,14 @@ go run ./cmd/bit-tables serve D:\game\tables --addr 127.0.0.1:18780
 
 嵌入宿主：`http://127.0.0.1:18780/?embed=1&table=item`。
 
+## 编译
+
+交叉编译 Win / macOS / Linux 到 `dist/`：
+
+```powershell
+powershell -File scripts/build-all.ps1
+```
+
 ## 测试
 
 ```bash

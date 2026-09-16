@@ -1,6 +1,8 @@
 /bit-tables
 /bit-tables.exe
+/dist
 *.exe
 *.test
 *.out
 .DS_Store
+
