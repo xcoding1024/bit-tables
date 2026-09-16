@@ -24,6 +24,7 @@
     "directories": {
       "output": "dist/desktop"
     },
+    "icon": "desktop/icon.png",
     "files": [
       "desktop/**"
     ],
@@ -38,6 +39,7 @@
       }
     ],
     "win": {
+      "icon": "desktop/icon.ico",
       "target": [
         {
           "target": "zip",
