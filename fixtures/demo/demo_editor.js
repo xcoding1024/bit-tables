@@ -21,6 +21,10 @@ window.BitTableEditor = {
     var data = normalizeData(api.getData());
     var fields = parseFields(api.getStruct());
     var view = "table";
+    var picked = {};
+    var batchOpen = false;
+    var batchKey = "kind";
+    var batchDraft = {};
 
     function normalizeData(raw) {
       var next = raw && typeof raw === "object" ? raw : { rows: [] };
@@ -75,9 +79,45 @@ window.BitTableEditor = {
     }
 
     function setRow(i, key, value) {
+      if (i === "batch") {
+        batchDraft[key] = value;
+        return;
+      }
       if (!data.rows[i]) data.rows[i] = {};
       data.rows[i][key] = value;
       api.setData(data);
+    }
+
+    function selectedIndexes() {
+      return Object.keys(picked)
+        .map(Number)
+        .filter(function (i) {
+          return picked[i] && data.rows[i];
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+    }
+
+    function coerce(field, value) {
+      if (!field) return value;
+      if (field.type === "int") return String(parseInt(value, 10) || 0);
+      if (field.type === "float") return String(Number(value) || 0);
+      if (field.type === "bool") return value === true || value === "true" || value === 1 || value === "1" ? "true" : "false";
+      return value;
+    }
+
+    function batchableFields() {
+      return fields.filter(function (f) {
+        return f.key !== "id";
+      });
+    }
+
+    function fieldByKey(key) {
+      for (var i = 0; i < fields.length; i++) {
+        if (fields[i].key === key) return fields[i];
+      }
+      return batchableFields()[0];
     }
 
     function fieldControl(field, row, ri, compact) {
@@ -284,12 +324,24 @@ window.BitTableEditor = {
       );
     }
 
+    function btn(kind, extra) {
+      if (kind === "primary") {
+        return "height:28px;padding:0 10px;background:#3794ff;color:#fff;border:0;border-radius:4px;cursor:pointer;" + (extra || "");
+      }
+      if (kind === "danger") {
+        return "height:28px;padding:0 10px;background:transparent;color:#eb5757;border:1px solid #3a3a3a;border-radius:4px;cursor:pointer;" + (extra || "");
+      }
+      return "height:28px;padding:0 10px;background:#2a2a2a;color:#f5f5f5;border:0;border-radius:4px;cursor:pointer;" + (extra || "");
+    }
+
     function toolbar(html) {
-      html += '<div data-testid="table-editor" style="padding:16px 20px;box-sizing:border-box;height:100%">';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px">';
+      var n = selectedIndexes().length;
+      var disabled = n === 0 ? "opacity:.45;cursor:default" : "";
+      html += '<div data-testid="table-editor" style="padding:16px 20px;box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">';
       html += '<div><div style="font-weight:500">控件演示表</div>';
-      html += '<div style="color:#a3a3a3;margin-top:2px">表格与卡片两种形态，控件相同</div></div>';
-      html += '<div style="display:flex;align-items:center;gap:8px">';
+      html += '<div style="color:#a3a3a3;margin-top:2px">表格与卡片 · 勾选后可批量修改或删除</div></div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
       html +=
         '<div style="display:flex;padding:2px;border:1px solid #3a3a3a;border-radius:6px">' +
         '<button type="button" data-testid="demo-view-table" style="' +
@@ -298,17 +350,79 @@ window.BitTableEditor = {
         '<button type="button" data-testid="demo-view-card" style="' +
         tabStyle(view === "card") +
         '">卡片</button></div>';
+      html += '<span data-testid="demo-selected-count" style="color:#a3a3a3;min-width:64px">已选 ' + n + " 行</span>";
       html +=
-        '<button type="button" data-testid="demo-add" style="height:28px;padding:0 10px;background:#2a2a2a;color:#f5f5f5;border:0;border-radius:4px">新增一行</button>';
+        '<button type="button" data-testid="demo-batch-edit" ' +
+        (n ? "" : "disabled ") +
+        'style="' +
+        btn("ghost", disabled) +
+        '">批量修改</button>';
       html +=
-        '<button type="button" data-testid="demo-save" style="height:28px;padding:0 10px;background:#3794ff;color:#fff;border:0;border-radius:4px">保存</button></div></div>';
+        '<button type="button" data-testid="demo-batch-delete" ' +
+        (n ? "" : "disabled ") +
+        'style="' +
+        btn("danger", disabled) +
+        '">批量删除</button>';
+      html += '<button type="button" data-testid="demo-add" style="' + btn("ghost") + '">新增一行</button>';
+      html += '<button type="button" data-testid="demo-save" style="' + btn("primary") + '">保存</button></div></div>';
+      if (batchOpen) html += renderBatchPanel();
+      return html;
+    }
+
+    function renderBatchPanel() {
+      var field = fieldByKey(batchKey) || batchableFields()[0];
+      if (!field) return "";
+      batchKey = field.key;
+      if (batchDraft[field.key] == null) {
+        var opts = optionsOf(field);
+        if (field.type === "bool") batchDraft[field.key] = "true";
+        else if (opts.length) batchDraft[field.key] = opts[0];
+        else if (field.type === "int" || field.type === "float") batchDraft[field.key] = "0";
+        else if (field.widget === "color") batchDraft[field.key] = "#3794ff";
+        else batchDraft[field.key] = "";
+      }
+      var html =
+        '<div data-testid="demo-batch-panel" style="margin-bottom:12px;padding:12px;border:1px solid #3a3a3a;border-radius:8px;background:#141414">';
+      html += '<div style="margin-bottom:8px;color:#d4d4d4">把下列值写到已选 ' + selectedIndexes().length + " 行</div>";
+      html += '<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">';
+      html += '<label style="min-width:160px"><div style="margin-bottom:4px;color:#a3a3a3">字段</div>';
+      html +=
+        '<select data-testid="demo-batch-field" style="width:100%;height:28px;background:#1a1a1a;border:1px solid #3a3a3a;color:#f5f5f5;border-radius:4px;padding:0 8px">';
+      batchableFields().forEach(function (f) {
+        html +=
+          '<option value="' +
+          escapeAttr(f.key) +
+          '"' +
+          (f.key === batchKey ? " selected" : "") +
+          ">" +
+          escapeHtml(f.label || f.key) +
+          "</option>";
+      });
+      html += "</select></label>";
+      html += '<label style="min-width:220px;flex:1"><div style="margin-bottom:4px;color:#a3a3a3">新值</div>';
+      html += fieldControl(field, batchDraft, "batch", true);
+      html += "</label>";
+      html +=
+        '<button type="button" data-testid="demo-batch-apply" style="' +
+        btn("primary") +
+        '">应用到选中行</button>';
+      html +=
+        '<button type="button" data-testid="demo-batch-cancel" style="' +
+        btn("ghost") +
+        '">取消</button></div></div>';
       return html;
     }
 
     function renderTable(rows) {
-      var html = '<div data-testid="demo-table" style="overflow:auto;border:1px solid #3a3a3a;border-radius:8px">';
+      var allOn = rows.length > 0 && selectedIndexes().length === rows.length;
+      var html = '<div data-testid="demo-table" style="overflow:auto;border:1px solid #3a3a3a;border-radius:8px;flex:1;min-height:0">';
       html += '<table style="width:max-content;min-width:100%;border-collapse:collapse">';
       html += "<thead><tr>";
+      html +=
+        '<th style="position:sticky;top:0;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a">' +
+        '<input type="checkbox" data-testid="demo-pick-all"' +
+        (allOn ? " checked" : "") +
+        " /></th>";
       fields.forEach(function (field) {
         html +=
           '<th style="position:sticky;top:0;background:#1a1a1a;text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap">' +
@@ -320,12 +434,26 @@ window.BitTableEditor = {
       if (!rows.length) {
         html +=
           '<tr><td colspan="' +
-          (fields.length + 1) +
+          (fields.length + 2) +
           '" style="padding:24px;text-align:center;color:#a3a3a3">暂无行，点击「新增一行」</td></tr>';
       }
       rows.forEach(function (row, ri) {
         row = row || {};
-        html += '<tr data-testid="demo-row-' + ri + '" style="background:' + (ri % 2 ? "#111" : "#0a0a0a") + '">';
+        html +=
+          '<tr data-testid="demo-row-' +
+          ri +
+          '" style="background:' +
+          (picked[ri] ? "#1c2430" : ri % 2 ? "#111" : "#0a0a0a") +
+          '">';
+        html +=
+          '<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center">' +
+          '<input type="checkbox" data-role="pick" data-index="' +
+          ri +
+          '" data-testid="demo-pick-' +
+          ri +
+          '"' +
+          (picked[ri] ? " checked" : "") +
+          " /></td>";
         fields.forEach(function (field) {
           html += '<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle">';
           html += fieldControl(field, row, ri, true);
@@ -334,7 +462,9 @@ window.BitTableEditor = {
         html +=
           '<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a"><button type="button" data-role="remove" data-index="' +
           ri +
-          '" style="height:28px;padding:0 8px;background:transparent;color:#eb5757;border:1px solid #3a3a3a;border-radius:4px">删除</button></td></tr>';
+          '" style="' +
+          btn("danger") +
+          '">删除</button></td></tr>';
       });
       html += "</tbody></table></div>";
       return html;
@@ -354,10 +484,17 @@ window.BitTableEditor = {
         html +=
           '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #3a3a3a">';
         html +=
-          '<div style="font-family:ui-monospace,monospace;color:#d4d4d4">' +
+          '<label style="display:flex;align-items:center;gap:8px;font-family:ui-monospace,monospace;color:#d4d4d4">' +
+          '<input type="checkbox" data-role="pick" data-index="' +
+          ri +
+          '" data-testid="demo-pick-' +
+          ri +
+          '"' +
+          (picked[ri] ? " checked" : "") +
+          " />" +
           escapeHtml(row.id || "未命名") +
           (row.name ? " · " + escapeHtml(row.name) : "") +
-          "</div>";
+          "</label>";
         html +=
           '<button type="button" data-role="remove" data-index="' +
           ri +
@@ -426,7 +563,15 @@ window.BitTableEditor = {
 
       el.querySelectorAll("[data-role=remove]").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          data.rows.splice(Number(btn.getAttribute("data-index")), 1);
+          var removed = Number(btn.getAttribute("data-index"));
+          data.rows.splice(removed, 1);
+          var next = {};
+          Object.keys(picked).forEach(function (key) {
+            var i = Number(key);
+            if (i === removed) return;
+            next[i > removed ? i - 1 : i] = true;
+          });
+          picked = next;
           api.setData(data);
           render();
         });
@@ -459,6 +604,87 @@ window.BitTableEditor = {
       if (saveBtn) {
         saveBtn.addEventListener("click", function () {
           api.save();
+        });
+      }
+
+      el.querySelectorAll("[data-role=pick]").forEach(function (box) {
+        box.addEventListener("change", function () {
+          var i = Number(box.getAttribute("data-index"));
+          if (box.checked) picked[i] = true;
+          else delete picked[i];
+          render();
+        });
+      });
+      var pickAll = el.querySelector("[data-testid=demo-pick-all]");
+      if (pickAll) {
+        pickAll.addEventListener("change", function () {
+          picked = {};
+          if (pickAll.checked) {
+            data.rows.forEach(function (_, i) {
+              picked[i] = true;
+            });
+          }
+          render();
+        });
+      }
+
+      var batchEdit = el.querySelector("[data-testid=demo-batch-edit]");
+      if (batchEdit) {
+        batchEdit.addEventListener("click", function () {
+          if (!selectedIndexes().length) return;
+          batchOpen = true;
+          render();
+        });
+      }
+      var batchDelete = el.querySelector("[data-testid=demo-batch-delete]");
+      if (batchDelete) {
+        batchDelete.addEventListener("click", function () {
+          var idxs = selectedIndexes();
+          if (!idxs.length) return;
+          if (!window.confirm("删除已选 " + idxs.length + " 行？")) return;
+          idxs
+            .slice()
+            .reverse()
+            .forEach(function (i) {
+              data.rows.splice(i, 1);
+            });
+          picked = {};
+          batchOpen = false;
+          api.setData(data);
+          render();
+        });
+      }
+      var batchCancel = el.querySelector("[data-testid=demo-batch-cancel]");
+      if (batchCancel) {
+        batchCancel.addEventListener("click", function () {
+          batchOpen = false;
+          render();
+        });
+      }
+      var batchField = el.querySelector("[data-testid=demo-batch-field]");
+      if (batchField) {
+        batchField.addEventListener("change", function () {
+          batchKey = batchField.value;
+          render();
+        });
+      }
+      if (batchOpen) {
+        var bf = fieldByKey(batchKey);
+        if (bf) bindControl(el, bf, "batch");
+      }
+      var batchApply = el.querySelector("[data-testid=demo-batch-apply]");
+      if (batchApply) {
+        batchApply.addEventListener("click", function () {
+          var field = fieldByKey(batchKey);
+          if (!field) return;
+          var value = coerce(field, batchDraft[field.key]);
+          selectedIndexes().forEach(function (i) {
+            if (!data.rows[i]) data.rows[i] = {};
+            data.rows[i][field.key] = value;
+          });
+          api.setData(data);
+          batchOpen = false;
+          render();
         });
       }
     }
