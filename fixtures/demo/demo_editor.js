@@ -1011,6 +1011,9 @@ window.BitTableEditor = {
 
     function render() {
       var rows = data.rows;
+      var prevTable = el.querySelector("[data-testid=demo-table]");
+      var savedScrollLeft = prevTable ? prevTable.scrollLeft : 0;
+      var savedScrollTop = prevTable ? prevTable.scrollTop : 0;
       var html = toolbar("");
       html += view === "table" ? renderTable(rows) : renderCards(rows);
       html += "</div>";
@@ -1024,6 +1027,11 @@ window.BitTableEditor = {
       if (paramsEditRi != null) placeParamsDialog();
 
       syncTableScroll();
+      var nextTable = el.querySelector("[data-testid=demo-table]");
+      if (nextTable) {
+        nextTable.scrollLeft = savedScrollLeft;
+        nextTable.scrollTop = savedScrollTop;
+      }
       if (!el._bitResizeBound) {
         el._bitResizeBound = true;
         window.addEventListener("resize", function () {
