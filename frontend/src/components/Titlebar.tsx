@@ -1,6 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Copy, FolderOpen, FolderPlus, ListTree, Minus, Square, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Copy, Minus, Square, X } from "lucide-react";
 import { shell } from "../lib/shell";
+import { Btn, Dialog } from "./ui";
+
+const APP_VERSION = "0.1.0";
+
+type MenuId = "project" | "view" | "help" | null;
 
 export default function Titlebar({
   onOpen,
@@ -16,6 +21,9 @@ export default function Titlebar({
   const isMac = sh?.platform === "darwin";
   const showWinCtl = Boolean(ctl) && !isMac;
   const [maximized, setMaximized] = useState(false);
+  const [openMenu, setOpenMenu] = useState<MenuId>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const menusRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     ctl?.isMaximized()
@@ -23,78 +31,181 @@ export default function Titlebar({
       .catch(() => undefined);
   }, [ctl]);
 
+  useEffect(() => {
+    if (!openMenu) return;
+    function onDoc(event: MouseEvent) {
+      if (menusRef.current?.contains(event.target as Node)) return;
+      setOpenMenu(null);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenu(null);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openMenu]);
+
   function toggleMax() {
     ctl?.toggleMaximize();
     setMaximized((cur) => !cur);
   }
 
+  function run(action?: () => void) {
+    setOpenMenu(null);
+    action?.();
+  }
+
   return (
-    <div
-      className="titlebar-drag relative z-40 flex shrink-0 items-stretch bg-titlebar text-[13px] text-ink"
-      style={{ height: "var(--titlebar-height)", paddingLeft: isMac ? 78 : 0 }}
-      onDoubleClick={(event) => {
-        if ((event.target as HTMLElement).closest("[data-no-drag]")) return;
-        toggleMax();
-      }}
-    >
-      <div className="flex min-w-0 items-center gap-0.5 pl-2" data-no-drag>
-        {onOpen ? (
-          <BarBtn label="打开已有目录" onClick={onOpen}>
-            <FolderOpen size={13} />
-            <span>打开…</span>
-          </BarBtn>
-        ) : null}
-        {onCreateSample ? (
-          <BarBtn label="创建示例项目" onClick={onCreateSample}>
-            <FolderPlus size={13} />
-            <span>新建示例</span>
-          </BarBtn>
-        ) : null}
-        {onEnums ? (
-          <BarBtn label="项目枚举" onClick={onEnums} testId="titlebar-enums">
-            <ListTree size={13} />
-            <span>枚举</span>
-          </BarBtn>
+    <>
+      <div
+        className="titlebar-drag relative z-40 flex shrink-0 items-stretch bg-titlebar text-[13px] text-ink"
+        style={{ height: "var(--titlebar-height)", paddingLeft: isMac ? 78 : 0 }}
+        onDoubleClick={(event) => {
+          if ((event.target as HTMLElement).closest("[data-no-drag]")) return;
+          toggleMax();
+        }}
+      >
+        <div ref={menusRef} className="flex min-w-0 items-stretch pl-1" data-no-drag>
+          <Menu
+            id="project"
+            label="项目"
+            open={openMenu === "project"}
+            active={openMenu}
+            onOpen={setOpenMenu}
+          >
+            <MenuItem label="打开…" disabled={!onOpen} onClick={() => run(onOpen)} />
+            <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
+          </Menu>
+          <Menu
+            id="view"
+            label="查看"
+            open={openMenu === "view"}
+            active={openMenu}
+            onOpen={setOpenMenu}
+          >
+            <MenuItem
+              label="枚举"
+              disabled={!onEnums}
+              testId="titlebar-enums"
+              onClick={() => run(onEnums)}
+            />
+          </Menu>
+          <Menu
+            id="help"
+            label="帮助"
+            open={openMenu === "help"}
+            active={openMenu}
+            onOpen={setOpenMenu}
+          >
+            <MenuItem
+              label="关于 bit-tables"
+              testId="titlebar-about"
+              onClick={() => {
+                setOpenMenu(null);
+                setAboutOpen(true);
+              }}
+            />
+          </Menu>
+        </div>
+        <div className="min-w-0 flex-1" />
+        {showWinCtl ? (
+          <div className="flex" data-no-drag>
+            <WinBtn label="最小化" onClick={() => ctl?.minimize()}>
+              <Minus size={12} />
+            </WinBtn>
+            <WinBtn label={maximized ? "还原" : "最大化"} onClick={toggleMax}>
+              {maximized ? <Copy size={11} /> : <Square size={11} />}
+            </WinBtn>
+            <WinBtn label="关闭" danger onClick={() => ctl?.close()}>
+              <X size={13} />
+            </WinBtn>
+          </div>
         ) : null}
       </div>
-      <div className="min-w-0 flex-1" />
-      {showWinCtl ? (
-        <div className="flex" data-no-drag>
-          <WinBtn label="最小化" onClick={() => ctl?.minimize()}>
-            <Minus size={12} />
-          </WinBtn>
-          <WinBtn label={maximized ? "还原" : "最大化"} onClick={toggleMax}>
-            {maximized ? <Copy size={11} /> : <Square size={11} />}
-          </WinBtn>
-          <WinBtn label="关闭" danger onClick={() => ctl?.close()}>
-            <X size={13} />
-          </WinBtn>
+      <Dialog
+        open={aboutOpen}
+        title="关于 bit-tables"
+        onClose={() => setAboutOpen(false)}
+        width="max-w-[420px]"
+        footer={<Btn onClick={() => setAboutOpen(false)}>关闭</Btn>}
+      >
+        <div className="space-y-2 text-[13px] text-secondary">
+          <div className="text-[15px] font-medium text-ink">bit-tables</div>
+          <div>版本 {APP_VERSION}</div>
+          <div>本机配表工作台：用目录五件套管理结构、数据、检查与导出。</div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+function Menu({
+  id,
+  label,
+  open,
+  active,
+  onOpen,
+  children,
+}: {
+  id: Exclude<MenuId, null>;
+  label: string;
+  open: boolean;
+  active: MenuId;
+  onOpen: (id: MenuId) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative flex items-stretch">
+      <button
+        type="button"
+        className={`flex h-full items-center rounded px-2.5 ${
+          open ? "bg-active text-ink" : "text-secondary hover:bg-hover hover:text-ink"
+        }`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => onOpen(open ? null : id)}
+        onMouseEnter={() => {
+          if (active) onOpen(id);
+        }}
+      >
+        {label}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-50 mt-0 min-w-[168px] rounded border border-line bg-elevated py-1 shadow-lg"
+        >
+          {children}
         </div>
       ) : null}
     </div>
   );
 }
 
-function BarBtn({
+function MenuItem({
   label,
   onClick,
-  children,
+  disabled,
   testId,
 }: {
   label: string;
   onClick: () => void;
-  children: ReactNode;
+  disabled?: boolean;
   testId?: string;
 }) {
   return (
     <button
       type="button"
-      title={label}
+      role="menuitem"
       data-testid={testId}
-      className="flex h-7 items-center gap-1 rounded px-2 text-secondary hover:bg-hover hover:text-ink"
+      disabled={disabled}
+      className="flex h-7 w-full items-center px-3 text-left text-ink disabled:cursor-default disabled:text-muted hover:enabled:bg-hover"
       onClick={onClick}
     >
-      {children}
+      {label}
     </button>
   );
 }
