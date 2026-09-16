@@ -3,18 +3,15 @@ window.BitTableEditor = {
     var FALLBACK_FIELDS = [
       { key: "id", label: "ID", type: "string", widget: "text", group: "basic", required: true },
       { key: "name", label: "名称", type: "string", widget: "text", group: "basic", required: true },
-      { key: "kind", label: "分类", type: "enum", widget: "select", group: "basic", options: "weapon, armor, consumable, material" },
-      { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", options: "common, rare, epic, legendary" },
+      { key: "kind", label: "分类", type: "enum", widget: "select", group: "basic", enum: "kinds" },
+      { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", enum: "rarities" },
       { key: "desc", label: "描述", type: "string", widget: "textarea", group: "basic" },
       { key: "enabled", label: "启用", type: "bool", widget: "checkbox", group: "value" },
       { key: "stack", label: "堆叠上限", type: "int", widget: "number", group: "value", min: 1, max: 999 },
       { key: "weight", label: "重量", type: "float", widget: "number", group: "value", step: 0.1 },
       { key: "power", label: "强度", type: "int", widget: "range", group: "value", min: 0, max: 100 },
-      { key: "atk", label: "攻击", type: "int", widget: "number", group: "value" },
-      { key: "def", label: "防御", type: "int", widget: "number", group: "value" },
-      { key: "color", label: "品质色", type: "string", widget: "color", group: "extra" },
       { key: "available_from", label: "上架日期", type: "date", widget: "date", group: "extra" },
-      { key: "tags", label: "标签", type: "string_list", widget: "tags", group: "extra" },
+      { key: "tags", label: "标签", type: "enum", widget: "multiselect", group: "extra", enum: "tags" },
     ];
     var GROUP_NAMES = { basic: "基础信息", value: "数值与开关", extra: "展示与扩展" };
 
@@ -28,6 +25,7 @@ window.BitTableEditor = {
     var batchOpen = false;
     var batchKey = "kind";
     var batchDraft = {};
+    var openMultiKey = null;
 
     function normalizeData(raw) {
       var next = raw && typeof raw === "object" ? raw : { rows: [] };
@@ -66,6 +64,38 @@ window.BitTableEditor = {
       return enumOptions(field).map(function (item) {
         return item.id;
       });
+    }
+
+    function splitMulti(value) {
+      if (Array.isArray(value)) {
+        return value.map(String).map(function (s) {
+          return s.trim();
+        }).filter(Boolean);
+      }
+      return String(value == null ? "" : value)
+        .split(",")
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+    }
+
+    function joinMulti(ids) {
+      return ids.join(", ");
+    }
+
+    function multiSummary(field, val) {
+      var ids = splitMulti(val);
+      if (!ids.length) return "请选择…";
+      var byId = {};
+      enumOptions(field).forEach(function (opt) {
+        byId[opt.id] = opt.name;
+      });
+      return ids
+        .map(function (id) {
+          return byId[id] || id;
+        })
+        .join(", ");
     }
 
     function groups() {
@@ -228,37 +258,29 @@ window.BitTableEditor = {
           "</span></div>"
         );
       }
-      if (widget === "color") {
-        var color = String(val || "#3794ff");
-        return (
-          '<div style="display:flex;align-items:center;gap:6px">' +
-          '<input type="color" ' +
-          test +
-          ' value="' +
-          escapeAttr(color) +
-          '" style="width:28px;height:28px;border:1px solid #3a3a3a;background:#1a1a1a;padding:0" />' +
-          (compact
-            ? ""
-            : '<input data-role="color-text" value="' +
-              escapeAttr(color) +
-              '" style="' +
-              input +
-              ';max-width:120px;font-family:ui-monospace,monospace" />') +
-          "</div>"
-        );
-      }
       if (widget === "date") {
         return '<input type="date" ' + test + ' value="' + escapeAttr(val) + '" style="' + input + '" />';
       }
-      if (widget === "tags") {
+      if (widget === "multiselect" || widget === "tags") {
+        var mid = key + "-" + ri;
+        var summary = multiSummary(field, val);
         return (
-          '<input type="text" ' +
+          '<div data-role="multi-wrap" data-multi-id="' +
+          escapeAttr(mid) +
+          '" style="position:relative;min-width:' +
+          (compact ? "140px" : "100%") +
+          '">' +
+          '<button type="button" data-role="multi-toggle" ' +
           test +
-          ' value="' +
-          escapeAttr(val) +
-          '" placeholder="melee, starter" style="' +
+          ' style="' +
           input +
-          '" />'
+          ';display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer">' +
+          '<span data-role="multi-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;' +
+          (splitMulti(val).length ? "color:#f5f5f5" : "color:#737373") +
+          '">' +
+          escapeHtml(summary) +
+          "</span>" +
+          '<span style="color:#a3a3a3;flex-shrink:0">▾</span></button></div>'
         );
       }
       if (widget === "number" || field.type === "int" || field.type === "float") {
@@ -273,16 +295,125 @@ window.BitTableEditor = {
       return '<input type="text" ' + test + readonly + ' value="' + escapeAttr(val) + '" style="' + input + '" />';
     }
 
+    function removeMultiMenu() {
+      var old = el.querySelector('[data-role="multi-menu"]');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+
+    function currentMultiValue(ri, key) {
+      if (ri === "batch") return batchDraft[key] == null ? "" : batchDraft[key];
+      var row = data.rows[ri] || {};
+      return row[key] == null ? "" : row[key];
+    }
+
+    function placeMultiMenu(field, ri) {
+      removeMultiMenu();
+      var mid = field.key + "-" + ri;
+      var wrap = el.querySelector('[data-role="multi-wrap"][data-multi-id="' + mid + '"]');
+      if (!wrap) return;
+      var toggle = wrap.querySelector('[data-role="multi-toggle"]');
+      var label = wrap.querySelector('[data-role="multi-label"]');
+      if (!toggle) return;
+      var rect = toggle.getBoundingClientRect();
+      var selected = {};
+      splitMulti(currentMultiValue(ri, field.key)).forEach(function (id) {
+        selected[id] = true;
+      });
+      var menu = document.createElement("div");
+      menu.setAttribute("data-role", "multi-menu");
+      menu.setAttribute("data-multi-id", mid);
+      var opts = enumOptions(field);
+      var inner = "";
+      opts.forEach(function (opt) {
+        inner +=
+          '<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;cursor:pointer;white-space:nowrap">' +
+          '<input type="checkbox" data-role="multi" value="' +
+          escapeAttr(opt.id) +
+          '"' +
+          (selected[opt.id] ? " checked" : "") +
+          " />" +
+          escapeHtml(opt.name) +
+          "</label>";
+      });
+      if (!opts.length) {
+        inner = '<div style="padding:8px;color:#737373;font-size:12px">暂无枚举项</div>';
+      }
+      menu.innerHTML = inner;
+      var maxH = 220;
+      var spaceBelow = window.innerHeight - rect.bottom - 8;
+      var spaceAbove = rect.top - 8;
+      var openUp = spaceBelow < 140 && spaceAbove > spaceBelow;
+      var height = Math.min(maxH, Math.max(120, openUp ? spaceAbove : spaceBelow));
+      menu.style.cssText =
+        "position:fixed;z-index:9999;min-width:" +
+        Math.max(rect.width, 160) +
+        "px;max-height:" +
+        height +
+        "px;overflow:auto;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;padding:6px;box-shadow:0 10px 28px rgba(0,0,0,.5);left:" +
+        rect.left +
+        "px;" +
+        (openUp
+          ? "bottom:" + (window.innerHeight - rect.top + 2) + "px;top:auto;"
+          : "top:" + (rect.bottom + 2) + "px;");
+      el.appendChild(menu);
+      menu.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+      });
+      menu.addEventListener(
+        "wheel",
+        function (ev) {
+          ev.stopPropagation();
+          var dy = ev.deltaY;
+          if (!dy) return;
+          var before = menu.scrollTop;
+          menu.scrollTop = before + dy;
+          ev.preventDefault();
+        },
+        { passive: false }
+      );
+      var boxes = menu.querySelectorAll('[data-role="multi"]');
+      function syncMulti() {
+        var ids = [];
+        for (var i = 0; i < boxes.length; i++) {
+          if (boxes[i].checked) ids.push(boxes[i].value);
+        }
+        var next = joinMulti(ids);
+        setRow(ri, field.key, next);
+        if (label) {
+          label.textContent = multiSummary(field, next);
+          label.style.color = ids.length ? "#f5f5f5" : "#737373";
+        }
+      }
+      for (var mi = 0; mi < boxes.length; mi++) {
+        boxes[mi].addEventListener("change", syncMulti);
+      }
+    }
+
     function bindControl(root, field, ri) {
+      var widget = field.widget || "text";
+      if (widget === "multiselect" || widget === "tags") {
+        var mid = field.key + "-" + ri;
+        var wrap = root.querySelector('[data-role="multi-wrap"][data-multi-id="' + mid + '"]');
+        if (!wrap) return;
+        var toggle = wrap.querySelector('[data-role="multi-toggle"]');
+        if (toggle) {
+          toggle.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openMultiKey = openMultiKey === mid ? null : mid;
+            render();
+          });
+        }
+        if (openMultiKey === mid) placeMultiMenu(field, ri);
+        return;
+      }
       var nodes = root.querySelectorAll('[data-testid="demo-' + field.key + "-" + ri + '"]');
       if (!nodes.length) return;
       var node = nodes[0];
-      var widget = field.widget || "text";
       if (node.tagName === "SELECT") widget = "select";
       if (node.tagName === "TEXTAREA") widget = "textarea";
       if (node.type === "checkbox") widget = "checkbox";
       if (node.type === "range") widget = "range";
-      if (node.type === "color") widget = "color";
       function apply(value) {
         if (field.type === "int") setRow(ri, field.key, String(parseInt(value, 10) || 0));
         else if (field.type === "float") setRow(ri, field.key, String(Number(value) || 0));
@@ -304,25 +435,11 @@ window.BitTableEditor = {
         return;
       }
       if (widget === "range") {
-        var label = nodes[0].parentNode.querySelector("[data-role=range-label]");
+        var rangeLabel = nodes[0].parentNode.querySelector("[data-role=range-label]");
         nodes[0].addEventListener("input", function (ev) {
-          if (label) label.textContent = ev.target.value;
+          if (rangeLabel) rangeLabel.textContent = ev.target.value;
           apply(ev.target.value);
         });
-        return;
-      }
-      if (widget === "color") {
-        var text = nodes[0].parentNode.querySelector("[data-role=color-text]");
-        nodes[0].addEventListener("input", function (ev) {
-          if (text) text.value = ev.target.value;
-          apply(ev.target.value);
-        });
-        if (text) {
-          text.addEventListener("change", function (ev) {
-            nodes[0].value = ev.target.value;
-            apply(ev.target.value);
-          });
-        }
         return;
       }
       var evName = widget === "select" || widget === "date" || widget === "number" ? "change" : "input";
@@ -397,7 +514,7 @@ window.BitTableEditor = {
         if (field.type === "bool") batchDraft[field.key] = "true";
         else if (opts.length) batchDraft[field.key] = opts[0].id;
         else if (field.type === "int" || field.type === "float") batchDraft[field.key] = "0";
-        else if (field.widget === "color") batchDraft[field.key] = "#3794ff";
+        else if (field.widget === "multiselect") batchDraft[field.key] = "";
         else batchDraft[field.key] = "";
       }
       var html =
@@ -529,7 +646,11 @@ window.BitTableEditor = {
           html += '<div style="color:#a3a3a3;margin-bottom:8px">' + escapeHtml(GROUP_NAMES[gid] || gid) + "</div>";
           html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 16px">';
           gFields.forEach(function (field) {
-            var wide = field.widget === "textarea" || field.widget === "radio" || field.widget === "tags";
+            var wide =
+              field.widget === "textarea" ||
+              field.widget === "radio" ||
+              field.widget === "multiselect" ||
+              field.widget === "tags";
             html +=
               '<label style="display:block' +
               (wide ? ";grid-column:1/-1" : "") +
@@ -557,7 +678,7 @@ window.BitTableEditor = {
         if (f.key === "id") row.id = "new_" + (data.rows.length + 1);
         else if (f.type === "bool") row[f.key] = "true";
         else if (f.type === "int" || f.type === "float") row[f.key] = "0";
-        else if (f.widget === "color") row[f.key] = "#3794ff";
+        else if (f.widget === "multiselect") row[f.key] = "";
         else {
           var opts = enumOptions(f);
           row[f.key] = opts.length ? opts[0].id : "";
@@ -612,6 +733,43 @@ window.BitTableEditor = {
         window.addEventListener("resize", function () {
           syncTableScroll();
         });
+      }
+      if (!el._bitMultiCloseBound) {
+        el._bitMultiCloseBound = true;
+        document.addEventListener("click", function (ev) {
+          if (!openMultiKey) return;
+          var target = ev.target;
+          if (
+            target &&
+            target.closest &&
+            (target.closest('[data-role="multi-wrap"]') || target.closest('[data-role="multi-menu"]'))
+          ) {
+            return;
+          }
+          openMultiKey = null;
+          removeMultiMenu();
+          render();
+        });
+      }
+      if (!el._bitMultiScrollBound) {
+        el._bitMultiScrollBound = true;
+        el.addEventListener(
+          "scroll",
+          function (ev) {
+            if (!openMultiKey) return;
+            var menu = el.querySelector('[data-role="multi-menu"]');
+            if (menu && (ev.target === menu || (menu.contains && menu.contains(ev.target)))) {
+              return;
+            }
+            var table = el.querySelector("[data-testid=demo-table]");
+            if (table && (ev.target === table || (table.contains && table.contains(ev.target)))) {
+              openMultiKey = null;
+              removeMultiMenu();
+              render();
+            }
+          },
+          true
+        );
       }
 
       el.querySelectorAll("[data-role=remove]").forEach(function (btn) {

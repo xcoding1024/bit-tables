@@ -15,21 +15,18 @@
   - enabled：是否启用
   - stack：堆叠上限，1–999
   - weight：重量
-  - power：强度，0–100
-  - atk / def：攻击、防御
-  - color：品质色 #RRGGBB
+  - power：强度，0–100（滑条）
   - available_from：上架日期
-  - tags：标签，逗号分隔
-- sheet `kinds`（分类，`kind: enum`）：id / name
-- sheet `rarities`（稀有度，`kind: enum`）：id / name
-- 数据按 sheet 写在 `sheets.items.rows` / `sheets.kinds.rows` / `sheets.rarities.rows`
+  - tags：标签，`enum: tags` + `widget: multiselect`（下拉多选，存逗号分隔 id，显示名称）
+- sheet `kinds` / `rarities` / `tags`（`kind: enum`）：id / name
+- 数据按 sheet 写在 `sheets.items.rows` 等
 
 ## 检查规则
 
 - 校整表所有 sheet；路径形如 `sheets.items.rows.0.id`
 - 该 sheet `required` 字段必填；缺省时 items 至少检查 id、name
 - id 须小写字母开头，仅字母数字下划线，且在同一 sheet 内不重复
-- items：kind / rarity 须落在对应枚举 sheet；stack 1–999；power 0–100；color `#RRGGBB`
+- items：kind / rarity 须落在对应枚举；tags 每个 id 须落在 tags 枚举；stack 1–999；power 0–100
 - 对应 `demo_checker.js` 的 `BitTableChecker.check(data, struct, enums)`
 
 ## 导出规则

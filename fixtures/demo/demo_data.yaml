@@ -10,9 +10,6 @@ sheets:
         stack: 1
         weight: 3.5
         power: 42
-        atk: 18
-        def: 2
-        color: "#8b9bb4"
         available_from: 2026-01-01
         tags: melee, starter
       - id: health_potion
@@ -24,9 +21,6 @@ sheets:
         stack: 20
         weight: 0.2
         power: 15
-        atk: 0
-        def: 0
-        color: "#eb5757"
         available_from: 2026-02-10
         tags: heal, consumable
       - id: dragon_mail
@@ -38,9 +32,6 @@ sheets:
         stack: 1
         weight: 18.0
         power: 96
-        atk: 0
-        def: 55
-        color: "#f2c94c"
         available_from: 2026-09-01
         tags: armor, fire, late
       - id: magic_ore
@@ -52,9 +43,6 @@ sheets:
         stack: 99
         weight: 0.8
         power: 60
-        atk: 0
-        def: 0
-        color: "#3794ff"
         available_from: 2026-03-20
         tags: craft, rare
   kinds:
@@ -77,3 +65,23 @@ sheets:
         name: 史诗
       - id: legendary
         name: 传说
+  tags:
+    rows:
+      - id: melee
+        name: 近战
+      - id: starter
+        name: 新手
+      - id: heal
+        name: 治疗
+      - id: consumable
+        name: 消耗
+      - id: armor
+        name: 护甲
+      - id: fire
+        name: 火焰
+      - id: late
+        name: 后期
+      - id: craft
+        name: 打造
+      - id: rare
+        name: 稀有材料

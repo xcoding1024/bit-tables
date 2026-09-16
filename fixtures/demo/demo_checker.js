@@ -46,7 +46,9 @@ window.BitTableChecker = {
 
     function checkRows(sheetId, rows, fields) {
       var required = requiredKeys(fields);
-      if (!required.length && sheetId !== "kinds" && sheetId !== "rarities") required = ["id", "name"];
+      if (!required.length && sheetId !== "kinds" && sheetId !== "rarities" && sheetId !== "tags") {
+        required = ["id", "name"];
+      }
       var ids = {};
       var enumFields = (fields || []).filter(function (f) {
         return f && (f.enum || f.type === "enum");
@@ -73,9 +75,24 @@ window.BitTableChecker = {
           var val = row[key];
           if (val == null || val === "") return;
           var allowed = enumIdSet(field);
-          if (Object.keys(allowed).length && !allowed[String(val)]) {
-            errors.push({ path: prefix + "." + key, message: key + " 不在枚举 " + (field.enum || "") });
-          }
+          if (!Object.keys(allowed).length) return;
+          var multi = field.widget === "multiselect" || field.widget === "tags";
+          var values = multi
+            ? String(val)
+                .split(",")
+                .map(function (s) {
+                  return s.trim();
+                })
+                .filter(Boolean)
+            : [String(val)];
+          values.forEach(function (id) {
+            if (!allowed[id]) {
+              errors.push({
+                path: prefix + "." + key,
+                message: key + " 不在枚举 " + (field.enum || "") + "：" + id,
+              });
+            }
+          });
         });
         var stack = Number(row.stack);
         if (row.stack != null && row.stack !== "" && (isNaN(stack) || stack < 1 || stack > 999)) {
@@ -84,9 +101,6 @@ window.BitTableChecker = {
         var power = Number(row.power);
         if (row.power != null && row.power !== "" && (isNaN(power) || power < 0 || power > 100)) {
           errors.push({ path: prefix + ".power", message: "强度须在 0–100" });
-        }
-        if (row.color && !/^#[0-9a-fA-F]{6}$/.test(String(row.color))) {
-          errors.push({ path: prefix + ".color", message: "品质色须为 #RRGGBB" });
         }
       }
     }
