@@ -80,3 +80,119 @@ body {
 .panel-resize.dragging {
   background: var(--border-strong);
 }
+
+.docs-md {
+  color: var(--text);
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.docs-md > :first-child {
+  margin-top: 0;
+}
+
+.docs-md > :last-child {
+  margin-bottom: 0;
+}
+
+.docs-md p,
+.docs-md ul,
+.docs-md ol,
+.docs-md pre,
+.docs-md table,
+.docs-md blockquote {
+  margin: 0 0 0.75em;
+}
+
+.docs-md h1,
+.docs-md h2,
+.docs-md h3,
+.docs-md h4 {
+  margin: 0.9em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.docs-md h1 {
+  font-size: 16px;
+}
+
+.docs-md h2 {
+  font-size: 14px;
+}
+
+.docs-md h3,
+.docs-md h4 {
+  font-size: 13px;
+}
+
+.docs-md ul,
+.docs-md ol {
+  padding-left: 1.25em;
+}
+
+.docs-md li {
+  margin: 0.2em 0;
+}
+
+.docs-md li > ul,
+.docs-md li > ol {
+  margin: 0.2em 0 0;
+}
+
+.docs-md code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+.docs-md pre {
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.docs-md pre code {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+.docs-md a {
+  color: var(--accent);
+}
+
+.docs-md blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 10px;
+  color: var(--text-secondary);
+}
+
+.docs-md table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.docs-md th,
+.docs-md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.docs-md th {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.docs-md hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0.9em 0;
+}

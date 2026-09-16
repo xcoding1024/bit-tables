@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
+import { DocsMarkdown } from "../components/DocsMarkdown";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
@@ -501,7 +502,7 @@ export default function Workbench({ rootPath }: { rootPath: string }) {
                 ) : rightTab === "history" ? (
                   <div className="text-muted">历史记录稍后提供</div>
                 ) : docBody ? (
-                  <div className="whitespace-pre-wrap">{docBody}</div>
+                  <DocsMarkdown text={docBody} />
                 ) : (
                   <div className="text-muted">暂无{rightTab === "struct" ? "结构" : rightTab === "check" ? "检查规则" : "导出规则"}说明</div>
                 )}
