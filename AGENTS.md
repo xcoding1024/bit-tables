@@ -13,9 +13,14 @@
     item_checker.js
     item_export.js
     item_docs.md
+  combat/                 # 普通目录
+    skill/
+      skill_struct.yaml
+      ...
 ```
 
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
+- 只有包含 `*_struct.yaml` 的目录才识别为配置表；其它目录是普通文件夹，左侧按文件树展示。可嵌套，如 `combat/skill`
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`），由该表 editor/checker/export 解释
 - sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为隐式 `main`，数据仍可用顶层 `rows`
 - 多 sheet 数据写在 `sheets.{id}.rows`。editor 按当前 sheet 的 `fields` + `rows` 画一页；checker / export 校整表，路径形如 `sheets.items.rows.0.id`

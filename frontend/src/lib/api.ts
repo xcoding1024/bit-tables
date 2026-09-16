@@ -1,5 +1,6 @@
 export type TableInfo = {
   id: string;
+  path?: string;
   hasStruct: boolean;
   hasData: boolean;
   hasEditor: boolean;
@@ -7,6 +8,14 @@ export type TableInfo = {
   hasExport: boolean;
   hasDocs: boolean;
   complete: boolean;
+};
+
+export type TreeNode = {
+  name: string;
+  path: string;
+  kind: "dir" | "table";
+  table?: TableInfo;
+  children?: TreeNode[];
 };
 
 export type TableFiles = TableInfo & {
@@ -69,7 +78,7 @@ export const tablesApi = {
       method: "PUT",
       body: JSON.stringify({ path, sample: Boolean(opts?.sample), guide: Boolean(opts?.guide) }),
     }),
-  list: () => api<{ tables: TableInfo[]; path: string }>("/api/tables"),
+  list: () => api<{ tables: TableInfo[]; tree?: TreeNode[]; path: string }>("/api/tables"),
   create: (id: string) =>
     api<TableInfo>("/api/tables", {
       method: "POST",

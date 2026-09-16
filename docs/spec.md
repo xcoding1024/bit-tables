@@ -13,9 +13,14 @@
     item_checker.js
     item_export.js
     item_docs.md
+  combat/                 # 普通目录（无 *_struct.yaml）
+    skill/
+      skill_struct.yaml
+      ...
 ```
 
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
+- 只有包含 `*_struct.yaml` 的目录才识别为配置表；其它目录是普通文件夹。左侧列表按文件树展示，可嵌套（`combat/skill`）
 - 结构修改：`*_struct.yaml`、`*_editor.js`、`*_checker.js`、`*_export.js`；字段不兼容时可迁移 data；同时更新 `{id}_docs.md`
 - 数据修改：只改 `*_data.yaml`，并核对更新 `{id}_docs.md`
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`，以及该表 editor 需要的 views/groups 等），由该表 editor/checker/export 解释
@@ -102,8 +107,8 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 | GET | `/` | 工作台 HTML |
 | GET | `/api/root` | `{ path, guide }` |
 | PUT | `/api/root` | `{ path, sample?, guide? }` 切换配表根目录 |
-| GET | `/api/tables` | `{ tables, path }` |
-| POST | `/api/tables` | `{ id }` 建空表目录（并写空 `{id}_docs.md`） |
+| GET | `/api/tables` | `{ tables, tree, path }`；`tree` 为文件树（`dir` / `table`），`tables` 为扁平表列表 |
+| POST | `/api/tables` | `{ id }` 建空表目录（可写 `folder/id`）；写入空 `{id}_struct.yaml` 与 `{id}_docs.md` |
 | DELETE | `/api/tables/{id}` | 删除表目录 |
 | GET | `/api/tables/{id}/files` | 五件套文本 + `docs` |
 | GET | `/api/tables/{id}/history` | `{ vcs, entries[] }` 表文件提交；`?kinds=struct,check,export,data` 可选 |

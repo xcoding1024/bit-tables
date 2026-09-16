@@ -162,8 +162,9 @@ func (r *Root) History(id string, kinds []string) (History, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return History{}, err
 	}
+	tableID := TableID(id)
 	kinds = NormalizeHistoryKinds(kinds)
-	out := History{ID: id, Entries: []HistoryEntry{}}
+	out := History{ID: tableID, Entries: []HistoryEntry{}}
 	gitRoot := findVCSRoot(dir, ".git")
 	svnRoot := findVCSRoot(dir, ".svn")
 	useGit := gitRoot != "" && (svnRoot == "" || len(gitRoot) >= len(svnRoot))
@@ -172,7 +173,7 @@ func (r *Root) History(id string, kinds []string) (History, error) {
 	if useGit {
 		if _, err := exec.LookPath("git"); err == nil {
 			out.VCS = "git"
-			entries, err := gitHistory(ctx, gitRoot, dir, id, kinds)
+			entries, err := gitHistory(ctx, gitRoot, dir, tableID, kinds)
 			if err == nil {
 				out.Entries = entries
 			}
@@ -182,7 +183,7 @@ func (r *Root) History(id string, kinds []string) (History, error) {
 	if svnRoot != "" {
 		if _, err := exec.LookPath("svn"); err == nil {
 			out.VCS = "svn"
-			entries, err := svnHistory(ctx, svnRoot, dir, id, kinds)
+			entries, err := svnHistory(ctx, svnRoot, dir, tableID, kinds)
 			if err == nil {
 				out.Entries = entries
 			}
@@ -262,16 +263,16 @@ func parseGitLog(raw, tableID string, kinds []string) []HistoryEntry {
 }
 
 type svnLogXML struct {
-	XMLName xml.Name       `xml:"log"`
-	Entries []svnLogEntry  `xml:"logentry"`
+	XMLName xml.Name      `xml:"log"`
+	Entries []svnLogEntry `xml:"logentry"`
 }
 
 type svnLogEntry struct {
-	Revision string        `xml:"revision,attr"`
-	Author   string        `xml:"author"`
-	Date     string        `xml:"date"`
-	Msg      string        `xml:"msg"`
-	Paths    []svnLogPath  `xml:"paths>path"`
+	Revision string       `xml:"revision,attr"`
+	Author   string       `xml:"author"`
+	Date     string       `xml:"date"`
+	Msg      string       `xml:"msg"`
+	Paths    []svnLogPath `xml:"paths>path"`
 }
 
 type svnLogPath struct {

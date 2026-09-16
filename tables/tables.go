@@ -2,6 +2,7 @@ package tables
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,6 +28,7 @@ var (
 
 type Info struct {
 	ID         string `json:"id"`
+	Path       string `json:"path,omitempty"`
 	HasStruct  bool   `json:"hasStruct"`
 	HasData    bool   `json:"hasData"`
 	HasEditor  bool   `json:"hasEditor"`
@@ -34,6 +36,14 @@ type Info struct {
 	HasExport  bool   `json:"hasExport"`
 	HasDocs    bool   `json:"hasDocs"`
 	Complete   bool   `json:"complete"`
+}
+
+type TreeNode struct {
+	Name     string     `json:"name"`
+	Path     string     `json:"path"`
+	Kind     string     `json:"kind"`
+	Table    *Info      `json:"table,omitempty"`
+	Children []TreeNode `json:"children,omitempty"`
 }
 
 type Files struct {
@@ -96,6 +106,29 @@ func ValidID(id string) bool {
 	return idRe.MatchString(id)
 }
 
+func TableID(id string) string {
+	s := strings.ReplaceAll(strings.TrimSpace(id), "\\", "/")
+	s = strings.Trim(s, "/")
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
+func ValidPath(id string) bool {
+	s := strings.ReplaceAll(strings.TrimSpace(id), "\\", "/")
+	s = strings.Trim(s, "/")
+	if s == "" {
+		return false
+	}
+	for _, part := range strings.Split(s, "/") {
+		if !ValidID(part) {
+			return false
+		}
+	}
+	return true
+}
+
 func absExistingDir(p string) (string, error) {
 	if strings.TrimSpace(p) == "" {
 		return "", errors.New("路径不能为空")
@@ -119,15 +152,77 @@ func FileName(tableID, kind string) string {
 }
 
 func (r *Root) Dir(id string) (string, error) {
-	if !ValidID(id) {
+	s := strings.ReplaceAll(strings.TrimSpace(id), "\\", "/")
+	s = strings.Trim(s, "/")
+	if !ValidPath(s) {
 		return "", ErrBadID
 	}
-	dir := filepath.Join(r.Path, id)
+	if !strings.Contains(s, "/") {
+		direct := filepath.Join(r.Path, s)
+		if isTableDir(direct) {
+			return direct, nil
+		}
+		if found := r.findTable(s); found != "" {
+			return found, nil
+		}
+	}
+	return r.joinPath(s)
+}
+
+func (r *Root) joinPath(slashPath string) (string, error) {
+	parts := strings.Split(slashPath, "/")
+	dir := filepath.Join(append([]string{r.Path}, parts...)...)
 	rel, err := filepath.Rel(r.Path, dir)
-	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
 		return "", ErrEscape
 	}
 	return dir, nil
+}
+
+func (r *Root) relPath(dir string) string {
+	rel, err := filepath.Rel(r.Path, dir)
+	if err != nil {
+		return filepath.Base(dir)
+	}
+	return filepath.ToSlash(rel)
+}
+
+func (r *Root) findTable(id string) string {
+	var found string
+	var walk func(string)
+	walk = func(abs string) {
+		if found != "" {
+			return
+		}
+		entries, err := os.ReadDir(abs)
+		if err != nil {
+			return
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+		var dirs []os.DirEntry
+		for _, ent := range entries {
+			if !ent.IsDir() || strings.HasPrefix(ent.Name(), ".") {
+				continue
+			}
+			child := filepath.Join(abs, ent.Name())
+			if isTableDir(child) {
+				if ent.Name() == id {
+					found = child
+					return
+				}
+				continue
+			}
+			dirs = append(dirs, ent)
+		}
+		for _, ent := range dirs {
+			walk(filepath.Join(abs, ent.Name()))
+			if found != "" {
+				return
+			}
+		}
+	}
+	walk(r.Path)
+	return found
 }
 
 func readFile(dir, tableID, kind string) (string, bool) {
@@ -157,23 +252,123 @@ func Inspect(dir, tableID string) Info {
 	return info
 }
 
-func (r *Root) List() ([]Info, error) {
-	entries, err := os.ReadDir(r.Path)
+func hasStructYAML(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		name := ent.Name()
+		if strings.HasSuffix(name, "_struct.yaml") && len(name) > len("_struct.yaml") {
+			return true
+		}
+	}
+	return false
+}
+
+func isTableDir(dir string) bool {
+	st, err := os.Stat(dir)
+	if err != nil || !st.IsDir() {
+		return false
+	}
+	if !ValidID(filepath.Base(dir)) {
+		return false
+	}
+	return hasStructYAML(dir)
+}
+
+func (r *Root) inspectAt(abs, rel string) Info {
+	info := Inspect(abs, filepath.Base(abs))
+	info.Path = rel
+	return info
+}
+
+func (r *Root) walkNodes(abs, rel string, keepEmpty bool) ([]TreeNode, error) {
+	entries, err := os.ReadDir(abs)
 	if err != nil {
 		return nil, err
 	}
-	var out []Info
+	var nodes []TreeNode
 	for _, ent := range entries {
-		if !ent.IsDir() || strings.HasPrefix(ent.Name(), ".") || !ValidID(ent.Name()) {
+		if !ent.IsDir() || strings.HasPrefix(ent.Name(), ".") {
 			continue
 		}
-		info := Inspect(filepath.Join(r.Path, ent.Name()), ent.Name())
-		if !info.HasStruct && !info.HasData && !info.HasEditor && !info.HasChecker && !info.HasExport && !info.HasDocs {
+		childRel := ent.Name()
+		if rel != "" {
+			childRel = rel + "/" + ent.Name()
+		}
+		childAbs := filepath.Join(abs, ent.Name())
+		if isTableDir(childAbs) {
+			info := r.inspectAt(childAbs, childRel)
+			nodes = append(nodes, TreeNode{
+				Name:  ent.Name(),
+				Path:  childRel,
+				Kind:  "table",
+				Table: &info,
+			})
 			continue
 		}
-		out = append(out, info)
+		children, err := r.walkNodes(childAbs, childRel, keepEmpty)
+		if err != nil {
+			return nil, err
+		}
+		if !keepEmpty && len(children) == 0 {
+			continue
+		}
+		nodes = append(nodes, TreeNode{
+			Name:     ent.Name(),
+			Path:     childRel,
+			Kind:     "dir",
+			Children: children,
+		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].Kind != nodes[j].Kind {
+			return nodes[i].Kind == "dir"
+		}
+		return nodes[i].Name < nodes[j].Name
+	})
+	return nodes, nil
+}
+
+func (r *Root) Tree() ([]TreeNode, error) {
+	nodes, err := r.walkNodes(r.Path, "", true)
+	if err != nil {
+		return nil, err
+	}
+	if nodes == nil {
+		nodes = []TreeNode{}
+	}
+	return nodes, nil
+}
+
+func (r *Root) List() ([]Info, error) {
+	var out []Info
+	var collect func([]TreeNode)
+	collect = func(nodes []TreeNode) {
+		for i := range nodes {
+			node := nodes[i]
+			if node.Kind == "table" && node.Table != nil {
+				out = append(out, *node.Table)
+				continue
+			}
+			collect(node.Children)
+		}
+	}
+	nodes, err := r.walkNodes(r.Path, "", false)
+	if err != nil {
+		return nil, err
+	}
+	collect(nodes)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Path == out[j].Path {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Path < out[j].Path
+	})
 	if out == nil {
 		out = []Info{}
 	}
@@ -188,13 +383,19 @@ func (r *Root) Create(id string) (Info, error) {
 	if _, err := os.Stat(dir); err == nil {
 		return Info{}, ErrExists
 	}
+	tableID := TableID(id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Info{}, err
 	}
-	if err := EnsureDocs(dir, id); err != nil {
+	if err := EnsureDocs(dir, tableID); err != nil {
 		return Info{}, err
 	}
-	return Inspect(dir, id), nil
+	if err := WriteText(dir, tableID, "struct.yaml", "id: "+tableID+"\n"); err != nil {
+		return Info{}, err
+	}
+	info := Inspect(dir, tableID)
+	info.Path = r.relPath(dir)
+	return info, nil
 }
 
 func (r *Root) Delete(id string) error {
@@ -216,15 +417,17 @@ func (r *Root) Files(id string) (Files, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return Files{}, err
 	}
-	structText, hasStruct := readFile(dir, id, "struct.yaml")
-	dataText, hasData := readFile(dir, id, "data.yaml")
-	editor, hasEditor := readFile(dir, id, "editor.js")
-	checker, hasChecker := readFile(dir, id, "checker.js")
-	exportText, hasExport := readFile(dir, id, "export.js")
-	docs, hasDocs := ReadDocs(dir, id)
+	tableID := TableID(id)
+	structText, hasStruct := readFile(dir, tableID, "struct.yaml")
+	dataText, hasData := readFile(dir, tableID, "data.yaml")
+	editor, hasEditor := readFile(dir, tableID, "editor.js")
+	checker, hasChecker := readFile(dir, tableID, "checker.js")
+	exportText, hasExport := readFile(dir, tableID, "export.js")
+	docs, hasDocs := ReadDocs(dir, tableID)
 	return Files{
 		Info: Info{
-			ID:         id,
+			ID:         tableID,
+			Path:       r.relPath(dir),
 			HasStruct:  hasStruct,
 			HasData:    hasData,
 			HasEditor:  hasEditor,
@@ -250,7 +453,7 @@ func (r *Root) PutData(id, data string) error {
 	if _, err := os.Stat(dir); err != nil {
 		return err
 	}
-	return WriteText(dir, id, "data.yaml", data)
+	return WriteText(dir, TableID(id), "data.yaml", data)
 }
 
 func (r *Root) EditorJS(id string) (string, error) {
@@ -261,7 +464,7 @@ func (r *Root) EditorJS(id string) (string, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return "", err
 	}
-	text, ok := readFile(dir, id, "editor.js")
+	text, ok := readFile(dir, TableID(id), "editor.js")
 	if !ok {
 		return "", os.ErrNotExist
 	}
@@ -269,9 +472,10 @@ func (r *Root) EditorJS(id string) (string, error) {
 }
 
 // ResolveAsset resolves a resource path for a table.
-// - Paths starting with "." are relative to the table directory.
-// - Other paths are relative to the parent of the tables root
-//   (e.g. fixtures_res/... next to the fixtures root).
+//   - Paths starting with "." are relative to the table directory.
+//   - Other paths are relative to the parent of the tables root
+//     (e.g. fixtures_res/... next to the fixtures root).
+//
 // The cleaned file must stay under the parent of the tables root.
 func (r *Root) ResolveAsset(tableID, rel string) (string, error) {
 	dir, err := r.Dir(tableID)
@@ -310,33 +514,38 @@ func (r *Root) ResolveAsset(tableID, rel string) (string, error) {
 
 func (r *Root) Signature() (string, error) {
 	var b strings.Builder
-	entries, err := os.ReadDir(r.Path)
+	err := filepath.WalkDir(r.Path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if path != r.Path && strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(name, ".") {
+			return nil
+		}
+		rel, err := filepath.Rel(r.Path, path)
+		if err != nil {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		b.WriteString(filepath.ToSlash(rel))
+		b.WriteByte('@')
+		b.WriteString(info.ModTime().UTC().String())
+		b.WriteByte('#')
+		b.WriteString(itoa(info.Size()))
+		b.WriteByte(';')
+		return nil
+	})
 	if err != nil {
 		return "", err
-	}
-	for _, ent := range entries {
-		if !ent.IsDir() || !ValidID(ent.Name()) {
-			continue
-		}
-		dir := filepath.Join(r.Path, ent.Name())
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		b.WriteString(ent.Name())
-		b.WriteByte(':')
-		for _, f := range files {
-			info, err := f.Info()
-			if err != nil {
-				continue
-			}
-			b.WriteString(f.Name())
-			b.WriteByte('@')
-			b.WriteString(info.ModTime().UTC().String())
-			b.WriteByte('#')
-			b.WriteString(itoa(info.Size()))
-			b.WriteByte(';')
-		}
 	}
 	return b.String(), nil
 }

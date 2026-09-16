@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucid
 import { DocsMarkdown } from "../components/DocsMarkdown";
 import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
-import { tablesApi, type TableFiles, type TableInfo } from "../lib/api";
+import { TableTree, resolveTree } from "../components/TableTree";
+import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
@@ -65,7 +66,7 @@ export default function Workbench({
 }) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1);
   const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1);
-  const [list, setList] = useState<TableInfo[]>([]);
+  const [tree, setTree] = useState<TreeNode[]>([]);
   const [tabs, setTabs] = useState<string[]>([]);
   const [activeId, setActiveId] = useState("");
   const [filesById, setFilesById] = useState<Record<string, TableFiles>>({});
@@ -177,8 +178,9 @@ export default function Workbench({
 
   const loadList = useCallback(async () => {
     const next = await tablesApi.list();
-    setList(next.tables || []);
-    return next.tables || [];
+    const tables = next.tables || [];
+    setTree(resolveTree(next.tree, tables));
+    return tables;
   }, []);
 
   const openTable = useCallback(
@@ -382,11 +384,11 @@ export default function Workbench({
     const id = newId.trim();
     if (!id) return;
     try {
-      await tablesApi.create(id);
+      const created = await tablesApi.create(id);
       setNewOpen(false);
       setNewId("");
       await loadList();
-      await openTable(id, true);
+      await openTable(created.id, true);
     } catch (err: unknown) {
       setChecks((prev) => ({
         ...prev,
@@ -455,36 +457,24 @@ export default function Workbench({
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
-                {list.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-muted">暂无配置表</div>
-                ) : (
-                  list.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      data-testid={`tables-item-${item.id}`}
-                      className={`mb-1 block w-full rounded-md px-2 py-1.5 text-left ${
-                        activeId === item.id ? "bg-active" : tabs.includes(item.id) ? "bg-hover" : "hover:bg-hover"
-                      }`}
-                      onClick={() =>
-                        void openTable(item.id, !filesById[item.id]).catch((err: unknown) => {
-                          setChecks((prev) => ({
-                            ...prev,
-                            [item.id]: {
-                              ok: false,
-                              errors: [],
-                              error: err instanceof Error ? err.message : "加载失败",
-                              editorKey: prev[item.id]?.editorKey || 1,
-                            },
-                          }));
-                        })
-                      }
-                    >
-                      <div className="truncate text-[13px]">{item.id}</div>
-                      {item.complete ? null : <div className="text-[11px] text-muted">五件套不完整</div>}
-                    </button>
-                  ))
-                )}
+                <TableTree
+                  tree={tree}
+                  activeId={activeId}
+                  openIds={tabs}
+                  onOpen={(id) =>
+                    void openTable(id, !filesById[id]).catch((err: unknown) => {
+                      setChecks((prev) => ({
+                        ...prev,
+                        [id]: {
+                          ok: false,
+                          errors: [],
+                          error: err instanceof Error ? err.message : "加载失败",
+                          editorKey: prev[id]?.editorKey || 1,
+                        },
+                      }));
+                    })
+                  }
+                />
               </div>
             </>
           )}
@@ -685,10 +675,10 @@ export default function Workbench({
           </>
         }
       >
-        <Field label="表 id" hint="小写字母开头，仅字母数字下划线">
+        <Field label="表 id" hint="小写字母开头，仅字母数字下划线；可用 folder/id 建到子目录">
           <Input
             data-testid="tables-new-id"
-            placeholder="item"
+            placeholder="item 或 combat/skill"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
             onKeyDown={(e) => {

@@ -131,12 +131,54 @@
     });
   }
 
+  function renderTree(nodes, depth) {
+    return (nodes || [])
+      .map(function (node) {
+        var pad = "padding-left:" + (8 + depth * 12) + "px";
+        if (node.kind === "dir") {
+          return (
+            '<div class="tree-folder" style="' +
+            pad +
+            '" data-testid="tables-folder-' +
+            escapeHtml(node.path) +
+            '">▸ ' +
+            escapeHtml(node.name) +
+            "</div>" +
+            renderTree(node.children || [], depth + 1)
+          );
+        }
+        var item = node.table || { id: node.name, complete: true };
+        return (
+          '<a class="item' +
+          (item.id === tableId ? " active" : "") +
+          '" style="' +
+          pad +
+          '" href="?table=' +
+          encodeURIComponent(item.id) +
+          (embed ? "&embed=1" : "") +
+          '" data-testid="tables-item-' +
+          item.id +
+          '" data-id="' +
+          item.id +
+          '"><div>' +
+          escapeHtml(item.id) +
+          "</div>" +
+          (item.complete ? "" : '<div class="hint">五件套不完整</div>') +
+          "</a>"
+        );
+      })
+      .join("");
+  }
+
   function loadList() {
     return api("/api/tables").then(function (data) {
       els.root.textContent = data.path || "";
       var tables = data.tables || [];
-      if (!tables.length) {
+      var tree = data.tree;
+      if ((!tree || !tree.length) && !tables.length) {
         els.list.innerHTML = '<div class="empty">暂无配置表</div>';
+      } else if (tree && tree.length) {
+        els.list.innerHTML = renderTree(tree, 0);
       } else {
         els.list.innerHTML = tables
           .map(function (item) {
@@ -153,7 +195,7 @@
               '"><div>' +
               escapeHtml(item.id) +
               "</div>" +
-              (item.complete ? "" : '<div class="hint">四件套不完整</div>') +
+              (item.complete ? "" : '<div class="hint">五件套不完整</div>') +
               "</a>"
             );
           })
@@ -239,10 +281,10 @@
     var id = els.newId.value.trim();
     if (!id) return;
     api("/api/tables", { method: "POST", body: JSON.stringify({ id: id }) })
-      .then(function () {
+      .then(function (info) {
         els.newForm.classList.remove("open");
         els.newId.value = "";
-        tableId = id;
+        tableId = (info && info.id) || id.split("/").pop();
         return loadList();
       })
       .catch(function (err) {

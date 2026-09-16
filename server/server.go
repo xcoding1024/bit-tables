@@ -185,7 +185,12 @@ func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
 		writeTableErr(w, err)
 		return
 	}
-	writeOK(w, map[string]any{"tables": list, "path": root.Path})
+	tree, err := root.Tree()
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"tables": list, "tree": tree, "path": root.Path})
 }
 
 func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
