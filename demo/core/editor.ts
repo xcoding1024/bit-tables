@@ -117,6 +117,7 @@ export class BitTableEditorBase {
     if (!this.data.rows[i]) this.data.rows[i] = {};
     this.data.rows[i][key] = value;
     this.api.setData(this.data);
+    this.syncHistoryButtons();
     this.afterDataChange();
   }
 
@@ -391,6 +392,19 @@ export class BitTableEditorBase {
     return `${this.testPrefix}-${name}`;
   }
 
+  protected syncHistoryButtons(): void {
+    this.applyHistoryButton(this.tid("undo"), Boolean(this.api.canUndo?.()));
+    this.applyHistoryButton(this.tid("redo"), Boolean(this.api.canRedo?.()));
+  }
+
+  protected applyHistoryButton(testId: string, enabled: boolean): void {
+    const btn = this.el?.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null;
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? "" : ".45";
+    btn.style.cursor = enabled ? "pointer" : "default";
+  }
+
   protected renderToolbar(): string {
     const n = this.selectedIndexes().length;
     const disabled = n === 0 ? "opacity:.45;cursor:default" : "";
@@ -414,6 +428,12 @@ export class BitTableEditorBase {
     html += `<button type="button" data-testid="${this.tid("batch-edit")}" ${n ? "" : "disabled "}style="${this.btn("ghost", disabled)}">批量修改</button>`;
     html += `<button type="button" data-testid="${this.tid("batch-delete")}" ${n ? "" : "disabled "}style="${this.btn("danger", disabled)}">批量删除</button>`;
     html += `<button type="button" data-testid="${this.tid("add")}" style="${this.btn("ghost")}">新增一行</button>`;
+    const canUndo = Boolean(this.api.canUndo?.());
+    const canRedo = Boolean(this.api.canRedo?.());
+    const undoOff = canUndo ? "" : "opacity:.45;cursor:default";
+    const redoOff = canRedo ? "" : "opacity:.45;cursor:default";
+    html += `<button type="button" data-testid="${this.tid("undo")}" ${canUndo ? "" : "disabled "}style="${this.btn("ghost", undoOff)}" title="Ctrl+Z">撤销</button>`;
+    html += `<button type="button" data-testid="${this.tid("redo")}" ${canRedo ? "" : "disabled "}style="${this.btn("ghost", redoOff)}" title="Ctrl+Y">重做</button>`;
     html += `<button type="button" data-testid="${this.tid("save")}" style="${this.btn("primary")}">保存</button></div></div>`;
     if (this.batchOpen) html += this.renderBatchPanel();
     return html;
@@ -967,6 +987,8 @@ export class BitTableEditorBase {
       this.api.setData(this.data);
       this.render();
     });
+    this.el.querySelector(`[data-testid="${this.tid("undo")}"]`)?.addEventListener("click", () => this.api.undo?.());
+    this.el.querySelector(`[data-testid="${this.tid("redo")}"]`)?.addEventListener("click", () => this.api.redo?.());
     this.el.querySelector(`[data-testid="${this.tid("save")}"]`)?.addEventListener("click", () => this.api.save());
     this.el.querySelectorAll("[data-role=pick]").forEach((box) => {
       box.addEventListener("change", () => {
