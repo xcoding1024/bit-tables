@@ -36,7 +36,7 @@ func decodeOK(t *testing.T, res *httptest.ResponseRecorder, dest any) {
 }
 
 func TestServeRepoFixtures(t *testing.T) {
-	root, err := tables.Open(filepath.Join("..", "fixtures"))
+	root, err := tables.Open(filepath.Join("..", "demo", "tables"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,10 @@ func TestServeRepoFixtures(t *testing.T) {
 		}
 	}
 	if sheetDemo == nil || !sheetDemo.Complete {
-		t.Fatalf("fixtures list %#v", list.Tables)
+		t.Fatalf("demo tables %#v", list.Tables)
+	}
+	if _, err := root.ResolveAsset("sheet_demo", "res/item_icons/iron_sword.png"); err != nil {
+		t.Fatalf("demo asset %v", err)
 	}
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -154,7 +157,7 @@ func TestListCreateTraversalAndData(t *testing.T) {
 
 func TestTableAsset(t *testing.T) {
 	_, h, root := testServer(t)
-	dir := filepath.Join(filepath.Dir(root.Path), "fixtures_res", "item_icons")
+	dir := filepath.Join(filepath.Dir(root.Path), "res", "item_icons")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +167,7 @@ func TestTableAsset(t *testing.T) {
 	}
 
 	res := httptest.NewRecorder()
-	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/asset?path="+url.QueryEscape("fixtures_res/item_icons/probe.png"), nil))
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/asset?path="+url.QueryEscape("res/item_icons/probe.png"), nil))
 	if res.Code != 200 || res.Body.String() != "png" {
 		t.Fatalf("asset %d %q", res.Code, res.Body.String())
 	}

@@ -3,7 +3,7 @@ window.BitTableEditor = {
     var FALLBACK_FIELDS = [
       { key: "id", label: "ID", type: "string", widget: "text", group: "basic", required: true },
       { key: "name", label: "名称", type: "string", widget: "text", group: "basic", required: true },
-      { key: "icon", label: "图标", type: "icon", widget: "icon", group: "basic", path: "fixtures_res/item_icons/{id}.png" },
+      { key: "icon", label: "图标", type: "icon", widget: "icon", group: "basic", path: "res/item_icons/{id}.png" },
       { key: "kind", label: "分类", type: "enum", widget: "select", group: "basic", enum: "kinds" },
       { key: "rarity", label: "稀有度", type: "enum", widget: "radio", group: "basic", enum: "enum_demo.rarities" },
       { key: "desc", label: "描述", type: "string", widget: "textarea", group: "basic" },

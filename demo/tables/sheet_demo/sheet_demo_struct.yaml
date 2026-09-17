@@ -35,7 +35,7 @@ sheets:
         type: icon
         widget: icon
         group: basic
-        path: fixtures_res/item_icons/{id}.png
+        path: res/item_icons/{id}.png
         hint: 按 path 模板展示，不落库
       - key: kind
         label: 分类

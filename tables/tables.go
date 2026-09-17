@@ -474,7 +474,7 @@ func (r *Root) EditorJS(id string) (string, error) {
 // ResolveAsset resolves a resource path for a table.
 //   - Paths starting with "." are relative to the table directory.
 //   - Other paths are relative to the parent of the tables root
-//     (e.g. fixtures_res/... next to the fixtures root).
+//     (e.g. res/... beside the tables root, as in demo/res next to demo/tables).
 //
 // The cleaned file must stay under the parent of the tables root.
 func (r *Root) ResolveAsset(tableID, rel string) (string, error) {

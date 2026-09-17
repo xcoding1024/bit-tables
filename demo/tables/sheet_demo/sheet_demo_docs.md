@@ -9,7 +9,7 @@
 - `items` 字段：
   - id：英文标识，必填，创建后不建议改
   - name：名称，必填
-  - icon：图标，`type/widget: icon`，字段 `path: fixtures_res/item_icons/{id}.png`（相对配表根的上一级，按行字段替换占位符后展示，不写入 data）
+  - icon：图标，`type/widget: icon`，字段 `path: res/item_icons/{id}.png`（相对配表根的上一级，即 `demo/res`，按行字段替换占位符后展示，不写入 data）
   - kind：分类，`enum: kinds`（本表枚举 sheet）
   - rarity：稀有度，`enum: enum_demo.rarities`（跨表）
   - desc：描述

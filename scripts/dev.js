@@ -151,7 +151,7 @@ async function main() {
     env: {
       DEV_SERVER_URL,
       BIT_TABLES_DEV: "1",
-      BIT_TABLES_ROOT: path.join(ROOT, "fixtures"),
+      BIT_TABLES_ROOT: path.join(ROOT, "demo", "tables"),
       ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
     },
   });
@@ -159,7 +159,7 @@ async function main() {
   console.log("");
   console.log("dev:");
   console.log(`  desktop  ${DEV_SERVER_URL}`);
-  console.log("  root     fixtures/");
+  console.log("  root     demo/tables/");
   console.log("");
 
   electron.on("exit", () => process.exit(0));

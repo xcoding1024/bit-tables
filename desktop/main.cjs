@@ -64,7 +64,7 @@ function emptyRoot() {
 
 function defaultRoot() {
   if (IS_DEV) {
-    return process.env.BIT_TABLES_ROOT || path.join(REPO_ROOT, "fixtures");
+    return process.env.BIT_TABLES_ROOT || path.join(REPO_ROOT, "demo", "tables");
   }
   return readLastRoot();
 }

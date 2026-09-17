@@ -75,7 +75,7 @@ sheets:
 
 ## 开发
 
-需要 Go 1.23+ 与 Node.js。默认打开本仓库 [fixtures](fixtures)（含 `sheet_demo`、`enum_demo` 等示例表）。
+需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)）。
 
 ```powershell
 npm install
@@ -104,7 +104,7 @@ macOS 安装包请在 Mac 上打。首次启动若没有上次打开的目录，
 仍可用 HTTP 服务调试 API：
 
 ```bash
-go run ./cmd/bit-tables serve ./fixtures
+go run ./cmd/bit-tables serve ./demo/tables
 ```
 
 默认 http://127.0.0.1:18780 。空目录写入示例表：
