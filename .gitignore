@@ -8,4 +8,5 @@ frontend/node_modules
 *.test
 *.out
 .DS_Store
+demo/export/
 
