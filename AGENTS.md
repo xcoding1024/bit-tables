@@ -25,7 +25,7 @@
 - sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为隐式 `main`，数据仍可用顶层 `rows`
 - 多 sheet 数据写在 `sheets.{id}.rows`。editor 按当前 sheet 的 `fields` + `rows` 画一页；checker / export 校整表，路径形如 `sheets.items.rows.0.id`
 - 枚举 sheet 设 `kind: enum`（字段推荐 `id`/`name`）。字段用 `enum: kinds` 或 `enum: other.kinds` 引用；存 id，下拉显示 name
-- `{id}_docs.md` 分三节：`## 结构`、`## 检查规则`、`## 导出规则`
+- `{id}_docs.md` 分三节：`## 结构`、`## 检查规则`、`## 导出规则`（导出规则须区分客户端与服务端）
 
 ## 结构修改
 
@@ -46,7 +46,7 @@ window.BitTableChecker = { check(data, struct, enums) { return { ok: true, error
 `export.ts` 必须定义：
 
 ```ts
-window.BitTableExporter = { export(data, struct) { return { files: [{ name, content }] }; } };
+window.BitTableExporter = { export(data, struct) { return { client: [{ name, content }], server: [{ name, content }] }; } };
 ```
 
 若配表根上一级有 `core/`（如 demo），可按需引用：`import { BitTableEditorBase } from "bit-tables.editor"`、`bit-tables.checker`、`bit-tables.export`、`bit-tables.dom`、`bit-tables.types`。无共享基类时写自包含脚本即可。
@@ -60,4 +60,4 @@ window.BitTableExporter = { export(data, struct) { return { files: [{ name, cont
 ## 禁止
 
 - 不要假设全项目统一 schema
-- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，产物写入配表根上一级的 `export/`
+- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，客户端写入配表根上一级 `export/client/`，服务端写入 `export/server/`。导出规则文档须区分两端。

@@ -84,14 +84,14 @@ const TEMPLATES: EditorTemplate[] = [
   {
     id: "export",
     name: "导出基类",
-    summary: "把整表 data 写成一个或多个文本产物文件。",
+    summary: "把整表 data 分别写成客户端与服务端产物。",
     demoTable: "sheet_demo · enum_demo · chart_demo",
     importHint: 'import { BitTableExporterBase } from "bit-tables.export";',
     usage: [
       "继承 BitTableExporterBase，设置 fileName（默认 JSON.stringify 整表 data）。",
-      "window.BitTableExporter = new YourExporter()；返回 { files:[{ name, content }] }。",
-      "需要多文件或自定义格式时重写 export。",
-      "参考各演示表的 *_export.ts。",
+      "window.BitTableExporter = new YourExporter()；返回 { client:[{ name, content }], server:[{ name, content }] }。",
+      "可用 clientFileName / serverFileName 区分两端文件名；需要不同内容时重写 export。",
+      "产物写入配表根上一级 export/client 与 export/server。",
     ],
     preview: <ExportPreview />,
   },
@@ -306,10 +306,17 @@ function CheckerPreview() {
 
 function ExportPreview() {
   return (
-    <div className="rounded border border-line bg-elevated p-2 font-mono text-[11px] text-secondary">
-      <div className="text-muted">files[0]</div>
-      <div>name: sheet_demo.json</div>
-      <div className="truncate">{'content: {"sheets":{"items":{"rows":[…]}}}'}</div>
+    <div className="space-y-2 rounded border border-line bg-elevated p-2 font-mono text-[11px] text-secondary">
+      <div>
+        <div className="text-muted">client[0]</div>
+        <div>name: sheet_demo.json</div>
+        <div className="truncate">{'→ export/client/'}</div>
+      </div>
+      <div>
+        <div className="text-muted">server[0]</div>
+        <div>name: sheet_demo.json</div>
+        <div className="truncate">{'→ export/server/'}</div>
+      </div>
     </div>
   );
 }

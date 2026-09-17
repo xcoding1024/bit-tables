@@ -206,7 +206,8 @@ func CompileErrorExportJS(msg string) string {
 	safe := compileErrorJSON("编译失败：" + msg)
 	return `window.BitTableExporter = {
   export: function () {
-    return { files: [{ name: "error.txt", content: ` + safe + ` }] };
+    var file = { name: "error.txt", content: ` + safe + ` };
+    return { client: [file], server: [file] };
   }
 };`
 }

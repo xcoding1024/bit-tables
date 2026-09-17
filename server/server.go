@@ -300,27 +300,36 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getExport(w http.ResponseWriter, r *http.Request) {
-	writeOK(w, map[string]any{"path": s.current().ExportDir()})
+	root := s.current()
+	writeOK(w, map[string]any{
+		"client": root.ExportDir(tables.ExportSideClient),
+		"server": root.ExportDir(tables.ExportSideServer),
+	})
 }
 
 func (s *Server) postExport(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Files []tables.ExportFile `json:"files"`
+		Client []tables.ExportFile `json:"client"`
+		Server []tables.ExportFile `json:"server"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
 		return
 	}
 	root := s.current()
-	written, err := root.WriteExportFiles(req.Files)
+	written, err := root.WriteExportFiles(req.Client, req.Server)
 	if err != nil {
 		writeTableErr(w, err)
 		return
 	}
 	if written == nil {
-		written = []string{}
+		written = []tables.ExportWritten{}
 	}
-	writeOK(w, map[string]any{"path": root.ExportDir(), "written": written})
+	writeOK(w, map[string]any{
+		"client":  root.ExportDir(tables.ExportSideClient),
+		"server":  root.ExportDir(tables.ExportSideServer),
+		"written": written,
+	})
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

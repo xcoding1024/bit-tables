@@ -330,16 +330,15 @@ export type TableExportFile = { name: string; content: string };
 
 export type TableExportResult = {
   ok: boolean;
-  files: TableExportFile[];
+  client: TableExportFile[];
+  server: TableExportFile[];
   error?: string;
 };
 
-function asExportFiles(raw: unknown): TableExportFile[] {
-  const rec = asRecord(raw);
-  const list = rec && Array.isArray(rec.files) ? rec.files : Array.isArray(raw) ? raw : [];
-  if (!Array.isArray(list)) return [];
+function asExportFileList(raw: unknown): TableExportFile[] {
+  if (!Array.isArray(raw)) return [];
   const out: TableExportFile[] = [];
-  for (const item of list) {
+  for (const item of raw) {
     const file = asRecord(item);
     const name = String(file?.name ?? "").trim();
     if (!name) continue;
@@ -348,13 +347,23 @@ function asExportFiles(raw: unknown): TableExportFile[] {
   return out;
 }
 
+export function parseExportSides(raw: unknown): { client: TableExportFile[]; server: TableExportFile[] } {
+  const rec = asRecord(raw);
+  const client = asExportFileList(rec?.client);
+  const server = asExportFileList(rec?.server);
+  if (client.length || server.length) return { client, server };
+  const files = asExportFileList(rec?.files);
+  if (files.length) return { client: files, server: files };
+  return { client: [], server: [] };
+}
+
 export function runTableExporter(
   exportJs: string,
   data: unknown,
   struct: unknown,
 ): Promise<TableExportResult> {
   if (!exportJs.trim()) {
-    return Promise.resolve({ ok: false, files: [], error: "无导出脚本" });
+    return Promise.resolve({ ok: false, client: [], server: [], error: "无导出脚本" });
   }
   return new Promise((resolve) => {
     const html = `<!doctype html><meta charset="utf-8"><script>${exportJs.replace(/<\/script/gi, "<\\/script")}</script><script>
@@ -391,20 +400,20 @@ export function runTableExporter(
         iframe.contentWindow?.postMessage({ data, struct }, "*");
       } else if (ev.data.type === "result") {
         if (ev.data.error) {
-          finish({ ok: false, files: [], error: String(ev.data.error) });
+          finish({ ok: false, client: [], server: [], error: String(ev.data.error) });
           return;
         }
-        const files = asExportFiles(ev.data.result);
         if (!ev.data.result) {
-          finish({ ok: false, files: [], error: "未定义 BitTableExporter.export" });
+          finish({ ok: false, client: [], server: [], error: "未定义 BitTableExporter.export" });
           return;
         }
-        finish({ ok: true, files });
+        const sides = parseExportSides(ev.data.result);
+        finish({ ok: true, client: sides.client, server: sides.server });
       }
     };
     window.addEventListener("message", onMsg);
     document.body.appendChild(iframe);
-    window.setTimeout(() => finish({ ok: false, files: [], error: "导出超时" }), 8000);
+    window.setTimeout(() => finish({ ok: false, client: [], server: [], error: "导出超时" }), 8000);
   });
 }
 

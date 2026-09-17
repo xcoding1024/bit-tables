@@ -1,6 +1,6 @@
 # bit-tables
 
-本机配表协议：每张表是子目录里的五件套 + `{id}_docs.md`。结构/编辑器/检查器/导出脚本与数据分开。不做热更或团队共享。历史记录只读 git / svn 提交。工作台编排执行各表 `{id}_export.ts`，产物写入配表根上一级的 `export/`，不发明统一导表格式。
+本机配表协议：每张表是子目录里的五件套 + `{id}_docs.md`。结构/编辑器/检查器/导出脚本与数据分开。不做热更或团队共享。历史记录只读 git / svn 提交。工作台编排执行各表 `{id}_export.ts`，客户端与服务端产物分别写入配表根上一级的 `export/client/` 与 `export/server/`，不发明统一导表格式。
 
 ## 目录
 
@@ -30,7 +30,7 @@
 - 打开配表根目录时工作台预加载全部 `kind: enum` sheet；标题栏「查看 → 枚举」可搜索浏览
 - 标题栏「查看 → 依赖关系」按跨表 `enum: table.sheet` 画出表间引用图（本表 `enum: kinds` 不算跨表边）
 - 标题栏「查看 → 编辑模板」浏览可复用的 editor / checker / export 基类预览与用法（`bit-tables.*` → 配表根上一级 `core/`）
-- 标题栏「导出 → 导出当前表 / 导出所有」：跑各表 `export.ts`。导出当前表时连带导出所有传递下游（直接或间接引用它的表）；导出所有则跑全部有导出脚本的表
+- 标题栏「导出 → 导出当前表 / 导出所有」：跑各表 `export.ts`。导出当前表时连带导出所有传递下游（直接或间接引用它的表）；导出所有则跑全部有导出脚本的表。每张表分别产出客户端与服务端文件
 
 ```yaml
 # {id}_struct.yaml
@@ -69,8 +69,8 @@ sheets:
       - id: weapon
         name: 武器
 ```
-- `{id}_docs.md` 用 `## 结构` / `## 检查规则` / `## 导出规则` 三节说明当前表。Agent 改结构或数据后必须更新文档
-- 导出格式由该表 `{id}_export.ts`（或兼容的 `.js`）定义；工作台只编排执行并写入配表根上一级 `export/`，不要发明统一导表格式 / 热更 / 共享流程
+- `{id}_docs.md` 用 `## 结构` / `## 检查规则` / `## 导出规则` 三节说明当前表；导出规则须区分客户端与服务端。Agent 改结构或数据后必须更新文档
+- 导出格式由该表 `{id}_export.ts`（或兼容的 `.js`）定义；工作台只编排执行并分别写入配表根上一级 `export/client/` 与 `export/server/`，不要发明统一导表格式 / 热更 / 共享流程
 
 ## 宿主约定
 
@@ -86,7 +86,7 @@ window.BitTableChecker = {
   check(data, struct, enums) { return { ok: true, errors: [] }; }
 };
 window.BitTableExporter = {
-  export(data, struct) { return { files: [{ name, content }] }; }
+  export(data, struct) { return { client: [{ name, content }], server: [{ name, content }] }; }
 };
 ```
 
@@ -101,7 +101,7 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 
 保存：写 data → 隔离跑 checker → 展示错误。磁盘上五件套或 `{id}_docs.md` 变更后，SSE 推送，页面重载 data、iframe 或右栏文档。
 
-导出：沙箱 iframe 调 `BitTableExporter.export(data, struct)`，把返回的 `{ files:[{ name, content }] }` 写入配表根上一级的 `export/`。缺 `export.ts` / `export.js` 的表跳过。导出当前表的集合 = 当前表 ∪ 所有传递下游（struct 里跨表 enum 引用它的表）。导出所有不按依赖扩张。导出产物不计入配表文件、不触发 SSE。
+导出：沙箱 iframe 调 `BitTableExporter.export(data, struct)`，把返回的 `{ client:[{ name, content }], server:[{ name, content }] }` 分别写入配表根上一级的 `export/client/` 与 `export/server/`。缺 `export.ts` / `export.js` 的表跳过。导出当前表的集合 = 当前表 ∪ 所有传递下游（struct 里跨表 enum 引用它的表）。导出所有不按依赖扩张。导出产物不计入配表文件、不触发 SSE。兼容旧返回 `{ files }` 时，两端各写一份。
 
 缺 `editor.ts` / `editor.js` 时工作台用简易回退表（解析当前 sheet 的 `rows`），仍可查看/保存数据。回退编辑器不画 sheet 页签。
 
@@ -125,10 +125,10 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 | GET | `/api/tables/{id}/editor` | iframe HTML 壳（内联编译后的 editor） |
 | GET | `/api/tables/{id}/asset` | 表资源文件（`?path=`） |
 | GET | `/api/events` | SSE：`file_changed`，data 为 `{ tableId, kind }` |
-| GET | `/api/export` | `{ path }` 导出目录（配表根上一级的 `export/`，目录不存在也返回规划路径） |
-| POST | `/api/export` | `{ files: [{ name, content }] }` 写入该目录，返回 `{ path, written }`；`name` 为相对路径，禁止 `..` |
+| GET | `/api/export` | `{ client, server }` 两端导出目录（配表根上一级 `export/client` 与 `export/server`，目录不存在也返回规划路径） |
+| POST | `/api/export` | `{ client: [{ name, content }], server: [{ name, content }] }` 分别写入两端目录，返回 `{ client, server, written: [{ side, name }] }`；`name` 为相对路径，禁止 `..` |
 
-配表文件路径必须落在启动 root 内。导出产物写在 root 上一级的 `export/`。
+配表文件路径必须落在启动 root 内。导出产物写在 root 上一级的 `export/client/` 与 `export/server/`。
 
 ## 嵌入
 

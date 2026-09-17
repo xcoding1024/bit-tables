@@ -7,13 +7,29 @@ import (
 	"strings"
 )
 
+type ExportSide string
+
+const (
+	ExportSideClient ExportSide = "client"
+	ExportSideServer ExportSide = "server"
+)
+
 type ExportFile struct {
 	Name    string `json:"name"`
 	Content string `json:"content"`
 }
 
-func (r *Root) ExportDir() string {
+type ExportWritten struct {
+	Side string `json:"side"`
+	Name string `json:"name"`
+}
+
+func (r *Root) ExportBaseDir() string {
 	return filepath.Join(filepath.Dir(r.Path), "export")
+}
+
+func (r *Root) ExportDir(side ExportSide) string {
+	return filepath.Join(r.ExportBaseDir(), string(side))
 }
 
 func SanitizeExportName(name string) (string, error) {
@@ -41,8 +57,29 @@ func SanitizeExportName(name string) (string, error) {
 	return strings.Join(clean, "/"), nil
 }
 
-func (r *Root) WriteExportFiles(files []ExportFile) ([]string, error) {
-	dir := r.ExportDir()
+func (r *Root) WriteExportFiles(client, server []ExportFile) ([]ExportWritten, error) {
+	written := make([]ExportWritten, 0, len(client)+len(server))
+	clientNames, err := writeExportSide(r.ExportDir(ExportSideClient), client)
+	if err != nil {
+		return written, err
+	}
+	for _, name := range clientNames {
+		written = append(written, ExportWritten{Side: string(ExportSideClient), Name: name})
+	}
+	serverNames, err := writeExportSide(r.ExportDir(ExportSideServer), server)
+	if err != nil {
+		return written, err
+	}
+	for _, name := range serverNames {
+		written = append(written, ExportWritten{Side: string(ExportSideServer), Name: name})
+	}
+	return written, nil
+}
+
+func writeExportSide(dir string, files []ExportFile) ([]string, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}

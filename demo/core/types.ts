@@ -40,7 +40,13 @@ declare global {
   interface Window {
     BitTableEditor?: { mount(el: HTMLElement, api: EditorAPI): void };
     BitTableChecker?: { check(data: unknown, struct: unknown, enums?: unknown): CheckResult };
-    BitTableExporter?: { export(data: unknown, struct?: unknown): { files: { name: string; content: string }[] } };
+    BitTableExporter?: {
+      export(data: unknown, struct?: unknown): {
+        client?: { name: string; content: string }[];
+        server?: { name: string; content: string }[];
+        files?: { name: string; content: string }[];
+      };
+    };
   }
 }
 

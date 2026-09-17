@@ -18,4 +18,5 @@
 ## 导出规则
 
 - 对应 `chart_demo_export.ts` 的 `BitTableExporter.export`
-- 导出 `chart_demo.json`（`JSON.stringify` 整表 data）
+- 客户端：写入配表根上一级 `export/client/chart_demo.json`（`JSON.stringify` 整表 data）
+- 服务端：写入配表根上一级 `export/server/chart_demo.json`（`JSON.stringify` 整表 data）

@@ -25,12 +25,19 @@ export function ExportDialog({
         {busy && !report ? <div className="py-6 text-center text-muted">正在运行各表 export.ts…</div> : null}
         {report ? (
           <div className="space-y-3 text-[13px]">
-            {report.path ? (
+            {report.clientPath || report.serverPath ? (
               <div>
                 <div className="text-muted">产物目录</div>
-                <div className="mt-0.5 break-all font-mono text-[12px] text-secondary" data-testid="export-path">
-                  {report.path}
-                </div>
+                {report.clientPath ? (
+                  <div className="mt-0.5 break-all font-mono text-[12px] text-secondary" data-testid="export-path-client">
+                    客户端 {report.clientPath}
+                  </div>
+                ) : null}
+                {report.serverPath ? (
+                  <div className="mt-0.5 break-all font-mono text-[12px] text-secondary" data-testid="export-path-server">
+                    服务端 {report.serverPath}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div>
@@ -44,8 +51,8 @@ export function ExportDialog({
                 <div className="text-muted">写入文件</div>
                 <ul className="mt-1 list-disc pl-5 text-secondary">
                   {report.written.map((item) => (
-                    <li key={`${item.tableId}-${item.name}`}>
-                      <span className="font-mono">{item.name}</span>
+                    <li key={`${item.side}-${item.tableId}-${item.name}`}>
+                      <span className="font-mono">{item.side}/{item.name}</span>
                       <span className="text-muted">（{item.tableId}）</span>
                     </li>
                   ))}

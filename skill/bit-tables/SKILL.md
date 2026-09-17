@@ -19,7 +19,7 @@ description: 按 bit-tables 五件套约定安全改游戏配置表。扫描表�
 1. 列出五件套与 docs 是否齐全。缺文件时按结构模式一次补齐。
 2. 用户改字段/编辑器/检查规则/导出 → 只动 struct / editor.ts / checker.ts / export.ts，并更新 docs；不兼容再迁 data。仍兼容旧 `.js`。
 3. 用户改行数据 → 只动 `{id}_data.yaml`，仍须核对 docs 三节。
-4. editor.ts 必须 `window.BitTableEditor = { mount(el, api) }`（api 含 `getEnums`）；checker.ts 必须 `window.BitTableChecker = { check(data, struct, enums) }` 返回 `{ ok, errors }`；export.ts 必须 `window.BitTableExporter = { export(data, struct) }` 返回 `{ files:[{name,content}] }`。若配表根上一级有 `core/`，可 `import { ... } from "bit-tables.editor"` / `bit-tables.checker` / `bit-tables.export` / `bit-tables.dom` / `bit-tables.types`。
+4. editor.ts 必须 `window.BitTableEditor = { mount(el, api) }`（api 含 `getEnums`）；checker.ts 必须 `window.BitTableChecker = { check(data, struct, enums) }` 返回 `{ ok, errors }`；export.ts 必须 `window.BitTableExporter = { export(data, struct) }` 返回 `{ client:[{name,content}], server:[{name,content}] }`。若配表根上一级有 `core/`，可 `import { ... } from "bit-tables.editor"` / `bit-tables.checker` / `bit-tables.export` / `bit-tables.dom` / `bit-tables.types`。产物写入配表根上一级 `export/client/` 与 `export/server/`。
 5. 不要假设统一 schema；`struct.yaml` 推荐 `sheets[]`（每张 sheet 自带 `fields[]`），无 `sheets` 时视为隐式 `main` + 顶层 `rows`。枚举 sheet 设 `kind: enum`，字段用 `enum: sheet` / `enum: table.sheet`。checker / export 校整表。
 6. 改完用中文简述动了哪些文件。
 

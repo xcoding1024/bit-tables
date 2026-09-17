@@ -29,7 +29,7 @@
 
 `checker.ts` 是规则检查脚本，错了会标到具体字段，比如 `sheets.items.rows.0.id`
 
-`export.ts` 是导表规则脚本，可以把当前配置表转换成具体的产物
+`export.ts` 是导表规则脚本，分别产出客户端与服务端文件，写入配表根上一级 `export/client/` 与 `export/server/`
 
 `docs.md` 是结构、检查规则、导出规则的文档，AI改完表就会顺手改这个文档，方面之后查看。
 

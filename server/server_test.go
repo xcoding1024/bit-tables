@@ -373,57 +373,68 @@ func TestWatchSSEAfterDataWrite(t *testing.T) {
 
 func TestExportWritesAndRejectsTraversal(t *testing.T) {
 	_, h, root := testServer(t)
-	wantDir := filepath.Join(filepath.Dir(root.Path), "export")
+	clientDir := filepath.Join(filepath.Dir(root.Path), "export", "client")
+	serverDir := filepath.Join(filepath.Dir(root.Path), "export", "server")
 
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/export", nil))
 	var info struct {
-		Path string `json:"path"`
+		Client string `json:"client"`
+		Server string `json:"server"`
 	}
 	decodeOK(t, res, &info)
-	if info.Path != wantDir {
-		t.Fatalf("export path %s want %s", info.Path, wantDir)
+	if info.Client != clientDir || info.Server != serverDir {
+		t.Fatalf("export path %#v want %s / %s", info, clientDir, serverDir)
 	}
 
 	res = httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"files":[{"name":"item.json","content":"{}"}]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"client":[{"name":"item.json","content":"c"}],"server":[{"name":"item.json","content":"s"}]}`))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(res, req)
 	var wrote struct {
-		Path    string   `json:"path"`
-		Written []string `json:"written"`
+		Client  string `json:"client"`
+		Server  string `json:"server"`
+		Written []struct {
+			Side string `json:"side"`
+			Name string `json:"name"`
+		} `json:"written"`
 	}
 	decodeOK(t, res, &wrote)
-	if wrote.Path != wantDir || len(wrote.Written) != 1 || wrote.Written[0] != "item.json" {
+	if wrote.Client != clientDir || wrote.Server != serverDir || len(wrote.Written) != 2 {
 		t.Fatalf("write %#v", wrote)
 	}
-	got, err := os.ReadFile(filepath.Join(wantDir, "item.json"))
-	if err != nil || string(got) != "{}" {
-		t.Fatalf("disk %s %v", got, err)
+	got, err := os.ReadFile(filepath.Join(clientDir, "item.json"))
+	if err != nil || string(got) != "c" {
+		t.Fatalf("client disk %s %v", got, err)
+	}
+	got, err = os.ReadFile(filepath.Join(serverDir, "item.json"))
+	if err != nil || string(got) != "s" {
+		t.Fatalf("server disk %s %v", got, err)
 	}
 
 	res = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"files":[{"name":"lua/item.json","content":"1"}]}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"client":[{"name":"lua/item.json","content":"1"}],"server":[]}`))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(res, req)
 	decodeOK(t, res, &wrote)
-	if len(wrote.Written) != 1 || wrote.Written[0] != "lua/item.json" {
+	if len(wrote.Written) != 1 || wrote.Written[0].Side != "client" || wrote.Written[0].Name != "lua/item.json" {
 		t.Fatalf("nested %#v", wrote)
 	}
-	got, err = os.ReadFile(filepath.Join(wantDir, "lua", "item.json"))
+	got, err = os.ReadFile(filepath.Join(clientDir, "lua", "item.json"))
 	if err != nil || string(got) != "1" {
 		t.Fatalf("nested disk %s %v", got, err)
 	}
 
 	res = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"files":[{"name":"../secret.json","content":"x"}]}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/export", strings.NewReader(`{"client":[{"name":"../secret.json","content":"x"}],"server":[]}`))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(res, req)
 	if res.Code != 400 {
 		t.Fatalf("traversal %d %s", res.Code, res.Body.String())
 	}
-	if _, err := os.Stat(filepath.Join(filepath.Dir(wantDir), "secret.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(filepath.Dir(clientDir), "secret.json")); err == nil {
 		t.Fatal("escaped write")
 	}
 }
+
 

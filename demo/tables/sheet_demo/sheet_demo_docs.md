@@ -38,4 +38,5 @@
 ## 导出规则
 
 - 对应 `sheet_demo_export.ts` 的 `BitTableExporter.export`
-- 导出 `sheet_demo.json`（`JSON.stringify` 整表 data，含全部 sheet）
+- 客户端：写入配表根上一级 `export/client/sheet_demo.json`（`JSON.stringify` 整表 data）
+- 服务端：写入配表根上一级 `export/server/sheet_demo.json`（`JSON.stringify` 整表 data）

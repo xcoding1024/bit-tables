@@ -183,11 +183,13 @@ export default function Workbench({
     const report = emptyExportReport({ tableIds: ids });
     try {
       const info = await tablesApi.exportInfo();
-      report.path = info.path || "";
+      report.clientPath = info.client || "";
+      report.serverPath = info.server || "";
     } catch (err: unknown) {
       report.errors.push({ tableId: "", message: err instanceof Error ? err.message : "无法读取导出目录" });
     }
-    const pending: { tableId: string; name: string; content: string }[] = [];
+    const pendingClient: { tableId: string; name: string; content: string }[] = [];
+    const pendingServer: { tableId: string; name: string; content: string }[] = [];
     for (const id of ids) {
       let files = filesRef.current[id];
       if (!files) {
@@ -207,19 +209,29 @@ export default function Workbench({
         report.errors.push({ tableId: id, message: result.error || "导出失败" });
         continue;
       }
-      if (!result.files.length) {
+      if (!result.client.length && !result.server.length) {
         report.skipped.push({ tableId: id, reason: "未产生文件" });
         continue;
       }
-      for (const file of result.files) {
-        pending.push({ tableId: id, name: file.name, content: file.content });
+      for (const file of result.client) {
+        pendingClient.push({ tableId: id, name: file.name, content: file.content });
+      }
+      for (const file of result.server) {
+        pendingServer.push({ tableId: id, name: file.name, content: file.content });
       }
     }
-    if (pending.length) {
+    if (pendingClient.length || pendingServer.length) {
       try {
-        const wrote = await tablesApi.writeExport(pending.map((item) => ({ name: item.name, content: item.content })));
-        report.path = wrote.path || report.path;
-        report.written = pending.map((item) => ({ tableId: item.tableId, name: item.name }));
+        const wrote = await tablesApi.writeExport({
+          client: pendingClient.map((item) => ({ name: item.name, content: item.content })),
+          server: pendingServer.map((item) => ({ name: item.name, content: item.content })),
+        });
+        report.clientPath = wrote.client || report.clientPath;
+        report.serverPath = wrote.server || report.serverPath;
+        report.written = [
+          ...pendingClient.map((item) => ({ tableId: item.tableId, name: item.name, side: "client" as const })),
+          ...pendingServer.map((item) => ({ tableId: item.tableId, name: item.name, side: "server" as const })),
+        ];
       } catch (err: unknown) {
         report.errors.push({ tableId: "", message: err instanceof Error ? err.message : "写入导出目录失败" });
       }

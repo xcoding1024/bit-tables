@@ -37,10 +37,13 @@ export type DepLayout = {
   edges: DepLayoutEdge[];
 };
 
+export type ExportSide = "client" | "server";
+
 export type ExportReport = {
-  path: string;
+  clientPath: string;
+  serverPath: string;
   tableIds: string[];
-  written: { tableId: string; name: string }[];
+  written: { tableId: string; name: string; side: ExportSide }[];
   skipped: { tableId: string; reason: string }[];
   errors: { tableId: string; message: string }[];
 };
@@ -57,7 +60,8 @@ export function tableDisplayName(struct: unknown, id: string): string {
 
 export function emptyExportReport(partial?: Partial<ExportReport>): ExportReport {
   return {
-    path: "",
+    clientPath: "",
+    serverPath: "",
     tableIds: [],
     written: [],
     skipped: [],
