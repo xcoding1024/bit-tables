@@ -71,6 +71,12 @@ async function api<T>(path: string, opt?: RequestInit): Promise<T> {
   return (await res.text()) as T;
 }
 
+export type ExportWriteFile = { name: string; content: string };
+
+export type ExportInfo = { path: string };
+
+export type ExportWriteResult = { path: string; written: string[] };
+
 export const tablesApi = {
   root: () => api<RootInfo>("/api/root"),
   setRoot: (path: string, opts?: { sample?: boolean; guide?: boolean }) =>
@@ -92,4 +98,10 @@ export const tablesApi = {
       body: JSON.stringify({ data }),
     }),
   editorURL: (id: string, key: number) => `/api/tables/${encodeURIComponent(id)}/editor?t=${key}`,
+  exportInfo: () => api<ExportInfo>("/api/export"),
+  writeExport: (files: ExportWriteFile[]) =>
+    api<ExportWriteResult>("/api/export", {
+      method: "POST",
+      body: JSON.stringify({ files }),
+    }),
 };

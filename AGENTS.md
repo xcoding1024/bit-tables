@@ -60,4 +60,4 @@ window.BitTableExporter = { export(data, struct) { return { files: [{ name, cont
 ## 禁止
 
 - 不要假设全项目统一 schema
-- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明工作台级导表、热更或共享流程
+- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，产物写入配表根上一级的 `export/`

@@ -5,7 +5,7 @@ import { Btn, Dialog } from "./ui";
 
 const APP_VERSION = "0.1.0";
 
-type MenuId = "project" | "edit" | "view" | "help" | null;
+type MenuId = "project" | "edit" | "view" | "export" | "help" | null;
 
 type ShortcutRow = { action: string; keys: string };
 
@@ -25,18 +25,24 @@ export default function Titlebar({
   onOpen,
   onCreateSample,
   onEnums,
+  onDeps,
   onTemplates,
   onUndo,
   onRedo,
   onSave,
+  onExportCurrent,
+  onExportAll,
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
   onEnums?: () => void;
+  onDeps?: () => void;
   onTemplates?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   onSave?: () => void;
+  onExportCurrent?: () => void;
+  onExportAll?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -140,6 +146,12 @@ export default function Titlebar({
               onClick={() => run(onEnums)}
             />
             <MenuItem
+              label="依赖关系"
+              disabled={!onDeps}
+              testId="titlebar-deps"
+              onClick={() => run(onDeps)}
+            />
+            <MenuItem
               label="编辑模板"
               disabled={!onTemplates}
               testId="titlebar-templates"
@@ -152,6 +164,26 @@ export default function Titlebar({
                 setOpenMenu(null);
                 setShortcutsOpen(true);
               }}
+            />
+          </Menu>
+          <Menu
+            id="export"
+            label="导出"
+            open={openMenu === "export"}
+            active={openMenu}
+            onOpen={setOpenMenu}
+          >
+            <MenuItem
+              label="导出当前表"
+              disabled={!onExportCurrent}
+              testId="titlebar-export-current"
+              onClick={() => run(onExportCurrent)}
+            />
+            <MenuItem
+              label="导出所有"
+              disabled={!onExportAll}
+              testId="titlebar-export-all"
+              onClick={() => run(onExportAll)}
             />
           </Menu>
           <Menu

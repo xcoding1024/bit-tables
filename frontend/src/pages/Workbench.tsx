@@ -5,6 +5,7 @@ import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
+import { buildDepGraph, emptyExportReport, exportSet, type ExportReport, type TableSnap } from "../lib/deps";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
@@ -15,6 +16,7 @@ import {
   mergeSheetData,
   parseTableDoc,
   runTableChecker,
+  runTableExporter,
   sliceForSheet,
   stringifyTableDoc,
   type DocsKind,
@@ -43,6 +45,8 @@ export type EditorCommands = {
   undo: () => void;
   redo: () => void;
   save: () => void;
+  exportCurrent: () => Promise<ExportReport>;
+  exportAll: () => Promise<ExportReport>;
 };
 
 type TabCheck = {
@@ -66,11 +70,15 @@ function writeTableParam(id: string) {
 export default function Workbench({
   rootPath,
   enumsCatalog = [],
+  tablePacks = [],
   editorCommandsRef,
+  onActiveIdChange,
 }: {
   rootPath: string;
   enumsCatalog?: EnumCatalogItem[];
+  tablePacks?: TableSnap[];
   editorCommandsRef?: MutableRefObject<EditorCommands | null>;
+  onActiveIdChange?: (id: string) => void;
 }) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1);
   const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1);
@@ -93,6 +101,7 @@ export default function Workbench({
   const tabsRef = useRef(tabs);
   const activeRef = useRef(activeId);
   const enumsRef = useRef(enumsCatalog);
+  const packsRef = useRef(tablePacks);
   const savedAtRef = useRef<Record<string, number>>({});
   filesRef.current = filesById;
   draftRef.current = draftById;
@@ -100,6 +109,7 @@ export default function Workbench({
   tabsRef.current = tabs;
   activeRef.current = activeId;
   enumsRef.current = enumsCatalog;
+  packsRef.current = tablePacks;
 
   const files = activeId ? filesById[activeId] || null : null;
   const check = activeId ? checks[activeId] : undefined;
@@ -168,6 +178,55 @@ export default function Workbench({
     [postSlice],
   );
 
+  const runExport = useCallback(async (tableIds: string[]): Promise<ExportReport> => {
+    const ids = [...new Set(tableIds.map((id) => String(id || "").trim()).filter(Boolean))].sort();
+    const report = emptyExportReport({ tableIds: ids });
+    try {
+      const info = await tablesApi.exportInfo();
+      report.path = info.path || "";
+    } catch (err: unknown) {
+      report.errors.push({ tableId: "", message: err instanceof Error ? err.message : "无法读取导出目录" });
+    }
+    const pending: { tableId: string; name: string; content: string }[] = [];
+    for (const id of ids) {
+      let files = filesRef.current[id];
+      if (!files) {
+        try {
+          files = await tablesApi.files(id);
+        } catch (err: unknown) {
+          report.errors.push({ tableId: id, message: err instanceof Error ? err.message : "读取表失败" });
+          continue;
+        }
+      }
+      if (!files.hasExport || !String(files.export || "").trim()) {
+        report.skipped.push({ tableId: id, reason: "无导出脚本" });
+        continue;
+      }
+      const result = await runTableExporter(files.export, fullDataOf(id, files.data), parseDoc(files.struct));
+      if (!result.ok) {
+        report.errors.push({ tableId: id, message: result.error || "导出失败" });
+        continue;
+      }
+      if (!result.files.length) {
+        report.skipped.push({ tableId: id, reason: "未产生文件" });
+        continue;
+      }
+      for (const file of result.files) {
+        pending.push({ tableId: id, name: file.name, content: file.content });
+      }
+    }
+    if (pending.length) {
+      try {
+        const wrote = await tablesApi.writeExport(pending.map((item) => ({ name: item.name, content: item.content })));
+        report.path = wrote.path || report.path;
+        report.written = pending.map((item) => ({ tableId: item.tableId, name: item.name }));
+      } catch (err: unknown) {
+        report.errors.push({ tableId: "", message: err instanceof Error ? err.message : "写入导出目录失败" });
+      }
+    }
+    return report;
+  }, [fullDataOf]);
+
   const postEditorCmd = useCallback((type: "undo" | "redo" | "save") => {
     const id = activeRef.current;
     if (!id) return;
@@ -180,11 +239,30 @@ export default function Workbench({
       undo: () => postEditorCmd("undo"),
       redo: () => postEditorCmd("redo"),
       save: () => postEditorCmd("save"),
+      exportCurrent: () => {
+        const id = activeRef.current;
+        if (!id) {
+          return Promise.resolve(emptyExportReport({ errors: [{ tableId: "", message: "未打开配置表" }] }));
+        }
+        return runExport(exportSet(buildDepGraph(packsRef.current), id));
+      },
+      exportAll: async () => {
+        const listed = await tablesApi.list();
+        return runExport((listed.tables || []).map((item) => item.id));
+      },
     };
     return () => {
       editorCommandsRef.current = null;
     };
-  }, [editorCommandsRef, postEditorCmd]);
+  }, [editorCommandsRef, postEditorCmd, runExport]);
+
+  useEffect(() => {
+    onActiveIdChange?.(activeId);
+  }, [activeId, onActiveIdChange]);
+
+  useEffect(() => {
+    return () => onActiveIdChange?.("");
+  }, [onActiveIdChange]);
 
   useEffect(() => {
     function onKey(ev: KeyboardEvent) {

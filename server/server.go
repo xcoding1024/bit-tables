@@ -97,6 +97,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
 	mux.HandleFunc("GET /api/tables/{id}/asset", s.getAsset)
 	mux.HandleFunc("GET /api/events", s.events)
+	mux.HandleFunc("GET /api/export", s.getExport)
+	mux.HandleFunc("POST /api/export", s.postExport)
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.Handle("GET /web/", http.StripPrefix("/web/", http.FileServer(http.FS(web.FS))))
 	mux.Handle("GET /assets/", http.FileServer(http.FS(s.spa)))
@@ -295,6 +297,30 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	http.ServeFile(w, r, abs)
+}
+
+func (s *Server) getExport(w http.ResponseWriter, r *http.Request) {
+	writeOK(w, map[string]any{"path": s.current().ExportDir()})
+}
+
+func (s *Server) postExport(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Files []tables.ExportFile `json:"files"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
+		return
+	}
+	root := s.current()
+	written, err := root.WriteExportFiles(req.Files)
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	if written == nil {
+		written = []string{}
+	}
+	writeOK(w, map[string]any{"path": root.ExportDir(), "written": written})
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

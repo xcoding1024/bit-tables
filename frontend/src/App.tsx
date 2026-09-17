@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DepsDialog } from "./components/DepsDialog";
 import { EnumsDialog } from "./components/EnumsDialog";
+import { ExportDialog } from "./components/ExportDialog";
 import { TemplatesDialog } from "./components/TemplatesDialog";
 import Titlebar from "./components/Titlebar";
 import { tablesApi } from "./lib/api";
+import { emptyExportReport, type ExportReport, type TableSnap } from "./lib/deps";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
 import { shell } from "./lib/shell";
 import Guide, { CreateSampleDialog, OpenDialog, useGuideDialogs } from "./pages/Guide";
@@ -21,12 +24,22 @@ export default function App() {
   const [guide, setGuide] = useState(false);
   const [bootError, setBootError] = useState("");
   const [enumsCatalog, setEnumsCatalog] = useState<EnumCatalogItem[]>([]);
+  const [tablePacks, setTablePacks] = useState<TableSnap[]>([]);
   const [enumsOpen, setEnumsOpen] = useState(false);
+  const [depsOpen, setDepsOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportReport, setExportReport] = useState<ExportReport | null>(null);
+  const [activeTableId, setActiveTableId] = useState("");
   const dialogs = useGuideDialogs();
   const sh = shell();
   const editorCommandsRef = useRef<EditorCommands | null>(null);
   const workbenchReady = !bootError && !guide && Boolean(rootPath);
+
+  const handleActiveIdChange = useCallback((id: string) => {
+    setActiveTableId(id);
+  }, []);
 
   const reloadEnumsCatalog = useCallback(async () => {
     try {
@@ -42,8 +55,10 @@ export default function App() {
           };
         }),
       );
+      setTablePacks(packed);
       setEnumsCatalog(buildEnumsCatalog(packed));
     } catch {
+      setTablePacks([]);
       setEnumsCatalog([]);
     }
   }, []);
@@ -57,6 +72,7 @@ export default function App() {
         if (!next.guide && next.path) {
           await reloadEnumsCatalog();
         } else {
+          setTablePacks([]);
           setEnumsCatalog([]);
         }
       })
@@ -85,6 +101,7 @@ export default function App() {
     if (!next.guide) {
       await reloadEnumsCatalog();
     } else {
+      setTablePacks([]);
       setEnumsCatalog([]);
     }
     try {
@@ -122,16 +139,39 @@ export default function App() {
     }
   }
 
+  async function handleExport(kind: "current" | "all") {
+    const cmds = editorCommandsRef.current;
+    if (!cmds) return;
+    setExportBusy(true);
+    setExportOpen(true);
+    setExportReport(null);
+    try {
+      const report = kind === "current" ? await cmds.exportCurrent() : await cmds.exportAll();
+      setExportReport(report);
+    } catch (err: unknown) {
+      setExportReport(
+        emptyExportReport({
+          errors: [{ tableId: "", message: err instanceof Error ? err.message : "导出失败" }],
+        }),
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-bg text-ink">
       <Titlebar
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
-        onEnums={!guide && rootPath ? () => setEnumsOpen(true) : undefined}
+        onEnums={workbenchReady ? () => setEnumsOpen(true) : undefined}
+        onDeps={workbenchReady ? () => setDepsOpen(true) : undefined}
         onTemplates={() => setTemplatesOpen(true)}
         onUndo={workbenchReady ? () => editorCommandsRef.current?.undo() : undefined}
         onRedo={workbenchReady ? () => editorCommandsRef.current?.redo() : undefined}
         onSave={workbenchReady ? () => editorCommandsRef.current?.save() : undefined}
+        onExportCurrent={workbenchReady && activeTableId ? () => void handleExport("current") : undefined}
+        onExportAll={workbenchReady ? () => void handleExport("all") : undefined}
       />
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (
@@ -142,10 +182,27 @@ export default function App() {
           key={rootPath}
           rootPath={rootPath}
           enumsCatalog={enumsCatalog}
+          tablePacks={tablePacks}
           editorCommandsRef={editorCommandsRef}
+          onActiveIdChange={handleActiveIdChange}
         />
       ) : null}
       <EnumsDialog open={enumsOpen} catalog={enumsCatalog} onClose={() => setEnumsOpen(false)} />
+      <DepsDialog
+        open={depsOpen}
+        tables={tablePacks}
+        currentId={activeTableId}
+        onClose={() => setDepsOpen(false)}
+      />
+      <ExportDialog
+        open={exportOpen}
+        busy={exportBusy}
+        report={exportReport}
+        onClose={() => {
+          setExportOpen(false);
+          setExportReport(null);
+        }}
+      />
       <TemplatesDialog open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       <OpenDialog
         open={dialogs.kind === "open"}

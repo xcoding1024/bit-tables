@@ -326,6 +326,88 @@ export function buildEnumsPayload(
   return payload;
 }
 
+export type TableExportFile = { name: string; content: string };
+
+export type TableExportResult = {
+  ok: boolean;
+  files: TableExportFile[];
+  error?: string;
+};
+
+function asExportFiles(raw: unknown): TableExportFile[] {
+  const rec = asRecord(raw);
+  const list = rec && Array.isArray(rec.files) ? rec.files : Array.isArray(raw) ? raw : [];
+  if (!Array.isArray(list)) return [];
+  const out: TableExportFile[] = [];
+  for (const item of list) {
+    const file = asRecord(item);
+    const name = String(file?.name ?? "").trim();
+    if (!name) continue;
+    out.push({ name, content: String(file?.content ?? "") });
+  }
+  return out;
+}
+
+export function runTableExporter(
+  exportJs: string,
+  data: unknown,
+  struct: unknown,
+): Promise<TableExportResult> {
+  if (!exportJs.trim()) {
+    return Promise.resolve({ ok: false, files: [], error: "无导出脚本" });
+  }
+  return new Promise((resolve) => {
+    const html = `<!doctype html><meta charset="utf-8"><script>${exportJs.replace(/<\/script/gi, "<\\/script")}</script><script>
+      window.addEventListener("message", function (ev) {
+        try {
+          var exporter = window.BitTableExporter;
+          var result = exporter && typeof exporter.export === "function"
+            ? exporter.export(ev.data.data, ev.data.struct)
+            : null;
+          parent.postMessage({ type: "result", result: result }, "*");
+        } catch (err) {
+          parent.postMessage({ type: "result", error: String(err) }, "*");
+        }
+      });
+      parent.postMessage({ type: "ready" }, "*");
+    </script>`;
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    const iframe = document.createElement("iframe");
+    iframe.sandbox.add("allow-scripts");
+    iframe.style.display = "none";
+    iframe.src = url;
+    let settled = false;
+    const finish = (result: TableExportResult) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", onMsg);
+      iframe.remove();
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.source !== iframe.contentWindow || !ev.data || typeof ev.data !== "object") return;
+      if (ev.data.type === "ready") {
+        iframe.contentWindow?.postMessage({ data, struct }, "*");
+      } else if (ev.data.type === "result") {
+        if (ev.data.error) {
+          finish({ ok: false, files: [], error: String(ev.data.error) });
+          return;
+        }
+        const files = asExportFiles(ev.data.result);
+        if (!ev.data.result) {
+          finish({ ok: false, files: [], error: "未定义 BitTableExporter.export" });
+          return;
+        }
+        finish({ ok: true, files });
+      }
+    };
+    window.addEventListener("message", onMsg);
+    document.body.appendChild(iframe);
+    window.setTimeout(() => finish({ ok: false, files: [], error: "导出超时" }), 8000);
+  });
+}
+
 export function runTableChecker(
   checkerJs: string,
   data: unknown,
