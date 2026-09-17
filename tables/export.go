@@ -25,7 +25,7 @@ type ExportWritten struct {
 }
 
 func (r *Root) ExportBaseDir() string {
-	return filepath.Join(filepath.Dir(r.Path), "export")
+	return filepath.Join(filepath.Dir(r.Path), "build")
 }
 
 func (r *Root) ExportDir(side ExportSide) string {

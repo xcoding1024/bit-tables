@@ -35,7 +35,7 @@ func TestBundleBitTablesImport(t *testing.T) {
 	project := t.TempDir()
 	tablesRoot := filepath.Join(project, "tables")
 	item := filepath.Join(tablesRoot, "item")
-	writeFile(t, filepath.Join(project, "core", "editor.ts"), `
+	writeFile(t, filepath.Join(project, "src", "editor.ts"), `
 export class BitTableEditorBase {
   mount() { (window as any).BitTableEditor = { mount() {} }; }
 }
@@ -121,7 +121,7 @@ func TestPlainJSPassthrough(t *testing.T) {
 	}
 }
 
-func TestSignatureIncludesCoreTS(t *testing.T) {
+func TestSignatureIncludesSrcTS(t *testing.T) {
 	project := t.TempDir()
 	tablesRoot := filepath.Join(project, "tables")
 	if err := os.MkdirAll(tablesRoot, 0o755); err != nil {
@@ -131,12 +131,12 @@ func TestSignatureIncludesCoreTS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(project, "core", "editor.ts"), "export const y = 2;\n")
+	writeFile(t, filepath.Join(project, "src", "editor.ts"), "export const y = 2;\n")
 	sig, err := r.Signature()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(sig, "../core/editor.ts@") {
-		t.Fatalf("core signature %s", sig)
+	if !strings.Contains(sig, "../src/editor.ts@") {
+		t.Fatalf("src signature %s", sig)
 	}
 }

@@ -551,7 +551,7 @@ func (r *Root) Signature() (string, error) {
 		return "", err
 	}
 	parent := filepath.Dir(r.Path)
-	coreDir := filepath.Join(parent, "core")
+	coreDir := filepath.Join(parent, "src")
 	_ = filepath.WalkDir(coreDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil

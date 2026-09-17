@@ -373,8 +373,8 @@ func TestWatchSSEAfterDataWrite(t *testing.T) {
 
 func TestExportWritesAndRejectsTraversal(t *testing.T) {
 	_, h, root := testServer(t)
-	clientDir := filepath.Join(filepath.Dir(root.Path), "export", "client")
-	serverDir := filepath.Join(filepath.Dir(root.Path), "export", "server")
+	clientDir := filepath.Join(filepath.Dir(root.Path), "build", "client")
+	serverDir := filepath.Join(filepath.Dir(root.Path), "build", "server")
 
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/export", nil))

@@ -2,7 +2,7 @@
 
 ## 结构
 
-- 编辑器 / 检查器 / 导出分别 `import` 自 `bit-tables.editor` / `bit-tables.checker` / `bit-tables.export`（实现位于 `demo/core/`）
+- 编辑器 / 检查器 / 导出分别 `import` 自 `bit-tables.editor` / `bit-tables.checker` / `bit-tables.export`（实现位于 `demo/src/`）
 - 表名：Sheet 控件演示表
 - `default_sheet: items`
 - sheet 用 `view: table` / `view: card` 指定展示形态
@@ -38,5 +38,5 @@
 ## 导出规则
 
 - 对应 `sheet_demo_export.ts` 的 `BitTableExporter.export`
-- 客户端：写入配表根上一级 `export/client/sheet_demo.json`（`JSON.stringify` 整表 data）
-- 服务端：写入配表根上一级 `export/server/sheet_demo.json`（`JSON.stringify` 整表 data）
+- 客户端：写入配表根上一级 `build/client/sheet_demo.json`（`JSON.stringify` 整表 data）
+- 服务端：写入配表根上一级 `build/server/sheet_demo.json`（`JSON.stringify` 整表 data）

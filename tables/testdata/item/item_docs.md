@@ -18,5 +18,5 @@
 ## 导出规则
 
 - 对应 `{{TABLE_ID}}_export.js` 的 `BitTableExporter.export`
-- 客户端：写入 `export/client/{{TABLE_ID}}.json`（`JSON.stringify` 整表 data）
-- 服务端：写入 `export/server/{{TABLE_ID}}.json`（`JSON.stringify` 整表 data）
+- 客户端：写入 `build/client/{{TABLE_ID}}.json`（`JSON.stringify` 整表 data）
+- 服务端：写入 `build/server/{{TABLE_ID}}.json`（`JSON.stringify` 整表 data）

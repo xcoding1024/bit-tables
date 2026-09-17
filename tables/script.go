@@ -92,7 +92,7 @@ func resolveBitTablesImport(projectRoot, spec string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("未知的 bit-tables 模块: %s", spec)
 	}
-	return resolveUnderRoot(projectRoot, filepath.Join(projectRoot, "core", file))
+	return resolveUnderRoot(projectRoot, filepath.Join(projectRoot, "src", file))
 }
 
 func sandboxPlugin(projectRoot string) api.Plugin {

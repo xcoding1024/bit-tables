@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * 跨平台导表：跑配表根下各表 *_export.ts / *_export.js，
- * 产物写入配表根上一级 export/client 与 export/server。
+ * 产物写入配表根上一级 build/client 与 build/server。
  *
  * 用法:
  *   node export.mjs                 # 导出全部表
  *   node export.mjs sheet_demo      # 当前表 + 引用它的下游表
  *   node export.mjs --all
- *   node export.mjs --root ../tables
+ *   node export.mjs --root ./tables
  */
 import { createContext, runInContext } from "node:vm";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ import esbuild from "esbuild";
 import yaml from "js-yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEMO_ROOT = path.resolve(__dirname, "..");
+const DEMO_ROOT = path.resolve(__dirname);
 const DEFAULT_TABLES_ROOT = path.join(DEMO_ROOT, "tables");
 const TABLE_ID_RE = /^[a-z][a-z0-9_]{0,31}$/;
 const SHEET_ID_RE = /^[a-z][a-z0-9_]{0,31}$/;
@@ -26,7 +26,7 @@ function usage() {
   console.log(`用法: node export.mjs [表id...] [--all] [--root <配表根>]
 
 默认配表根: ${DEFAULT_TABLES_ROOT}
-产物目录:   <配表根上一级>/export/client 与 export/server
+产物目录:   <配表根上一级>/build/client 与 build/server
 
 无参数或 --all：导出全部有 export 脚本的表。
 指定表 id：导出这些表及其传递下游（引用它们的表）。`);
@@ -185,7 +185,7 @@ function resolveBitTablesImport(projectRoot, spec) {
   };
   const file = allowed[m[1]];
   if (!file) throw new Error(`未知的 bit-tables 模块: ${spec}`);
-  return path.join(projectRoot, "core", file);
+  return path.join(projectRoot, "src", file);
 }
 
 async function bundleExport(entry, projectRoot) {
@@ -299,8 +299,8 @@ async function main() {
     throw new Error(`配表根不存在: ${tablesRoot}`);
   }
   const projectRoot = path.dirname(tablesRoot);
-  const clientDir = path.join(projectRoot, "export", "client");
-  const serverDir = path.join(projectRoot, "export", "server");
+  const clientDir = path.join(projectRoot, "build", "client");
+  const serverDir = path.join(projectRoot, "build", "server");
 
   const discovered = findTableDirs(tablesRoot);
   const packed = discovered.map((item) => {

@@ -19,7 +19,7 @@ const TEMPLATES: EditorTemplate[] = [
     demoTable: "sheet_demo.items",
     importHint: 'import { BitTableEditorBase } from "bit-tables.editor";\nimport type { ParamField, Row } from "bit-tables.types";',
     usage: [
-      "配表根上一级放 core/（如 demo/core），表脚本即可 import \"bit-tables.*\"。",
+      "配表根上一级放 src/（如 demo/src），表脚本即可 import \"bit-tables.*\"。",
       "sheet 设 view: table（默认）；按需打开 enableColFilters / enableTableScroll。",
       "复杂对象字段用 widget: params，在子类实现 paramsSchema / paramsTitle / formatParamValue。",
       "参考 sheet_demo 的 items sheet。",
@@ -91,7 +91,7 @@ const TEMPLATES: EditorTemplate[] = [
       "继承 BitTableExporterBase，设置 fileName（默认 JSON.stringify 整表 data）。",
       "window.BitTableExporter = new YourExporter()；返回 { client:[{ name, content }], server:[{ name, content }] }。",
       "可用 clientFileName / serverFileName 区分两端文件名；需要不同内容时重写 export。",
-      "产物写入配表根上一级 export/client 与 export/server。",
+      "产物写入配表根上一级 build/client 与 build/server。",
     ],
     preview: <ExportPreview />,
   },
@@ -117,7 +117,7 @@ export function TemplatesDialog({
     >
       <div className="mb-2 text-[12px] text-muted">
         可复用控件与基类。实现在配表根上一级{" "}
-        <span className="font-mono text-secondary">core/</span>
+        <span className="font-mono text-secondary">src/</span>
         ，用 <span className="font-mono text-secondary">bit-tables.*</span> 引用。
       </div>
       <div className="flex min-h-[380px] gap-3" data-testid="templates-browser">
@@ -310,12 +310,12 @@ function ExportPreview() {
       <div>
         <div className="text-muted">client[0]</div>
         <div>name: sheet_demo.json</div>
-        <div className="truncate">{'→ export/client/'}</div>
+        <div className="truncate">{'→ build/client/'}</div>
       </div>
       <div>
         <div className="text-muted">server[0]</div>
         <div>name: sheet_demo.json</div>
-        <div className="truncate">{'→ export/server/'}</div>
+        <div className="truncate">{'→ build/server/'}</div>
       </div>
     </div>
   );

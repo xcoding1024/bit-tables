@@ -49,7 +49,7 @@ window.BitTableChecker = { check(data, struct, enums) { return { ok: true, error
 window.BitTableExporter = { export(data, struct) { return { client: [{ name, content }], server: [{ name, content }] }; } };
 ```
 
-若配表根上一级有 `core/`（如 demo），可按需引用：`import { BitTableEditorBase } from "bit-tables.editor"`、`bit-tables.checker`、`bit-tables.export`、`bit-tables.dom`、`bit-tables.types`。无共享基类时写自包含脚本即可。
+若配表根上一级有 `src/`（如 demo），可按需引用：`import { BitTableEditorBase } from "bit-tables.editor"`、`bit-tables.checker`、`bit-tables.export`、`bit-tables.dom`、`bit-tables.types`。无共享基类时写自包含脚本即可。
 
 枚举：sheet 设 `kind: enum`；字段 `enum: sheet` 或 `enum: table.sheet`；兼容旧 `options`。
 
@@ -60,4 +60,4 @@ window.BitTableExporter = { export(data, struct) { return { client: [{ name, con
 ## 禁止
 
 - 不要假设全项目统一 schema
-- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，客户端写入配表根上一级 `export/client/`，服务端写入 `export/server/`。导出规则文档须区分两端。
+- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，客户端写入配表根上一级 `build/client/`，服务端写入 `build/server/`。导出规则文档须区分两端。

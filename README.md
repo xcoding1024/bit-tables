@@ -29,7 +29,7 @@
 
 `checker.ts` 是规则检查脚本，错了会标到具体字段，比如 `sheets.items.rows.0.id`
 
-`export.ts` 是导表规则脚本，分别产出客户端与服务端文件，写入配表根上一级 `export/client/` 与 `export/server/`
+`export.ts` 是导表规则脚本，分别产出客户端与服务端文件，写入配表根上一级 `build/client/` 与 `build/server/`
 
 `docs.md` 是结构、检查规则、导出规则的文档，AI改完表就会顺手改这个文档，方面之后查看。
 
@@ -75,7 +75,7 @@ sheets:
 
 ## 开发
 
-需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)；共享控件基类在 [demo/core](demo/core)，表脚本用 `bit-tables.editor` 等别名引用）。
+需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)；共享控件基类在 [demo/src](demo/src)，表脚本用 `bit-tables.editor` 等别名引用）。
 
 ```powershell
 npm install
@@ -117,19 +117,19 @@ go run ./cmd/bit-tables serve D:\game\tables --sample
 
 ### 命令行导表（demo）
 
-[demo/tools](demo/tools) 提供跨平台导表脚本（需 Node.js），跑各表 `*_export.ts`，产物写入 `demo/export/client` 与 `demo/export/server`。
+[demo](demo) 提供跨平台导表脚本（需 Node.js），跑各表 `*_export.ts`，产物写入 `demo/build/client` 与 `demo/build/server`。
 
 ```bash
 # Linux / macOS
-./demo/tools/export.sh
-./demo/tools/export.sh sheet_demo
+./demo/export.sh
+./demo/export.sh sheet_demo
 
 # Windows
-demo\tools\export.cmd
-demo\tools\export.cmd sheet_demo
+demo\export.cmd
+demo\export.cmd sheet_demo
 
 # 或任意平台直接用 Node
-cd demo/tools && npm install && node export.mjs --all
+cd demo && npm install && node export.mjs --all
 ```
 
 指定表 id 时会连带导出引用它的下游表（与工作台「导出当前表」一致）。
