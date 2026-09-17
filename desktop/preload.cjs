@@ -10,5 +10,4 @@ contextBridge.exposeInMainWorld("bitTablesShell", {
   },
   pickDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),
   rememberRoot: (dir) => ipcRenderer.invoke("root:remember", dir),
-  createSample: (parent, name) => ipcRenderer.invoke("root:createSample", parent, name),
 });

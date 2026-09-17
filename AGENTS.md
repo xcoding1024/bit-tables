@@ -61,3 +61,4 @@ window.BitTableExporter = { export(data, struct) { return { client: [{ name, con
 
 - 不要假设全项目统一 schema
 - 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明统一导表格式、热更或共享流程。工作台只编排执行各表 exporter，客户端写入配表根上一级 `build/client/`，服务端写入 `build/server/`。导出规则文档须区分两端。
+- 不要把修改记录、实现对比（如「与仓库 demo 相同」「改为…」「不再…」）写进界面文案、代码注释或产品提示；文案只写当下用户动作与当前行为。

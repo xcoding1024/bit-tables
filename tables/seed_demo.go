@@ -9,8 +9,7 @@ import (
 	demotpl "github.com/xcoding1024/bit-tables/demo"
 )
 
-// SeedDemoProject writes a full sample project (same layout as repo demo/) into projectDir:
-// tables/, src/, res/, and export scripts. projectDir must be empty or only contain an empty tables/.
+// SeedDemoProject 向 projectDir 写入完整示例项目（tables/、src/、res/、导表脚本）。
 func SeedDemoProject(projectDir string) error {
 	abs, err := filepath.Abs(projectDir)
 	if err != nil {
@@ -48,9 +47,7 @@ func SeedDemoProject(projectDir string) error {
 	})
 }
 
-// SeedSampleRoot seeds an empty tables root. If the directory is named "tables",
-// it writes a full demo-like project into the parent directory; otherwise it writes
-// the legacy single item table into this root.
+// SeedSampleRoot 为空配表根写入示例：目录名为 tables 时在上一级写入完整示例项目，否则写入 item 表。
 func SeedSampleRoot(tablesRoot string) error {
 	abs, err := filepath.Abs(tablesRoot)
 	if err != nil {

@@ -30,11 +30,11 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="mb-3 block">
+    <div className="mb-3 block">
       <div className="mb-1 text-muted">{label}</div>
       {children}
       {hint ? <div className="mt-1 text-muted">{hint}</div> : null}
-    </label>
+    </div>
   );
 }
 

@@ -8,7 +8,8 @@ import { tablesApi } from "./lib/api";
 import { emptyExportReport, type ExportReport, type TableSnap } from "./lib/deps";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
 import { shell } from "./lib/shell";
-import Guide, { CreateSampleDialog, OpenDialog, useGuideDialogs } from "./pages/Guide";
+import Guide, { CreateSampleDialog, OpenDialog } from "./pages/Guide";
+import { useGuideDialogs } from "./pages/useGuideDialogs";
 import Workbench, { type EditorCommands } from "./pages/Workbench";
 
 function parseDoc(text: string): unknown {
@@ -125,14 +126,15 @@ export default function App() {
   }
 
   async function confirmCreate() {
-    const parent = dialogs.createParent.trim();
-    const name = dialogs.createName.trim();
-    if (!parent || !name || !sh) return;
+    const dir = dialogs.createPath.trim().replace(/[/\\]+$/, "");
+    if (!dir) return;
     dialogs.setBusy(true);
     dialogs.setError("");
     try {
-      const dest = await sh.createSample(parent, name);
-      await applyRoot(dest, { sample: true });
+      const tablesRoot = /(?:^|[/\\])tables$/i.test(dir)
+        ? dir
+        : `${dir}${dir.includes("\\") ? "\\" : "/"}tables`;
+      await applyRoot(tablesRoot, { sample: true });
     } catch (err: unknown) {
       dialogs.setError(err instanceof Error ? err.message : "创建失败");
       dialogs.setBusy(false);
@@ -215,12 +217,10 @@ export default function App() {
       />
       <CreateSampleDialog
         open={dialogs.kind === "create"}
-        parent={dialogs.createParent}
-        name={dialogs.createName}
+        path={dialogs.createPath}
         busy={dialogs.busy}
         error={dialogs.error}
-        onParent={dialogs.setCreateParent}
-        onName={dialogs.setCreateName}
+        onPath={dialogs.setCreatePath}
         onClose={() => dialogs.setKind("")}
         onConfirm={() => void confirmCreate()}
       />

@@ -68,7 +68,7 @@ func Open(path string) (*Root, error) {
 	return &Root{Path: abs}, nil
 }
 
-// OpenAt 打开配表根目录。sample 为真时若目录为空则写入示例：目录名为 tables 时在上一级生成与 demo 相同的完整项目，否则写入 item 示例表。
+// OpenAt 打开配表根目录。sample 为真时若目录为空则写入示例：目录名为 tables 时在上一级写入完整示例项目，否则写入 item 示例表。
 func OpenAt(path string, sample bool) (*Root, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("路径不能为空")

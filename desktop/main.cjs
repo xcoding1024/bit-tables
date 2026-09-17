@@ -233,26 +233,6 @@ ipcMain.handle("dialog:openDirectory", async () => {
 
 ipcMain.handle("root:remember", async (_ev, dir) => rememberRoot(dir));
 
-ipcMain.handle("root:createSample", async (_ev, parent, name) => {
-  if (!parent || !name || typeof parent !== "string" || typeof name !== "string") {
-    throw new Error("路径无效");
-  }
-  if (/[\\/]/.test(name) || name === "." || name === "..") {
-    throw new Error("项目名无效");
-  }
-  if (!fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) {
-    throw new Error("父目录不存在");
-  }
-  const dest = path.join(parent, name);
-  if (fs.existsSync(dest)) {
-    throw new Error("目录已存在");
-  }
-  // 与 demo 相同：项目根下 tables/ 作为配表根，sample 时写入完整示例
-  const tablesRoot = path.join(dest, "tables");
-  fs.mkdirSync(tablesRoot, { recursive: true });
-  return rememberRoot(tablesRoot);
-});
-
 ipcMain.on("window:minimize", () => {
   win?.minimize();
 });

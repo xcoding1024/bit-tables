@@ -1,7 +1,43 @@
-import { useState } from "react";
 import { FolderOpen, FolderPlus, Table2 } from "lucide-react";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { shell } from "../lib/shell";
+
+export { useGuideDialogs } from "./useGuideDialogs";
+
+function PathPicker({
+  value,
+  testId,
+  onChange,
+}: {
+  value: string;
+  testId: string;
+  onChange: (path: string) => void;
+}) {
+  const sh = shell();
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        className="min-w-0 flex-1 !w-auto"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        data-testid={testId}
+      />
+      {sh ? (
+        <Btn
+          type="button"
+          className="shrink-0 whitespace-nowrap px-3"
+          onClick={() => {
+            void sh.pickDirectory().then((picked) => {
+              if (picked) onChange(picked);
+            });
+          }}
+        >
+          浏览
+        </Btn>
+      ) : null}
+    </div>
+  );
+}
 
 export default function Guide({
   error,
@@ -51,7 +87,6 @@ export function OpenDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const sh = shell();
   return (
     <Dialog
       open={open}
@@ -67,20 +102,7 @@ export function OpenDialog({
       }
     >
       <Field label="目录" hint="选择已有的配表根目录">
-        <div className="flex gap-2">
-          <Input value={path} onChange={(e) => onPath(e.target.value)} data-testid="tables-open-path" />
-          {sh ? (
-            <Btn
-              onClick={() => {
-                void sh.pickDirectory().then((picked) => {
-                  if (picked) onPath(picked);
-                });
-              }}
-            >
-              浏览
-            </Btn>
-          ) : null}
-        </div>
+        <PathPicker value={path} testId="tables-open-path" onChange={onPath} />
       </Field>
       {error ? <div className="text-danger">{error}</div> : null}
     </Dialog>
@@ -89,26 +111,21 @@ export function OpenDialog({
 
 export function CreateSampleDialog({
   open,
-  parent,
-  name,
+  path,
   busy,
   error,
-  onParent,
-  onName,
+  onPath,
   onClose,
   onConfirm,
 }: {
   open: boolean;
-  parent: string;
-  name: string;
+  path: string;
   busy: boolean;
   error: string;
-  onParent: (path: string) => void;
-  onName: (name: string) => void;
+  onPath: (path: string) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const sh = shell();
   return (
     <Dialog
       open={open}
@@ -119,7 +136,7 @@ export function CreateSampleDialog({
           <Btn onClick={onClose}>取消</Btn>
           <Btn
             variant="primary"
-            disabled={!parent.trim() || !name.trim() || busy}
+            disabled={!path.trim() || busy}
             onClick={onConfirm}
             data-testid="tables-create-confirm"
           >
@@ -128,65 +145,10 @@ export function CreateSampleDialog({
         </>
       }
     >
-      <Field label="父目录">
-        <div className="flex gap-2">
-          <Input value={parent} onChange={(e) => onParent(e.target.value)} data-testid="tables-create-parent" />
-          {sh ? (
-            <Btn
-              onClick={() => {
-                void sh.pickDirectory().then((picked) => {
-                  if (picked) onParent(picked);
-                });
-              }}
-            >
-              浏览
-            </Btn>
-          ) : null}
-        </div>
-      </Field>
-      <Field label="项目名" hint="将在父目录下新建此文件夹，结构与仓库 demo 相同（含 tables / src / res 与导表脚本）">
-        <Input value={name} onChange={(e) => onName(e.target.value)} data-testid="tables-create-name" />
+      <Field label="目录" hint="选择要写入示例的目录">
+        <PathPicker value={path} testId="tables-create-path" onChange={onPath} />
       </Field>
       {error ? <div className="text-danger">{error}</div> : null}
     </Dialog>
   );
-}
-
-export function useGuideDialogs() {
-  const [kind, setKind] = useState<"open" | "create" | "">("");
-  const [openPath, setOpenPath] = useState("");
-  const [createParent, setCreateParent] = useState("");
-  const [createName, setCreateName] = useState("demo");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  function startOpen() {
-    setError("");
-    setOpenPath("");
-    setKind("open");
-  }
-
-  function startCreate() {
-    setError("");
-    setCreateParent("");
-    setCreateName("demo");
-    setKind("create");
-  }
-
-  return {
-    kind,
-    openPath,
-    createParent,
-    createName,
-    busy,
-    error,
-    setKind,
-    setOpenPath,
-    setCreateParent,
-    setCreateName,
-    setBusy,
-    setError,
-    startOpen,
-    startCreate,
-  };
 }
