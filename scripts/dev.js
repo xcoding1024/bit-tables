@@ -9,6 +9,11 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..");
 const DEV_SERVER_URL = process.env.DEV_SERVER_URL || "http://127.0.0.1:5173";
 const API_ADDR = process.env.BIT_TABLES_ADDR || "127.0.0.1:18780";
+const TABLES_ROOT = process.env.BIT_TABLES_ROOT || path.join(ROOT, "demo", "tables");
+
+/** @type {import('child_process').ChildProcess[]} */
+const children = [];
+let shuttingDown = false;
 
 function portFromURL(url, fallback) {
   try {
@@ -103,28 +108,68 @@ function waitHttp(url, tries = 80) {
   });
 }
 
+function spaDir() {
+  const built = path.join(ROOT, "frontend", "dist");
+  if (fs.existsSync(path.join(built, "index.html"))) return built;
+  return path.join(ROOT, "web", "dist");
+}
+
+function viteEntry() {
+  return path.join(ROOT, "frontend", "node_modules", "vite", "bin", "vite.js");
+}
+
+function electronBin() {
+  return require(path.join(ROOT, "node_modules", "electron"));
+}
+
+/**
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{ cwd?: string, env?: Record<string, string>, name?: string }} [opts]
+ */
 function run(cmd, args, opts = {}) {
   const child = spawn(cmd, args, {
     cwd: opts.cwd || ROOT,
     env: { ...process.env, ...opts.env },
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: false,
     windowsHide: false,
   });
+  children.push(child);
   child.on("exit", (code) => {
-    if (code && code !== 0) {
-      console.error(`${cmd} exited ${code}`);
+    if (!shuttingDown && code && code !== 0) {
+      console.error(`${opts.name || cmd} exited ${code}`);
     }
   });
   return child;
 }
 
+function stopAll() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  for (const child of children) {
+    if (!child.pid || child.killed) continue;
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "ignore", windowsHide: true });
+    } else {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  freePorts([portFromURL(DEV_SERVER_URL, 5173), portFromAddr(API_ADDR, 18780)]).catch(() => undefined);
+}
+
 function npmInstallIfNeeded(dir) {
   if (!fs.existsSync(path.join(dir, "node_modules"))) {
-    const result = spawn("npm", ["install"], {
+    // Windows + Node 20+：直接 spawn npm.cmd 会 EINVAL，需走 shell
+    const result = spawn("npm install", {
       cwd: dir,
       stdio: "inherit",
-      shell: process.platform === "win32",
+      shell: true,
+      windowsHide: true,
     });
     return new Promise((resolve, reject) => {
       result.on("exit", (code) => {
@@ -142,30 +187,51 @@ async function main() {
   await npmInstallIfNeeded(ROOT);
   await npmInstallIfNeeded(path.join(ROOT, "frontend"));
 
+  // API 先就绪，再开 Vite / Electron，避免代理 ECONNREFUSED 刷屏
+  console.log("==> api");
+  run("go", ["run", "./cmd/bit-tables", "serve", TABLES_ROOT, "--addr", API_ADDR], {
+    env: { BIT_TABLES_SPA: spaDir() },
+    name: "api",
+  });
+  await waitHttp(`http://${API_ADDR}/api/root`, 150);
+
   console.log("==> vite");
-  run("npm", ["run", "dev"], { cwd: path.join(ROOT, "frontend") });
+  run(process.execPath, [viteEntry()], {
+    cwd: path.join(ROOT, "frontend"),
+    name: "vite",
+  });
   await waitHttp(DEV_SERVER_URL);
 
   console.log("==> desktop");
-  const electron = run("npx", ["electron", ".", "--disable-crash-reporter"], {
+  const electron = run(electronBin(), [".", "--disable-crash-reporter"], {
     env: {
       DEV_SERVER_URL,
       BIT_TABLES_DEV: "1",
-      BIT_TABLES_ROOT: path.join(ROOT, "demo", "tables"),
+      BIT_TABLES_EXTERNAL_API: "1",
+      BIT_TABLES_ROOT: TABLES_ROOT,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
     },
+    name: "electron",
   });
 
   console.log("");
   console.log("dev:");
   console.log(`  desktop  ${DEV_SERVER_URL}`);
+  console.log(`  api      http://${API_ADDR}`);
   console.log("  root     demo/tables/");
   console.log("");
 
-  electron.on("exit", () => process.exit(0));
+  const shutdown = () => {
+    stopAll();
+    process.exit(0);
+  };
+  electron.on("exit", shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {
   console.error(err.message || err);
+  stopAll();
   process.exit(1);
 });

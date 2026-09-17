@@ -78,6 +78,7 @@ export default function Workbench({
   const [newOpen, setNewOpen] = useState(false);
   const [newId, setNewId] = useState("");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
+  const frameReadyRef = useRef<Record<string, boolean>>({});
   const filesRef = useRef(filesById);
   const draftRef = useRef(draftById);
   const sheetRef = useRef(sheetById);
@@ -134,7 +135,10 @@ export default function Workbench({
       const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
       const enums = buildEnumsPayload(struct, cur.id, enumsRef.current);
       if (type === "replaceData") {
-        frame.contentWindow.postMessage({ type: "replaceData", data: sliced.data, enums }, "*");
+        frame.contentWindow.postMessage(
+          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums },
+          "*",
+        );
         return;
       }
       frame.contentWindow.postMessage(
@@ -143,6 +147,17 @@ export default function Workbench({
       );
     },
     [fullDataOf, sheetOf, structOf],
+  );
+
+  /** iframe ready 与 files 加载谁先谁后都可能；两边到齐才 init，避免窗口模式下只有 rows、没有 fields。 */
+  const tryInitFrame = useCallback(
+    (id: string) => {
+      if (!id || !frameReadyRef.current[id] || !filesRef.current[id] || !iframeRefs.current[id]?.contentWindow) {
+        return;
+      }
+      postSlice(id, "init");
+    },
+    [postSlice],
   );
 
   useEffect(() => {
@@ -213,12 +228,15 @@ export default function Workbench({
           editorKey: remount ? (prev[id]?.editorKey || 0) + 1 : prev[id]?.editorKey || 1,
         },
       }));
-      if (!remount) {
+      if (remount) {
+        // 新 iframe 会再发 ready；若 ready 已到则立刻补 init
+        tryInitFrame(id);
+      } else {
         postSlice(id, "replaceData");
       }
       await runCheck(id, next, data);
     },
-    [postSlice, rememberDraft, rememberFiles, runCheck],
+    [postSlice, rememberDraft, rememberFiles, runCheck, tryInitFrame],
   );
 
   const closeTab = useCallback(
@@ -249,6 +267,7 @@ export default function Workbench({
         return copy;
       });
       delete iframeRefs.current[id];
+      delete frameReadyRef.current[id];
       if (activeRef.current === id) {
         const idx = tabsRef.current.indexOf(id);
         const fallback = nextTabs[idx] || nextTabs[idx - 1] || nextTabs[0] || "";
@@ -296,8 +315,9 @@ export default function Workbench({
       const frame = iframeRefs.current[id];
       const msg = ev.data as { type?: string; data?: unknown };
       const cur = filesRef.current[id];
-      if (msg.type === "ready" && cur && frame) {
-        postSlice(id, "init");
+      if (msg.type === "ready" && frame) {
+        frameReadyRef.current[id] = true;
+        tryInitFrame(id);
       } else if (msg.type === "dirty") {
         applyPartial(id, msg.data);
       } else if (msg.type === "save") {
@@ -344,7 +364,7 @@ export default function Workbench({
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [applyPartial, postSlice, rememberDraft, rememberFiles, runCheck]);
+  }, [applyPartial, postSlice, rememberDraft, rememberFiles, runCheck, tryInitFrame]);
 
   useEffect(() => {
     if (!window.EventSource) return;
@@ -545,6 +565,9 @@ export default function Workbench({
                 <iframe
                   key={`${id}-${checks[id]?.editorKey || 1}`}
                   ref={(node) => {
+                    if (iframeRefs.current[id] !== node) {
+                      frameReadyRef.current[id] = false;
+                    }
                     iframeRefs.current[id] = node;
                   }}
                   data-testid={id === activeId ? "table-editor-frame" : undefined}
@@ -552,6 +575,10 @@ export default function Workbench({
                   className={`absolute inset-0 h-full w-full border-0 bg-bg ${id === activeId ? "" : "invisible"}`}
                   sandbox="allow-scripts"
                   src={tablesApi.editorURL(id, checks[id]?.editorKey || 1)}
+                  onLoad={() => {
+                    frameReadyRef.current[id] = true;
+                    tryInitFrame(id);
+                  }}
                 />
               ))
             )}

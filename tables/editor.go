@@ -140,6 +140,8 @@ func EditorHTML(editorJS string) string {
       }
       mount();
     } else if (msg.type === "replaceData") {
+      if (msg.struct != null) struct = msg.struct;
+      if (msg.sheetId != null) sheetId = msg.sheetId;
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
       alignHistory();

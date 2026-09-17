@@ -7,6 +7,8 @@ const path = require("path");
 const ADDR = process.env.BIT_TABLES_ADDR || "127.0.0.1:18780";
 const DEV_SERVER_URL = process.env.DEV_SERVER_URL || "";
 const IS_DEV = Boolean(process.env.BIT_TABLES_DEV || DEV_SERVER_URL);
+/** dev.js 已拉起 API 时置 1，窗口进程不再重复 go run，避免启动空窗期代理报错 */
+const EXTERNAL_API = process.env.BIT_TABLES_EXTERNAL_API === "1";
 const REPO_ROOT = path.join(__dirname, "..");
 
 /** @type {import('child_process').ChildProcess | null} */
@@ -196,11 +198,15 @@ function createWindow() {
 }
 
 async function boot() {
-  const root = defaultRoot();
-  if (root) {
-    await serveRoot(root);
+  if (EXTERNAL_API) {
+    await waitHealth();
   } else {
-    await serveRoot(emptyRoot(), { guide: true });
+    const root = defaultRoot();
+    if (root) {
+      await serveRoot(root);
+    } else {
+      await serveRoot(emptyRoot(), { guide: true });
+    }
   }
   createWindow();
 }
