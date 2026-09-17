@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { EnumsDialog } from "./components/EnumsDialog";
+import { TemplatesDialog } from "./components/TemplatesDialog";
 import Titlebar from "./components/Titlebar";
 import { tablesApi } from "./lib/api";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
@@ -21,6 +22,7 @@ export default function App() {
   const [bootError, setBootError] = useState("");
   const [enumsCatalog, setEnumsCatalog] = useState<EnumCatalogItem[]>([]);
   const [enumsOpen, setEnumsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const dialogs = useGuideDialogs();
   const sh = shell();
 
@@ -124,6 +126,7 @@ export default function App() {
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
         onEnums={!guide && rootPath ? () => setEnumsOpen(true) : undefined}
+        onTemplates={() => setTemplatesOpen(true)}
       />
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (
@@ -133,6 +136,7 @@ export default function App() {
         <Workbench key={rootPath} rootPath={rootPath} enumsCatalog={enumsCatalog} />
       ) : null}
       <EnumsDialog open={enumsOpen} catalog={enumsCatalog} onClose={() => setEnumsOpen(false)} />
+      <TemplatesDialog open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       <OpenDialog
         open={dialogs.kind === "open"}
         path={dialogs.openPath}

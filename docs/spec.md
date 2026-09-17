@@ -28,6 +28,7 @@
 - 多 sheet 数据写在 `sheets.{id}.rows`；单 sheet / 旧表可继续只写顶层 `rows`（当作 `default_sheet` 或第一张 / `main`）
 - **枚举 sheet**：`kind: enum`，推荐字段 `id` + `name`。字段用 `enum: kinds`（本表）或 `enum: item.kinds`（他表）引用；值存 id，编辑器下拉默认显示 name（无则 label，再无则 id）。无 `enum` 时仍可用扁平 `options: a, b, c`
 - 打开配表根目录时工作台预加载全部 `kind: enum` sheet；标题栏「查看 → 枚举」可搜索浏览
+- 标题栏「查看 → 编辑模板」浏览可复用的 editor / checker / export 基类预览与用法（`bit-tables.*` → 配表根上一级 `core/`）
 
 ```yaml
 # {id}_struct.yaml

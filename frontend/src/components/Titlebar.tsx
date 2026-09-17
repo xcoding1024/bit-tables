@@ -11,10 +11,12 @@ export default function Titlebar({
   onOpen,
   onCreateSample,
   onEnums,
+  onTemplates,
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
   onEnums?: () => void;
+  onTemplates?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -91,6 +93,12 @@ export default function Titlebar({
               disabled={!onEnums}
               testId="titlebar-enums"
               onClick={() => run(onEnums)}
+            />
+            <MenuItem
+              label="编辑模板"
+              disabled={!onTemplates}
+              testId="titlebar-templates"
+              onClick={() => run(onTemplates)}
             />
           </Menu>
           <Menu
