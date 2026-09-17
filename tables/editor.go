@@ -31,16 +31,84 @@ func EditorHTML(editorJS string) string {
   var data = null;
   var sheetId = "";
   var enums = {};
+  var histories = {};
+  var applying = false;
+  var MAX_HISTORY = 100;
+  var COALESCE_MS = 400;
+  function clone(value) {
+    if (value == null) return value;
+    try { return JSON.parse(JSON.stringify(value)); } catch (err) { return value; }
+  }
+  function same(a, b) {
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch (err) { return a === b; }
+  }
+  function historyKey() { return sheetId || "main"; }
+  function resetHistory() {
+    histories[historyKey()] = { undo: [], redo: [], committed: clone(data), lastPushAt: 0 };
+  }
+  function history() {
+    if (!histories[historyKey()]) resetHistory();
+    return histories[historyKey()];
+  }
+  function alignHistory() {
+    var h = histories[historyKey()];
+    if (!h || !same(h.committed, data)) resetHistory();
+  }
+  function canUndo() { return history().undo.length > 0; }
+  function canRedo() { return history().redo.length > 0; }
+  function applySnapshot(next) {
+    applying = true;
+    data = clone(next);
+    history().committed = clone(data);
+    mount();
+    parent.postMessage({ type: "dirty", data: data }, "*");
+    applying = false;
+  }
+  function undo() {
+    var h = history();
+    if (!h.undo.length) return;
+    h.redo.push(clone(h.committed));
+    var prev = h.undo.pop();
+    h.lastPushAt = 0;
+    applySnapshot(prev);
+  }
+  function redo() {
+    var h = history();
+    if (!h.redo.length) return;
+    h.undo.push(clone(h.committed));
+    var next = h.redo.pop();
+    h.lastPushAt = 0;
+    applySnapshot(next);
+  }
+  function recordChange(next) {
+    var h = history();
+    var snap = clone(next);
+    if (same(h.committed, snap)) return;
+    var now = Date.now();
+    if (!h.undo.length || now - h.lastPushAt >= COALESCE_MS) {
+      h.undo.push(h.committed);
+      if (h.undo.length > MAX_HISTORY) h.undo.shift();
+    }
+    h.redo = [];
+    h.lastPushAt = now;
+    h.committed = snap;
+  }
   var api = {
     getStruct: function () { return struct; },
     getData: function () { return data; },
     getEnums: function () { return enums || {}; },
     setData: function (next) {
+      if (!applying) recordChange(next);
+      else history().committed = clone(next);
       data = next;
       parent.postMessage({ type: "dirty", data: data }, "*");
     },
     save: function () { parent.postMessage({ type: "save", data: data }, "*"); },
     askAI: function (mode, prompt) { parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); },
+    undo: undo,
+    redo: redo,
+    canUndo: canUndo,
+    canRedo: canRedo,
     assetURL: function (rel) {
       var m = String(location.pathname || "").match(/\/api\/tables\/([^/]+)\/editor/);
       var id = m ? decodeURIComponent(m[1]) : "";
@@ -59,14 +127,31 @@ func EditorHTML(editorJS string) string {
     if (!msg || typeof msg !== "object") return;
     if (msg.type === "init" || msg.type === "setSheet") {
       if (msg.struct != null) struct = msg.struct;
-      if (msg.data != null) data = msg.data;
       if (msg.sheetId != null) sheetId = msg.sheetId;
+      if (msg.data != null) data = msg.data;
       if (msg.enums != null) enums = msg.enums;
+      alignHistory();
       mount();
     } else if (msg.type === "replaceData") {
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
+      resetHistory();
       mount();
+    }
+  });
+  window.addEventListener("keydown", function (ev) {
+    var key = String(ev.key || "").toLowerCase();
+    var mod = ev.ctrlKey || ev.metaKey;
+    if (!mod || ev.altKey) return;
+    if (key === "z" && ev.shiftKey) {
+      ev.preventDefault();
+      redo();
+    } else if (key === "z") {
+      ev.preventDefault();
+      undo();
+    } else if (key === "y") {
+      ev.preventDefault();
+      redo();
     }
   });
   parent.postMessage({ type: "ready" }, "*");
