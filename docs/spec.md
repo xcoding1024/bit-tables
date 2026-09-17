@@ -91,7 +91,7 @@ window.BitTableExporter = {
 父页 → iframe：`init` / `setSheet`（tableId / sheetId / 切片后的 struct.fields + data.rows / `enums` / theme；完整 `struct.sheets` 与 `data.sheets` 仍在）、`replaceData`（可带 enums）。
 iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。工作台按 sheet 画页签；保存时把 iframe 的 `data.rows` 写回 `data.sheets[sheetId].rows`。
 
-宿主拦截 `setData` 为当前 sheet 维护表数据撤销栈（深拷贝快照，400ms 内连续改合同一条，上限 100）。`api.undo` / `api.redo` / `api.canUndo` / `api.canRedo` 可选；快捷键 Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z 重做。`init` / `setSheet` 在数据与已提交快照一致时保留该 sheet 的栈，`replaceData`（外部文件刷新）清空当前 sheet 栈。保存不清栈。
+宿主拦截 `setData` 为当前 sheet 维护表数据撤销栈（深拷贝快照，400ms 内连续改合同一条，上限 100）。`api.undo` / `api.redo` / `api.canUndo` / `api.canRedo` 可选；快捷键 Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z 重做。`init` / 切 sheet / `replaceData` 在数据与已提交快照一致时保留该 sheet 的栈，否则重置。同一 sheet 的 `setSheet`（如枚举刷新）若已有撤销/重做记录则保留当前数据与栈。保存本身不清栈；工作台在刚保存后忽略 SSE `replaceData`。
 
 Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。Checker 可收到宿主注入的 `enums`。
 

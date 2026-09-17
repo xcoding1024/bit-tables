@@ -14,6 +14,7 @@ func TestEditorHTMLIncludesUndoRedo(t *testing.T) {
 		"canRedo",
 		"COALESCE_MS",
 		"keydown",
+		"alignHistory()",
 		"replaceData",
 	} {
 		if !strings.Contains(html, needle) {

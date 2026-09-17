@@ -126,16 +126,23 @@ func EditorHTML(editorJS string) string {
     var msg = ev.data;
     if (!msg || typeof msg !== "object") return;
     if (msg.type === "init" || msg.type === "setSheet") {
+      var prevSheet = sheetId;
       if (msg.struct != null) struct = msg.struct;
       if (msg.sheetId != null) sheetId = msg.sheetId;
-      if (msg.data != null) data = msg.data;
       if (msg.enums != null) enums = msg.enums;
-      alignHistory();
+      var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
+      if (!sameSheet) {
+        if (msg.data != null) data = msg.data;
+        alignHistory();
+      } else if (msg.data != null && !canUndo() && !canRedo()) {
+        data = msg.data;
+        alignHistory();
+      }
       mount();
     } else if (msg.type === "replaceData") {
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
-      resetHistory();
+      alignHistory();
       mount();
     }
   });

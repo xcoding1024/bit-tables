@@ -84,6 +84,7 @@ export default function Workbench({
   const tabsRef = useRef(tabs);
   const activeRef = useRef(activeId);
   const enumsRef = useRef(enumsCatalog);
+  const savedAtRef = useRef<Record<string, number>>({});
   filesRef.current = filesById;
   draftRef.current = draftById;
   sheetRef.current = sheetById;
@@ -302,10 +303,12 @@ export default function Workbench({
       } else if (msg.type === "save") {
         if (!cur) return;
         const merged = applyPartial(id, msg.data);
+        savedAtRef.current[id] = Date.now();
         void tablesApi
           .putData(cur.id, stringifyTableDoc(merged))
           .then(() => tablesApi.files(cur.id))
           .then((next) => {
+            savedAtRef.current[id] = Date.now();
             rememberFiles(id, next);
             rememberDraft(id, parseDoc(next.data));
             return runCheck(id, next, parseDoc(next.data));
@@ -370,6 +373,8 @@ export default function Workbench({
               ...cur,
               [id]: { ...cur[id], ok: cur[id]?.ok || false, errors: cur[id]?.errors || [], error: "", editorKey: (cur[id]?.editorKey || 0) + 1 },
             }));
+          } else if (Date.now() - (savedAtRef.current[id] || 0) < 2500) {
+            await runCheck(id, next, parseDoc(next.data));
           } else {
             postSlice(id, "replaceData");
             await runCheck(id, next, parseDoc(next.data));
