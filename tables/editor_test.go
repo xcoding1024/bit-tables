@@ -17,6 +17,8 @@ func TestEditorHTMLIncludesUndoRedo(t *testing.T) {
 		"alignHistory()",
 		"replaceData",
 		"msg.struct != null",
+		`msg.type === "undo"`,
+		`msg.type === "redo"`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("EditorHTML missing %q", needle)

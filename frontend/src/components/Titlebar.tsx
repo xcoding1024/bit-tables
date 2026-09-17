@@ -5,18 +5,35 @@ import { Btn, Dialog } from "./ui";
 
 const APP_VERSION = "0.1.0";
 
-type MenuId = "project" | "view" | "help" | null;
+type MenuId = "project" | "edit" | "view" | "help" | null;
+
+type ShortcutRow = { action: string; keys: string };
+
+function shortcutRows(isMac: boolean): ShortcutRow[] {
+  const mod = isMac ? "⌘" : "Ctrl";
+  const shift = isMac ? "⇧" : "Shift";
+  return [
+    { action: "撤销", keys: `${mod}+Z` },
+    { action: "重做", keys: `${mod}+Y` },
+    { action: "重做", keys: `${mod}+${shift}+Z` },
+    { action: "关闭菜单 / 对话框", keys: "Esc" },
+  ];
+}
 
 export default function Titlebar({
   onOpen,
   onCreateSample,
   onEnums,
   onTemplates,
+  onUndo,
+  onRedo,
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
   onEnums?: () => void;
   onTemplates?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -25,7 +42,9 @@ export default function Titlebar({
   const [maximized, setMaximized] = useState(false);
   const [openMenu, setOpenMenu] = useState<MenuId>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const menusRef = useRef<HTMLDivElement>(null);
+  const mod = isMac ? "⌘" : "Ctrl";
 
   useEffect(() => {
     ctl?.isMaximized()
@@ -81,6 +100,22 @@ export default function Titlebar({
             <MenuItem label="打开…" disabled={!onOpen} onClick={() => run(onOpen)} />
             <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
           </Menu>
+          <Menu id="edit" label="编辑" open={openMenu === "edit"} active={openMenu} onOpen={setOpenMenu}>
+            <MenuItem
+              label="撤销"
+              shortcut={`${mod}+Z`}
+              disabled={!onUndo}
+              testId="titlebar-undo"
+              onClick={() => run(onUndo)}
+            />
+            <MenuItem
+              label="重做"
+              shortcut={`${mod}+Y`}
+              disabled={!onRedo}
+              testId="titlebar-redo"
+              onClick={() => run(onRedo)}
+            />
+          </Menu>
           <Menu
             id="view"
             label="查看"
@@ -99,6 +134,14 @@ export default function Titlebar({
               disabled={!onTemplates}
               testId="titlebar-templates"
               onClick={() => run(onTemplates)}
+            />
+            <MenuItem
+              label="快捷键"
+              testId="titlebar-shortcuts"
+              onClick={() => {
+                setOpenMenu(null);
+                setShortcutsOpen(true);
+              }}
             />
           </Menu>
           <Menu
@@ -146,6 +189,33 @@ export default function Titlebar({
           <div>本机配表工作台：用目录五件套管理结构、数据、检查与导出。</div>
         </div>
       </Dialog>
+      <Dialog
+        open={shortcutsOpen}
+        title="快捷键"
+        onClose={() => setShortcutsOpen(false)}
+        width="max-w-[440px]"
+        footer={<Btn onClick={() => setShortcutsOpen(false)}>关闭</Btn>}
+      >
+        <div data-testid="shortcuts-dialog">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="border-b border-line px-2 py-2 font-medium">操作</th>
+                <th className="border-b border-line px-2 py-2 font-medium">快捷键</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shortcutRows(Boolean(isMac)).map((row) => (
+                <tr key={`${row.action}-${row.keys}`} className="text-ink">
+                  <td className="border-b border-line px-2 py-2">{row.action}</td>
+                  <td className="border-b border-line px-2 py-2 font-mono text-secondary">{row.keys}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-3 text-[12px] text-muted">撤销 / 重做作用于当前打开的配置表编辑器。</div>
+        </div>
+      </Dialog>
     </>
   );
 }
@@ -184,7 +254,7 @@ function Menu({
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-0 min-w-[168px] rounded border border-line bg-elevated py-1 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-0 min-w-[188px] rounded border border-line bg-elevated py-1 shadow-lg"
         >
           {children}
         </div>
@@ -198,11 +268,13 @@ function MenuItem({
   onClick,
   disabled,
   testId,
+  shortcut,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   testId?: string;
+  shortcut?: string;
 }) {
   return (
     <button
@@ -210,10 +282,11 @@ function MenuItem({
       role="menuitem"
       data-testid={testId}
       disabled={disabled}
-      className="flex h-7 w-full items-center px-3 text-left text-ink disabled:cursor-default disabled:text-muted hover:enabled:bg-hover"
+      className="flex h-7 w-full items-center justify-between gap-6 px-3 text-left text-ink disabled:cursor-default disabled:text-muted hover:enabled:bg-hover"
       onClick={onClick}
     >
-      {label}
+      <span>{label}</span>
+      {shortcut ? <span className="font-mono text-[11px] text-muted">{shortcut}</span> : null}
     </button>
   );
 }

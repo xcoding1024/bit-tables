@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EnumsDialog } from "./components/EnumsDialog";
 import { TemplatesDialog } from "./components/TemplatesDialog";
 import Titlebar from "./components/Titlebar";
@@ -6,7 +6,7 @@ import { tablesApi } from "./lib/api";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
 import { shell } from "./lib/shell";
 import Guide, { CreateSampleDialog, OpenDialog, useGuideDialogs } from "./pages/Guide";
-import Workbench from "./pages/Workbench";
+import Workbench, { type EditorCommands } from "./pages/Workbench";
 
 function parseDoc(text: string): unknown {
   try {
@@ -25,6 +25,8 @@ export default function App() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const dialogs = useGuideDialogs();
   const sh = shell();
+  const editorCommandsRef = useRef<EditorCommands | null>(null);
+  const workbenchReady = !bootError && !guide && Boolean(rootPath);
 
   const reloadEnumsCatalog = useCallback(async () => {
     try {
@@ -127,13 +129,20 @@ export default function App() {
         onCreateSample={sh ? dialogs.startCreate : undefined}
         onEnums={!guide && rootPath ? () => setEnumsOpen(true) : undefined}
         onTemplates={() => setTemplatesOpen(true)}
+        onUndo={workbenchReady ? () => editorCommandsRef.current?.undo() : undefined}
+        onRedo={workbenchReady ? () => editorCommandsRef.current?.redo() : undefined}
       />
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (
         <Guide error={dialogs.error} onOpen={dialogs.startOpen} onCreate={dialogs.startCreate} />
       ) : null}
       {!bootError && !guide ? (
-        <Workbench key={rootPath} rootPath={rootPath} enumsCatalog={enumsCatalog} />
+        <Workbench
+          key={rootPath}
+          rootPath={rootPath}
+          enumsCatalog={enumsCatalog}
+          editorCommandsRef={editorCommandsRef}
+        />
       ) : null}
       <EnumsDialog open={enumsOpen} catalog={enumsCatalog} onClose={() => setEnumsOpen(false)} />
       <TemplatesDialog open={templatesOpen} onClose={() => setTemplatesOpen(false)} />

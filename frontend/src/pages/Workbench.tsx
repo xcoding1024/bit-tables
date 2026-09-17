@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
 import { TableHistoryPanel } from "../components/TableHistory";
@@ -39,6 +39,11 @@ function resolveSheetId(struct: unknown, preferred?: string): string {
 
 type RightTab = DocsKind | "history";
 
+export type EditorCommands = {
+  undo: () => void;
+  redo: () => void;
+};
+
 type TabCheck = {
   ok: boolean;
   errors: TableCheckError[];
@@ -60,9 +65,11 @@ function writeTableParam(id: string) {
 export default function Workbench({
   rootPath,
   enumsCatalog = [],
+  editorCommandsRef,
 }: {
   rootPath: string;
   enumsCatalog?: EnumCatalogItem[];
+  editorCommandsRef?: MutableRefObject<EditorCommands | null>;
 }) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1);
   const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1);
@@ -159,6 +166,46 @@ export default function Workbench({
     },
     [postSlice],
   );
+
+  const postEditorCmd = useCallback((type: "undo" | "redo") => {
+    const id = activeRef.current;
+    if (!id) return;
+    iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
+  }, []);
+
+  useEffect(() => {
+    if (!editorCommandsRef) return;
+    editorCommandsRef.current = {
+      undo: () => postEditorCmd("undo"),
+      redo: () => postEditorCmd("redo"),
+    };
+    return () => {
+      editorCommandsRef.current = null;
+    };
+  }, [editorCommandsRef, postEditorCmd]);
+
+  useEffect(() => {
+    function onKey(ev: KeyboardEvent) {
+      const key = String(ev.key || "").toLowerCase();
+      const mod = ev.ctrlKey || ev.metaKey;
+      if (!mod || ev.altKey) return;
+      const target = ev.target as HTMLElement | null;
+      const tag = String(target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) return;
+      if (key === "z" && ev.shiftKey) {
+        ev.preventDefault();
+        postEditorCmd("redo");
+      } else if (key === "z") {
+        ev.preventDefault();
+        postEditorCmd("undo");
+      } else if (key === "y") {
+        ev.preventDefault();
+        postEditorCmd("redo");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [postEditorCmd]);
 
   useEffect(() => {
     for (const id of tabsRef.current) {

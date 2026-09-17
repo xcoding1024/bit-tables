@@ -146,6 +146,10 @@ func EditorHTML(editorJS string) string {
       if (msg.enums != null) enums = msg.enums;
       alignHistory();
       mount();
+    } else if (msg.type === "undo") {
+      undo();
+    } else if (msg.type === "redo") {
+      redo();
     }
   });
   window.addEventListener("keydown", function (ev) {
