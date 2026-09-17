@@ -1,4 +1,5 @@
-import { BitTableEditorBase, type ParamField, type Row } from "base";
+import { BitTableEditorBase } from "bit-tables.editor";
+import type { ParamField, Row } from "bit-tables.types";
 
 const PARAM_SCHEMAS: Record<string, ParamField[]> = {
   weapon: [

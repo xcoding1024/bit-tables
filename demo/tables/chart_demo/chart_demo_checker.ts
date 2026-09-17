@@ -1,4 +1,5 @@
-import { BitTableCheckerBase, type Row } from "base";
+import { BitTableCheckerBase } from "bit-tables.checker";
+import type { Row } from "bit-tables.types";
 
 class ChartDemoChecker extends BitTableCheckerBase {
   protected extraRequired(): string[] {

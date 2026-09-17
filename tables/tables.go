@@ -551,9 +551,6 @@ func (r *Root) Signature() (string, error) {
 		return "", err
 	}
 	parent := filepath.Dir(r.Path)
-	if err := appendFileSig(&b, filepath.Join(parent, "base.ts"), "../base.ts"); err != nil {
-		return "", err
-	}
 	coreDir := filepath.Join(parent, "core")
 	_ = filepath.WalkDir(coreDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {

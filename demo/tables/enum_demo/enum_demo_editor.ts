@@ -1,4 +1,4 @@
-import { BitTableEditorBase } from "base";
+import { BitTableEditorBase } from "bit-tables.editor";
 
 class EnumDemoEditor extends BitTableEditorBase {
   testPrefix = "enum-demo";

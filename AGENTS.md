@@ -49,7 +49,7 @@ window.BitTableChecker = { check(data, struct, enums) { return { ok: true, error
 window.BitTableExporter = { export(data, struct) { return { files: [{ name, content }] }; } };
 ```
 
-若配表根的上一级有 `base.ts`（demo 里再导出 `core/` 基类），可 `import { BitTableEditorBase, BitTableCheckerBase, BitTableExporterBase } from "base"`。无 `base.ts` 时写自包含脚本即可。
+若配表根上一级有 `core/`（如 demo），可按需引用：`import { BitTableEditorBase } from "bit-tables.editor"`、`bit-tables.checker`、`bit-tables.export`、`bit-tables.dom`、`bit-tables.types`。无共享基类时写自包含脚本即可。
 
 枚举：sheet 设 `kind: enum`；字段 `enum: sheet` 或 `enum: table.sheet`；兼容旧 `options`。
 

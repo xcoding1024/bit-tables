@@ -75,7 +75,7 @@ sheets:
 
 ## 开发
 
-需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)；共享控件基类在 [demo/core](demo/core)，由 [demo/base.ts](demo/base.ts) 再导出）。
+需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)；共享控件基类在 [demo/core](demo/core)，表脚本用 `bit-tables.editor` 等别名引用）。
 
 ```powershell
 npm install

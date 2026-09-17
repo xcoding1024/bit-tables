@@ -31,17 +31,17 @@ func TestPreferTSOverJS(t *testing.T) {
 	}
 }
 
-func TestBundleImportBase(t *testing.T) {
+func TestBundleBitTablesImport(t *testing.T) {
 	project := t.TempDir()
 	tablesRoot := filepath.Join(project, "tables")
 	item := filepath.Join(tablesRoot, "item")
-	writeFile(t, filepath.Join(project, "base.ts"), `
+	writeFile(t, filepath.Join(project, "core", "editor.ts"), `
 export class BitTableEditorBase {
   mount() { (window as any).BitTableEditor = { mount() {} }; }
 }
 `)
 	writeFile(t, filepath.Join(item, "item_editor.ts"), `
-import { BitTableEditorBase } from "base";
+import { BitTableEditorBase } from "bit-tables.editor";
 class ItemEditor extends BitTableEditorBase {}
 window.BitTableEditor = new ItemEditor();
 `)
@@ -54,11 +54,33 @@ window.BitTableEditor = new ItemEditor();
 	if err != nil || !ok {
 		t.Fatalf("bundle %v ok=%v", err, ok)
 	}
-	if strings.Contains(js, `from "base"`) || strings.Contains(js, "import {") {
+	if strings.Contains(js, `from "bit-tables.editor"`) || strings.Contains(js, "import {") {
 		t.Fatalf("still has import: %s", js)
 	}
 	if !strings.Contains(js, "BitTableEditor") {
 		t.Fatalf("missing BitTableEditor: %s", js)
+	}
+}
+
+func TestBundleRejectsUnknownBitTables(t *testing.T) {
+	project := t.TempDir()
+	tablesRoot := filepath.Join(project, "tables")
+	item := filepath.Join(tablesRoot, "item")
+	writeFile(t, filepath.Join(item, "item_editor.ts"), `
+import { x } from "bit-tables.unknown";
+window.BitTableEditor = { mount() { console.log(x); } };
+`)
+	writeFile(t, filepath.Join(item, "item_struct.yaml"), "id: item\n")
+	r, err := Open(tablesRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := r.loadTableScript(item, "item", "editor")
+	if !ok || err == nil {
+		t.Fatal("expected unknown module error")
+	}
+	if !strings.Contains(err.Error(), "未知的 bit-tables") && !strings.Contains(err.Error(), "Could not resolve") {
+		t.Fatalf("err %v", err)
 	}
 }
 
@@ -99,30 +121,22 @@ func TestPlainJSPassthrough(t *testing.T) {
 	}
 }
 
-func TestSignatureIncludesBaseTS(t *testing.T) {
+func TestSignatureIncludesCoreTS(t *testing.T) {
 	project := t.TempDir()
 	tablesRoot := filepath.Join(project, "tables")
 	if err := os.MkdirAll(tablesRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(project, "base.ts"), "export const x = 1;\n")
 	r, err := Open(tablesRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(project, "core", "editor.ts"), "export const y = 2;\n")
 	sig, err := r.Signature()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(sig, "../base.ts@") {
-		t.Fatalf("signature %s", sig)
-	}
-	writeFile(t, filepath.Join(project, "core", "index.ts"), "export const y = 2;\n")
-	sig, err = r.Signature()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(sig, "../core/index.ts@") {
+	if !strings.Contains(sig, "../core/editor.ts@") {
 		t.Fatalf("core signature %s", sig)
 	}
 }

@@ -8,8 +8,12 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "baseUrl": ".",
     "paths": {
-      "base": ["./base.ts"]
+      "bit-tables.editor": ["./core/editor.ts"],
+      "bit-tables.checker": ["./core/checker.ts"],
+      "bit-tables.export": ["./core/export.ts"],
+      "bit-tables.dom": ["./core/dom.ts"],
+      "bit-tables.types": ["./core/types.ts"]
     }
   },
-  "include": ["base.ts", "core/**/*.ts", "tables/**/*.ts"]
+  "include": ["core/**/*.ts", "tables/**/*.ts"]
 }

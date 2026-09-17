@@ -1,4 +1,5 @@
-import { BitTableCheckerBase, type FieldDef, type Row } from "base";
+import { BitTableCheckerBase } from "bit-tables.checker";
+import type { FieldDef, Row } from "bit-tables.types";
 
 const PARAM_RULES: Record<string, Record<string, { min?: number; max?: number }>> = {
   weapon: { atk: { min: 0 }, crit: { min: 0, max: 1 }, durability: { min: 0 } },

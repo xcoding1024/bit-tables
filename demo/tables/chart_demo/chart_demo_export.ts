@@ -1,4 +1,4 @@
-import { BitTableExporterBase } from "base";
+import { BitTableExporterBase } from "bit-tables.export";
 
 class ChartDemoExporter extends BitTableExporterBase {
   fileName = "chart_demo.json";

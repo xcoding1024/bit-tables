@@ -1,4 +1,5 @@
-import { BitTableCheckerBase, type FieldDef } from "base";
+import { BitTableCheckerBase } from "bit-tables.checker";
+import type { FieldDef } from "bit-tables.types";
 
 class EnumDemoChecker extends BitTableCheckerBase {
   protected extraRequired(_sheetId: string, fields: FieldDef[]): string[] {

@@ -15,7 +15,7 @@
 editor.ts 必须定义 window.BitTableEditor = { mount(el, api) }，api 含 getStruct/getData/getEnums/setData/save/askAI。
 checker.ts 必须定义 window.BitTableChecker = { check(data, struct, enums) }，返回 { ok, errors:[{path,message}] }。
 export.ts 必须定义 window.BitTableExporter = { export(data, struct) }，返回 { files:[{name,content}] }。
-若配表根上一级有 base.ts，可 import { BitTableEditorBase, BitTableCheckerBase, BitTableExporterBase } from "base"；无则写自包含脚本。
+若配表根上一级有 core/，可 import { BitTableEditorBase } from "bit-tables.editor"（以及 bit-tables.checker / bit-tables.export / bit-tables.dom / bit-tables.types）；无则写自包含脚本。
 struct.yaml 推荐 id/name/default_sheet/sheets[]（每张 sheet 自带 id/name/fields[]），由该表 editor/checker/export 解释，不要假设统一 schema。
 无 sheets 时视为隐式 main，数据仍可用顶层 rows；多 sheet 写 sheets.{id}.rows。
 枚举 sheet 设 kind: enum（id+name）；字段用 enum: kinds 或 enum: other.kinds；存 id，下拉显示 name。

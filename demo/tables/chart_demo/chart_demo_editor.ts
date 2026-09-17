@@ -1,4 +1,6 @@
-import { BitTableEditorBase, escapeHtml, num, type Row } from "base";
+import { BitTableEditorBase } from "bit-tables.editor";
+import { escapeHtml, num } from "bit-tables.dom";
+import type { Row } from "bit-tables.types";
 
 const COLORS = ["#3794ff", "#3ecf8e", "#f5a524", "#eb5757", "#56b6c2", "#c678dd", "#e5c07b", "#98c379"];
 const CHART_META: Record<string, { title: string; hint: string }> = {

@@ -2,7 +2,7 @@
 
 ## 结构
 
-- 编辑器 / 检查器 / 导出继承 `demo/base.ts`（实现拆在 `demo/core/`）
+- 编辑器 / 检查器 / 导出分别 `import` 自 `bit-tables.editor` / `bit-tables.checker` / `bit-tables.export`（实现位于 `demo/core/`）
 - 表名：Sheet 控件演示表
 - 视图：表格、卡片，默认表格；表格视图表头带漏斗图标，点击弹出筛选（枚举/布尔下拉，其余文本包含匹配）
 - `default_sheet: items`

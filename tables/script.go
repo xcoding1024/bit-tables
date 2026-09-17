@@ -73,17 +73,43 @@ func resolveUnderRoot(projectRoot, abs string) (string, error) {
 	return "", fmt.Errorf("找不到模块 %s", abs)
 }
 
+var bitTablesImportRe = regexp.MustCompile(`^bit-tables\.([a-z][a-z0-9_]*)$`)
+
+func resolveBitTablesImport(projectRoot, spec string) (string, error) {
+	m := bitTablesImportRe.FindStringSubmatch(spec)
+	if m == nil {
+		return "", fmt.Errorf("无效的 bit-tables 模块: %s", spec)
+	}
+	name := m[1]
+	allowed := map[string]string{
+		"editor":  "editor.ts",
+		"checker": "checker.ts",
+		"export":  "export.ts",
+		"dom":     "dom.ts",
+		"types":   "types.ts",
+	}
+	file, ok := allowed[name]
+	if !ok {
+		return "", fmt.Errorf("未知的 bit-tables 模块: %s", spec)
+	}
+	return resolveUnderRoot(projectRoot, filepath.Join(projectRoot, "core", file))
+}
+
 func sandboxPlugin(projectRoot string) api.Plugin {
 	return api.Plugin{
 		Name: "bit-tables-sandbox",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `^(base|\.)`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^(bit-tables\.|\.)`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				var abs string
-				if args.Path == "base" {
-					abs = filepath.Join(projectRoot, "base.ts")
-				} else {
-					abs = filepath.Join(args.ResolveDir, args.Path)
+				var err error
+				if strings.HasPrefix(args.Path, "bit-tables.") {
+					abs, err = resolveBitTablesImport(projectRoot, args.Path)
+					if err != nil {
+						return api.OnResolveResult{}, err
+					}
+					return api.OnResolveResult{Path: abs}, nil
 				}
+				abs = filepath.Join(args.ResolveDir, args.Path)
 				resolved, err := resolveUnderRoot(projectRoot, abs)
 				if err != nil {
 					return api.OnResolveResult{}, err
