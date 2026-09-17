@@ -130,6 +130,8 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 
 配表文件路径必须落在启动 root 内。导出产物写在 root 上一级的 `export/client/` 与 `export/server/`。
 
+demo 示例还提供命令行导表工具（[demo/tools](../demo/tools)，Node，Win / Linux / macOS）：`export.sh` / `export.cmd` / `export.ps1` 或 `node export.mjs`，默认导出 `demo/tables`。
+
 ## 嵌入
 
 `/?embed=1&table=item`：藏掉右栏与根路径操作，只留列表与编辑器。`askAI` 仍 `postMessage` 给父窗口。

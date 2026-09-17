@@ -1,0 +1,13 @@
+{
+  "name": "bit-tables-demo-tools",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "export": "node export.mjs"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.12",
+    "js-yaml": "^4.1.0"
+  }
+}

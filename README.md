@@ -115,6 +115,25 @@ go run ./cmd/bit-tables serve D:\game\tables --sample
 
 嵌入宿主：`http://127.0.0.1:18780/?embed=1&table=item`。
 
+### 命令行导表（demo）
+
+[demo/tools](demo/tools) 提供跨平台导表脚本（需 Node.js），跑各表 `*_export.ts`，产物写入 `demo/export/client` 与 `demo/export/server`。
+
+```bash
+# Linux / macOS
+./demo/tools/export.sh
+./demo/tools/export.sh sheet_demo
+
+# Windows
+demo\tools\export.cmd
+demo\tools\export.cmd sheet_demo
+
+# 或任意平台直接用 Node
+cd demo/tools && npm install && node export.mjs --all
+```
+
+指定表 id 时会连带导出引用它的下游表（与工作台「导出当前表」一致）。
+
 仅交叉编译 CLI 二进制：
 
 ```powershell
