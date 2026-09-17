@@ -13,6 +13,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
   const mod = isMac ? "⌘" : "Ctrl";
   const shift = isMac ? "⇧" : "Shift";
   return [
+    { action: "保存", keys: `${mod}+S` },
     { action: "撤销", keys: `${mod}+Z` },
     { action: "重做", keys: `${mod}+Y` },
     { action: "重做", keys: `${mod}+${shift}+Z` },
@@ -27,6 +28,7 @@ export default function Titlebar({
   onTemplates,
   onUndo,
   onRedo,
+  onSave,
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
@@ -34,6 +36,7 @@ export default function Titlebar({
   onTemplates?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  onSave?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -101,6 +104,13 @@ export default function Titlebar({
             <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
           </Menu>
           <Menu id="edit" label="编辑" open={openMenu === "edit"} active={openMenu} onOpen={setOpenMenu}>
+            <MenuItem
+              label="保存"
+              shortcut={`${mod}+S`}
+              disabled={!onSave}
+              testId="titlebar-save"
+              onClick={() => run(onSave)}
+            />
             <MenuItem
               label="撤销"
               shortcut={`${mod}+Z`}

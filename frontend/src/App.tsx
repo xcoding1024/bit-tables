@@ -131,6 +131,7 @@ export default function App() {
         onTemplates={() => setTemplatesOpen(true)}
         onUndo={workbenchReady ? () => editorCommandsRef.current?.undo() : undefined}
         onRedo={workbenchReady ? () => editorCommandsRef.current?.redo() : undefined}
+        onSave={workbenchReady ? () => editorCommandsRef.current?.save() : undefined}
       />
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (

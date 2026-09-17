@@ -434,7 +434,7 @@ export class BitTableEditorBase {
     const redoOff = canRedo ? "" : "opacity:.45;cursor:default";
     html += `<button type="button" data-testid="${this.tid("undo")}" ${canUndo ? "" : "disabled "}style="${this.btn("ghost", undoOff)}" title="Ctrl+Z">撤销</button>`;
     html += `<button type="button" data-testid="${this.tid("redo")}" ${canRedo ? "" : "disabled "}style="${this.btn("ghost", redoOff)}" title="Ctrl+Y">重做</button>`;
-    html += `<button type="button" data-testid="${this.tid("save")}" style="${this.btn("primary")}">保存</button></div></div>`;
+    html += `<button type="button" data-testid="${this.tid("save")}" style="${this.btn("primary")}" title="Ctrl+S">保存</button></div></div>`;
     if (this.batchOpen) html += this.renderBatchPanel();
     return html;
   }

@@ -42,6 +42,7 @@ type RightTab = DocsKind | "history";
 export type EditorCommands = {
   undo: () => void;
   redo: () => void;
+  save: () => void;
 };
 
 type TabCheck = {
@@ -167,7 +168,7 @@ export default function Workbench({
     [postSlice],
   );
 
-  const postEditorCmd = useCallback((type: "undo" | "redo") => {
+  const postEditorCmd = useCallback((type: "undo" | "redo" | "save") => {
     const id = activeRef.current;
     if (!id) return;
     iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
@@ -178,6 +179,7 @@ export default function Workbench({
     editorCommandsRef.current = {
       undo: () => postEditorCmd("undo"),
       redo: () => postEditorCmd("redo"),
+      save: () => postEditorCmd("save"),
     };
     return () => {
       editorCommandsRef.current = null;
@@ -189,6 +191,11 @@ export default function Workbench({
       const key = String(ev.key || "").toLowerCase();
       const mod = ev.ctrlKey || ev.metaKey;
       if (!mod || ev.altKey) return;
+      if (key === "s") {
+        ev.preventDefault();
+        postEditorCmd("save");
+        return;
+      }
       const target = ev.target as HTMLElement | null;
       const tag = String(target?.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) return;

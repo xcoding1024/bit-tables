@@ -150,13 +150,18 @@ func EditorHTML(editorJS string) string {
       undo();
     } else if (msg.type === "redo") {
       redo();
+    } else if (msg.type === "save") {
+      api.save();
     }
   });
   window.addEventListener("keydown", function (ev) {
     var key = String(ev.key || "").toLowerCase();
     var mod = ev.ctrlKey || ev.metaKey;
     if (!mod || ev.altKey) return;
-    if (key === "z" && ev.shiftKey) {
+    if (key === "s") {
+      ev.preventDefault();
+      api.save();
+    } else if (key === "z" && ev.shiftKey) {
       ev.preventDefault();
       redo();
     } else if (key === "z") {
