@@ -13,18 +13,31 @@ type EditorTemplate = {
 
 const TEMPLATES: EditorTemplate[] = [
   {
-    id: "sheet",
-    name: "表格编辑器",
-    summary: "多字段表格 / 卡片、表头筛选、批量改删、自定义 params 弹窗。",
-    demoTable: "sheet_demo",
+    id: "table",
+    name: "表格",
+    summary: "行列网格控件：表头筛选、横向滚动、勾选批量改删、单元格内联编辑。",
+    demoTable: "sheet_demo（表格视图）",
     importHint: 'import { BitTableEditorBase } from "bit-tables.editor";\nimport type { ParamField, Row } from "bit-tables.types";',
     usage: [
       "配表根上一级放 core/（如 demo/core），表脚本即可 import \"bit-tables.*\"。",
-      "继承 BitTableEditorBase；按需打开 enableCardView / enableColFilters / enableTableScroll。",
+      "继承 BitTableEditorBase；默认就是表格视图。按需打开 enableColFilters / enableTableScroll。",
       "复杂对象字段用 widget: params，在子类实现 paramsSchema / paramsTitle / formatParamValue。",
-      "最后 window.BitTableEditor = new YourEditor()。参考 sheet_demo_editor.ts。",
+      "window.BitTableEditor = new YourEditor()。参考 sheet_demo_editor.ts 的表格模式。",
     ],
-    preview: <SheetPreview />,
+    preview: <TablePreview />,
+  },
+  {
+    id: "card",
+    name: "卡片",
+    summary: "按行分块的表单控件：分组字段网格、适合字段多、阅读优先的编辑。",
+    demoTable: "sheet_demo（卡片视图）",
+    importHint: 'import { BitTableEditorBase } from "bit-tables.editor";',
+    usage: [
+      "继承 BitTableEditorBase，设 enableCardView = true，用 renderCards 按行渲染分组表单。",
+      "工具栏可切换表格 / 卡片；字段来自 sheet.fields，group + groupNames 决定分组标题。",
+      "参考 sheet_demo_editor.ts（enableCardView = true）。",
+    ],
+    preview: <CardPreview />,
   },
   {
     id: "enum",
@@ -103,7 +116,7 @@ export function TemplatesDialog({
       footer={<Btn onClick={onClose}>关闭</Btn>}
     >
       <div className="mb-2 text-[12px] text-muted">
-        可复用的 editor / checker / export 基类与演示形态。实现位于配表根上一级的{" "}
+        可复用控件与基类。实现在配表根上一级{" "}
         <span className="font-mono text-secondary">core/</span>
         ，用 <span className="font-mono text-secondary">bit-tables.*</span> 引用。
       </div>
@@ -163,13 +176,12 @@ export function TemplatesDialog({
   );
 }
 
-function SheetPreview() {
+function TablePreview() {
   return (
     <div className="space-y-1.5 text-[11px]">
       <div className="flex items-center gap-2 text-muted">
         <span className="rounded bg-active px-1.5 py-0.5 text-ink">表格</span>
-        <span className="rounded px-1.5 py-0.5">卡片</span>
-        <span className="ml-auto">已选 1 行 · 批量修改</span>
+        <span className="ml-auto">表头漏斗 · 已选 1 行</span>
       </div>
       <div className="overflow-hidden rounded border border-line">
         <div className="grid grid-cols-[28px_1fr_1fr_1fr] border-b border-line bg-elevated text-muted">
@@ -192,6 +204,44 @@ function SheetPreview() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function CardPreview() {
+  return (
+    <div className="space-y-2 text-[11px]">
+      <div className="flex items-center gap-2 text-muted">
+        <span className="rounded bg-active px-1.5 py-0.5 text-ink">卡片</span>
+        <span className="ml-auto">按行分块 · 分组表单</span>
+      </div>
+      {[
+        { id: "sword", name: "铁剑", kind: "武器" },
+        { id: "potion", name: "药水", kind: "消耗" },
+      ].map((row) => (
+        <div key={row.id} className="overflow-hidden rounded border border-line bg-elevated">
+          <div className="flex items-center justify-between border-b border-line px-2 py-1.5 font-mono text-secondary">
+            <span>
+              ☐ {row.id} · {row.name}
+            </span>
+            <span className="text-danger">删除</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-2">
+            <div>
+              <div className="mb-0.5 text-muted">名称</div>
+              <div className="rounded border border-line bg-bg px-1.5 py-1 text-secondary">{row.name}</div>
+            </div>
+            <div>
+              <div className="mb-0.5 text-muted">分类</div>
+              <div className="rounded border border-line bg-bg px-1.5 py-1 text-secondary">{row.kind}</div>
+            </div>
+            <div className="col-span-2">
+              <div className="mb-0.5 text-muted">基础信息</div>
+              <div className="rounded border border-dashed border-line px-1.5 py-2 text-muted">分组字段网格…</div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
