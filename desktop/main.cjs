@@ -247,8 +247,10 @@ ipcMain.handle("root:createSample", async (_ev, parent, name) => {
   if (fs.existsSync(dest)) {
     throw new Error("目录已存在");
   }
-  fs.mkdirSync(dest, { recursive: true });
-  return rememberRoot(dest);
+  // 与 demo 相同：项目根下 tables/ 作为配表根，sample 时写入完整示例
+  const tablesRoot = path.join(dest, "tables");
+  fs.mkdirSync(tablesRoot, { recursive: true });
+  return rememberRoot(tablesRoot);
 });
 
 ipcMain.on("window:minimize", () => {

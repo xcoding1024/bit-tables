@@ -97,7 +97,7 @@ npm run pack:linux
 npm run pack:mac
 ```
 
-macOS 安装包请在 Mac 上打。首次启动若没有上次打开的目录，会进入引导页：打开已有配表目录，或创建带 `item` 示例表的项目。
+macOS 安装包请在 Mac 上打。首次启动若没有上次打开的目录，会进入引导页：打开已有配表目录，或创建与仓库 demo 相同的示例项目。
 
 ## 命令行
 
@@ -107,11 +107,13 @@ macOS 安装包请在 Mac 上打。首次启动若没有上次打开的目录，
 go run ./cmd/bit-tables serve ./demo/tables
 ```
 
-默认 http://127.0.0.1:18780 。空目录写入示例表：
+空目录写入示例（推荐 `.../tables` 作为配表根，会在上一级生成完整 demo 项目）：
 
 ```bash
-go run ./cmd/bit-tables serve D:\game\tables --sample
+go run ./cmd/bit-tables serve D:\game\demo\tables --sample
 ```
+
+桌面端「创建示例项目」会新建 `项目名/tables` 并写入与仓库 [demo](demo) 相同的内容（`tables` / `src` / `res` / 导表脚本）。
 
 嵌入宿主：`http://127.0.0.1:18780/?embed=1&table=item`。
 

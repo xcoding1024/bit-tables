@@ -21,7 +21,7 @@ func main() {
 	}
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:18780", "监听地址")
-	sample := fs.Bool("sample", false, "空目录时写入 item 示例表")
+	sample := fs.Bool("sample", false, "空目录时写入示例（目录名为 tables 则生成完整 demo 项目，否则写入 item 表）")
 	guide := fs.Bool("guide", false, "桌面引导页（空占位根）")
 	_ = fs.Parse(os.Args[2:])
 	rootPath := fs.Arg(0)

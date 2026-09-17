@@ -68,7 +68,7 @@ func Open(path string) (*Root, error) {
 	return &Root{Path: abs}, nil
 }
 
-// OpenAt 打开配表根目录。sample 为真时若目录为空则写入 item 示例表；目录不存在时会创建。
+// OpenAt 打开配表根目录。sample 为真时若目录为空则写入示例：目录名为 tables 时在上一级生成与 demo 相同的完整项目，否则写入 item 示例表。
 func OpenAt(path string, sample bool) (*Root, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("路径不能为空")
@@ -96,10 +96,10 @@ func OpenAt(path string, sample bool) (*Root, error) {
 	if len(list) > 0 {
 		return root, nil
 	}
-	if err := root.SeedItem("item"); err != nil {
+	if err := SeedSampleRoot(abs); err != nil {
 		return nil, err
 	}
-	return root, nil
+	return Open(abs)
 }
 
 func ValidID(id string) bool {

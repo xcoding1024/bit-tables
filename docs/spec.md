@@ -115,7 +115,7 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 |------|------|------|
 | GET | `/` | 工作台 HTML |
 | GET | `/api/root` | `{ path, guide }` |
-| PUT | `/api/root` | `{ path, sample?, guide? }` 切换配表根目录 |
+| PUT | `/api/root` | `{ path, sample?, guide? }` 切换配表根目录；`sample` 且目录为空时：路径以 `tables` 结尾则在上一级生成与仓库 demo 相同的完整项目，否则写入 `item` 示例表 |
 | GET | `/api/tables` | `{ tables, tree, path }`；`tree` 为文件树（`dir` / `table`），`tables` 为扁平表列表 |
 | POST | `/api/tables` | `{ id }` 建空表目录（可写 `folder/id`）；写入空 `{id}_struct.yaml` 与 `{id}_docs.md` |
 | DELETE | `/api/tables/{id}` | 删除表目录 |

@@ -144,7 +144,7 @@ export function CreateSampleDialog({
           ) : null}
         </div>
       </Field>
-      <Field label="项目名" hint="将在父目录下新建此文件夹，并写入 item 示例表">
+      <Field label="项目名" hint="将在父目录下新建此文件夹，结构与仓库 demo 相同（含 tables / src / res 与导表脚本）">
         <Input value={name} onChange={(e) => onName(e.target.value)} data-testid="tables-create-name" />
       </Field>
       {error ? <div className="text-danger">{error}</div> : null}
@@ -156,7 +156,7 @@ export function useGuideDialogs() {
   const [kind, setKind] = useState<"open" | "create" | "">("");
   const [openPath, setOpenPath] = useState("");
   const [createParent, setCreateParent] = useState("");
-  const [createName, setCreateName] = useState("tables");
+  const [createName, setCreateName] = useState("demo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -169,7 +169,7 @@ export function useGuideDialogs() {
   function startCreate() {
     setError("");
     setCreateParent("");
-    setCreateName("tables");
+    setCreateName("demo");
     setKind("create");
   }
 
