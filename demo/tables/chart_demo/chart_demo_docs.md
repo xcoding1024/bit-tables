@@ -13,9 +13,9 @@
 
 - 校整表所有 sheet；路径形如 `sheets.line.rows.0.month`
 - 标签字段（month / category / label）与 `value` 必填；`value` 须为有限数字；饼图 `value ≥ 0`
-- 对应 `chart_demo_checker.js` 的 `BitTableChecker.check`
+- 对应 `chart_demo_checker.ts` 的 `BitTableChecker.check`
 
 ## 导出规则
 
-- 对应 `chart_demo_export.js` 的 `BitTableExporter.export`
+- 对应 `chart_demo_export.ts` 的 `BitTableExporter.export`
 - 导出 `chart_demo.json`（`JSON.stringify` 整表 data）

@@ -9,9 +9,9 @@
   item/
     item_struct.yaml
     item_data.yaml
-    item_editor.js
-    item_checker.js
-    item_export.js
+    item_editor.ts
+    item_checker.ts
+    item_export.ts
     item_docs.md
   combat/                 # 普通目录
     skill/
@@ -29,25 +29,27 @@
 
 ## 结构修改
 
-只改 `{id}_struct.yaml`、`{id}_editor.js`、`{id}_checker.js`、`{id}_export.js`，并更新 `{id}_docs.md`。字段不兼容时才迁移 `{id}_data.yaml`。新建或补齐时必须一次生成五件套与 docs。
+只改 `{id}_struct.yaml`、`{id}_editor.ts`、`{id}_checker.ts`、`{id}_export.ts`，并更新 `{id}_docs.md`。字段不兼容时才迁移 `{id}_data.yaml`。新建或补齐时必须一次生成五件套与 docs。仍兼容旧的 `*.js`。
 
-`editor.js` 必须定义：
+`editor.ts` 必须定义：
 
-```js
+```ts
 window.BitTableEditor = { mount(el, api) { /* api: getStruct/getData/getEnums/setData/save/askAI */ } };
 ```
 
-`checker.js` 必须定义：
+`checker.ts` 必须定义：
 
-```js
+```ts
 window.BitTableChecker = { check(data, struct, enums) { return { ok: true, errors: [{ path, message }] }; } };
 ```
 
-`export.js` 必须定义：
+`export.ts` 必须定义：
 
-```js
+```ts
 window.BitTableExporter = { export(data, struct) { return { files: [{ name, content }] }; } };
 ```
+
+若配表根的上一级有 `base.ts`（demo 里再导出 `core/` 基类），可 `import { BitTableEditorBase, BitTableCheckerBase, BitTableExporterBase } from "base"`。无 `base.ts` 时写自包含脚本即可。
 
 枚举：sheet 设 `kind: enum`；字段 `enum: sheet` 或 `enum: table.sheet`；兼容旧 `options`。
 
@@ -58,4 +60,4 @@ window.BitTableExporter = { export(data, struct) { return { files: [{ name, cont
 ## 禁止
 
 - 不要假设全项目统一 schema
-- 导出由该表 `{id}_export.js` 定义，不要发明工作台级导表、热更或共享流程
+- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明工作台级导表、热更或共享流程

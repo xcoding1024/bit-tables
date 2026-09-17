@@ -49,11 +49,11 @@ func NormalizeHistoryKinds(kinds []string) []string {
 func historyKindOfFile(tableID, name string) string {
 	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	switch base {
-	case FileName(tableID, "struct.yaml"), FileName(tableID, "editor.js"):
+	case FileName(tableID, "struct.yaml"), FileName(tableID, "editor.js"), FileName(tableID, "editor.ts"):
 		return ModeStruct
-	case FileName(tableID, "checker.js"):
+	case FileName(tableID, "checker.js"), FileName(tableID, "checker.ts"):
 		return ModeCheck
-	case FileName(tableID, "export.js"):
+	case FileName(tableID, "export.js"), FileName(tableID, "export.ts"):
 		return ModeExport
 	case FileName(tableID, "data.yaml"):
 		return ModeData
@@ -67,11 +67,11 @@ func historyFileNames(tableID string, kinds []string) []string {
 	for _, k := range kinds {
 		switch k {
 		case ModeStruct:
-			names = append(names, FileName(tableID, "struct.yaml"), FileName(tableID, "editor.js"))
+			names = append(names, FileName(tableID, "struct.yaml"), FileName(tableID, "editor.js"), FileName(tableID, "editor.ts"))
 		case ModeCheck:
-			names = append(names, FileName(tableID, "checker.js"))
+			names = append(names, FileName(tableID, "checker.js"), FileName(tableID, "checker.ts"))
 		case ModeExport:
-			names = append(names, FileName(tableID, "export.js"))
+			names = append(names, FileName(tableID, "export.js"), FileName(tableID, "export.ts"))
 		case ModeData:
 			names = append(names, FileName(tableID, "data.yaml"))
 		}

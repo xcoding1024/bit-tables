@@ -15,9 +15,9 @@
   item/
     item_struct.yaml
     item_data.yaml
-    item_editor.js
-    item_checker.js
-    item_export.js
+    item_editor.ts
+    item_checker.ts
+    item_export.ts
     item_docs.md
 ```
 
@@ -25,11 +25,11 @@
 
 `data.yaml` 是数值表
 
-`editor.js` 是画这张表的界面代码，要表格、卡片还是图都可以，没有的话工作台会给一个简易表格
+`editor.ts` 是画这张表的界面代码，要表格、卡片还是图都可以，没有的话工作台会给一个简易表格（仍兼容 `editor.js`）
 
-`checker.js`是规则检查脚本，错了会标到具体字段，比如 `sheets.items.rows.0.id`
+`checker.ts` 是规则检查脚本，错了会标到具体字段，比如 `sheets.items.rows.0.id`
 
-`export.js` 是导表规则脚本，可以把当前配置表转换成具体的产物
+`export.ts` 是导表规则脚本，可以把当前配置表转换成具体的产物
 
 `docs.md` 是结构、检查规则、导出规则的文档，AI改完表就会顺手改这个文档，方面之后查看。
 
@@ -75,7 +75,7 @@ sheets:
 
 ## 开发
 
-需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)）。
+需要 Go 1.23+ 与 Node.js。默认打开本仓库 [demo/tables](demo/tables)（含 `sheet_demo`、`enum_demo` 等示例表；资源在 [demo/res](demo/res)；共享控件基类在 [demo/core](demo/core)，由 [demo/base.ts](demo/base.ts) 再导出）。
 
 ```powershell
 npm install

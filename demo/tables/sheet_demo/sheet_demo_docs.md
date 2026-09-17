@@ -2,6 +2,7 @@
 
 ## 结构
 
+- 编辑器 / 检查器 / 导出继承 `demo/base.ts`（实现拆在 `demo/core/`）
 - 表名：Sheet 控件演示表
 - 视图：表格、卡片，默认表格；表格视图表头带漏斗图标，点击弹出筛选（枚举/布尔下拉，其余文本包含匹配）
 - `default_sheet: items`
@@ -30,9 +31,9 @@
 - id 须小写字母开头，仅字母数字下划线，且在同一 sheet 内不重复
 - items：kind 须落在 kinds；rarity / tags 须落在跨表枚举；stack 1–999；power 0–100
 - params 若存在须为对象，且只校验当前 kind 对应字段
-- 对应 `sheet_demo_checker.js` 的 `BitTableChecker.check(data, struct, enums)`
+- 对应 `sheet_demo_checker.ts` 的 `BitTableChecker.check(data, struct, enums)`
 
 ## 导出规则
 
-- 对应 `sheet_demo_export.js` 的 `BitTableExporter.export`
+- 对应 `sheet_demo_export.ts` 的 `BitTableExporter.export`
 - 导出 `sheet_demo.json`（`JSON.stringify` 整表 data，含全部 sheet）

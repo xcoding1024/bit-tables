@@ -66,6 +66,12 @@ func TestServeRepoFixtures(t *testing.T) {
 	if res.Code != 200 || !strings.Contains(res.Body.String(), "data-testid=\"tables-page\"") && !strings.Contains(res.Body.String(), "bit-tables") {
 		t.Fatalf("index %d", res.Code)
 	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/sheet_demo/editor", nil))
+	body := res.Body.String()
+	if res.Code != 200 || strings.Contains(body, `from "base"`) || strings.Contains(body, "缺少 editor") || !strings.Contains(body, "view-table") || !strings.Contains(body, "SheetDemo") {
+		t.Fatalf("editor %d fallback=%v import=%v sheet=%v", res.Code, strings.Contains(body, "缺少 editor"), strings.Contains(body, `from "base"`), strings.Contains(body, "SheetDemo"))
+	}
 }
 
 func testServer(t *testing.T) (*Server, http.Handler, *tables.Root) {

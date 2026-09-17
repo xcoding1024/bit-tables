@@ -244,9 +244,9 @@ func Inspect(dir, tableID string) Info {
 	info := Info{ID: tableID}
 	_, info.HasStruct = readFile(dir, tableID, "struct.yaml")
 	_, info.HasData = readFile(dir, tableID, "data.yaml")
-	_, info.HasEditor = readFile(dir, tableID, "editor.js")
-	_, info.HasChecker = readFile(dir, tableID, "checker.js")
-	_, info.HasExport = readFile(dir, tableID, "export.js")
+	info.HasEditor = hasScript(dir, tableID, "editor")
+	info.HasChecker = hasScript(dir, tableID, "checker")
+	info.HasExport = hasScript(dir, tableID, "export")
 	_, info.HasDocs = readFile(dir, tableID, "docs.md")
 	info.Complete = info.HasStruct && info.HasData && info.HasEditor && info.HasChecker && info.HasExport
 	return info
@@ -420,9 +420,9 @@ func (r *Root) Files(id string) (Files, error) {
 	tableID := TableID(id)
 	structText, hasStruct := readFile(dir, tableID, "struct.yaml")
 	dataText, hasData := readFile(dir, tableID, "data.yaml")
-	editor, hasEditor := readFile(dir, tableID, "editor.js")
-	checker, hasChecker := readFile(dir, tableID, "checker.js")
-	exportText, hasExport := readFile(dir, tableID, "export.js")
+	editor, hasEditor := r.compiledScript(dir, tableID, "editor")
+	checker, hasChecker := r.compiledScript(dir, tableID, "checker")
+	exportText, hasExport := r.compiledScript(dir, tableID, "export")
 	docs, hasDocs := ReadDocs(dir, tableID)
 	return Files{
 		Info: Info{
@@ -464,11 +464,14 @@ func (r *Root) EditorJS(id string) (string, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return "", err
 	}
-	text, ok := readFile(dir, TableID(id), "editor.js")
+	js, ok, err := r.loadTableScript(dir, TableID(id), "editor")
 	if !ok {
 		return "", os.ErrNotExist
 	}
-	return text, nil
+	if err != nil {
+		return CompileErrorEditorJS(err.Error()), nil
+	}
+	return js, nil
 }
 
 // ResolveAsset resolves a resource path for a table.
@@ -547,7 +550,46 @@ func (r *Root) Signature() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	parent := filepath.Dir(r.Path)
+	if err := appendFileSig(&b, filepath.Join(parent, "base.ts"), "../base.ts"); err != nil {
+		return "", err
+	}
+	coreDir := filepath.Join(parent, "core")
+	_ = filepath.WalkDir(coreDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".ts") || strings.HasPrefix(d.Name(), ".") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(parent, path)
+		if relErr != nil {
+			return nil
+		}
+		_ = appendFileSig(&b, path, "../"+filepath.ToSlash(rel))
+		return nil
+	})
 	return b.String(), nil
+}
+
+func appendFileSig(b *strings.Builder, path, label string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if info.IsDir() {
+		return nil
+	}
+	b.WriteString(label)
+	b.WriteByte('@')
+	b.WriteString(info.ModTime().UTC().String())
+	b.WriteByte('#')
+	b.WriteString(itoa(info.Size()))
+	b.WriteByte(';')
+	return nil
 }
 
 func itoa(n int64) string {

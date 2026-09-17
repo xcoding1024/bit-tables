@@ -329,8 +329,10 @@ export function runTableChecker(
     const html = `<!doctype html><meta charset="utf-8"><script>${checkerJs.replace(/<\/script/gi, "<\\/script")}</script><script>
       window.addEventListener("message", function (ev) {
         try {
-          var fn = window.BitTableChecker && window.BitTableChecker.check;
-          var result = fn ? fn(ev.data.data, ev.data.struct, ev.data.enums) : { ok: true, errors: [] };
+          var checker = window.BitTableChecker;
+          var result = checker && typeof checker.check === "function"
+            ? checker.check(ev.data.data, ev.data.struct, ev.data.enums)
+            : { ok: true, errors: [] };
           parent.postMessage({ type: "result", result: result }, "*");
         } catch (err) {
           parent.postMessage({ type: "result", result: { ok: false, errors: [{ path: "", message: String(err) }] } }, "*");

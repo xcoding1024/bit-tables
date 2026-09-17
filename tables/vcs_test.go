@@ -15,11 +15,20 @@ func TestHistoryKindOfFile(t *testing.T) {
 	if got := historyKindOfFile("item", `trunk\item\item_editor.js`); got != ModeStruct {
 		t.Fatalf("editor %s", got)
 	}
+	if got := historyKindOfFile("item", "item_editor.ts"); got != ModeStruct {
+		t.Fatalf("editor ts %s", got)
+	}
 	if got := historyKindOfFile("item", "item_checker.js"); got != ModeCheck {
 		t.Fatalf("check %s", got)
 	}
+	if got := historyKindOfFile("item", "item_checker.ts"); got != ModeCheck {
+		t.Fatalf("check ts %s", got)
+	}
 	if got := historyKindOfFile("item", "item_export.js"); got != ModeExport {
 		t.Fatalf("export %s", got)
+	}
+	if got := historyKindOfFile("item", "item_export.ts"); got != ModeExport {
+		t.Fatalf("export ts %s", got)
 	}
 	if got := historyKindOfFile("item", "item_data.yaml"); got != ModeData {
 		t.Fatalf("data %s", got)

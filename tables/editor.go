@@ -88,7 +88,7 @@ func FallbackEditorJS() string {
     function render() {
       var rows = data.rows || [];
       var html = '<div data-testid="table-fallback" style="padding:12px">';
-      html += '<div style="margin-bottom:8px;color:#a3a3a3">缺少 editor.js，简易回退</div>';
+      html += '<div style="margin-bottom:8px;color:#a3a3a3">缺少 editor.ts，简易回退</div>';
       html += '<table style="width:100%;border-collapse:collapse"><thead><tr>';
       var keys = [];
       for (var i = 0; i < rows.length; i++) {

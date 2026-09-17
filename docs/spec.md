@@ -9,9 +9,9 @@
   item/
     item_struct.yaml
     item_data.yaml
-    item_editor.js
-    item_checker.js
-    item_export.js
+    item_editor.ts
+    item_checker.ts
+    item_export.ts
     item_docs.md
   combat/                 # 普通目录（无 *_struct.yaml）
     skill/
@@ -21,7 +21,7 @@
 
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
 - 只有包含 `*_struct.yaml` 的目录才识别为配置表；其它目录是普通文件夹。左侧列表按文件树展示，可嵌套（`combat/skill`）
-- 结构修改：`*_struct.yaml`、`*_editor.js`、`*_checker.js`、`*_export.js`；字段不兼容时可迁移 data；同时更新 `{id}_docs.md`
+- 结构修改：`*_struct.yaml`、`*_editor.ts`、`*_checker.ts`、`*_export.ts`（兼容旧 `*.js`）；字段不兼容时可迁移 data；同时更新 `{id}_docs.md`
 - 数据修改：只改 `*_data.yaml`，并核对更新 `{id}_docs.md`
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`，以及该表 editor 需要的 views/groups 等），由该表 editor/checker/export 解释
 - sheet `id`：`^[a-z][a-z0-9_]{0,31}$`。无 `sheets` 时视为一张隐式表 `id=main`，`fields=struct.fields`，数据仍是顶层 `rows`
@@ -67,13 +67,13 @@ sheets:
         name: 武器
 ```
 - `{id}_docs.md` 用 `## 结构` / `## 检查规则` / `## 导出规则` 三节说明当前表。Agent 改结构或数据后必须更新文档
-- 导出由该表 `{id}_export.js` 定义，不要发明工作台级导表 / 热更 / 共享流程
+- 导出由该表 `{id}_export.ts`（或兼容的 `.js`）定义，不要发明工作台级导表 / 热更 / 共享流程
 
 ## 宿主约定
 
-AI 生成的 JS 只在沙箱 iframe 跑（`sandbox="allow-scripts"`，禁止主窗口 eval）。
+AI 生成的脚本只在沙箱 iframe 跑（`sandbox="allow-scripts"`，禁止主窗口 eval）。源码优先 `{id}_*.ts`，服务端打包成 IIFE 再内联；仍兼容无 import 的 `{id}_*.js`。若配表根上一级有 `base.ts`，可 `import { ... } from "base"`（demo 的 `base.ts` 再导出 `core/` 里的控件基类）。无 `base.ts` 时写自包含脚本即可。运行时全局对象不变：
 
-```js
+```ts
 window.BitTableEditor = {
   mount(el, api) { /* api: getStruct/getData/getEnums/setData/save/askAI */ }
 };
@@ -94,7 +94,7 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 
 保存：写 data → 隔离跑 checker → 展示错误。磁盘上五件套或 `{id}_docs.md` 变更后，SSE 推送，页面重载 data、iframe 或右栏文档。工作台本轮不执行 exporter。
 
-缺 `editor.js` 时工作台用简易回退表（解析当前 sheet 的 `rows`），仍可查看/保存数据。回退编辑器不画 sheet 页签。
+缺 `editor.ts` / `editor.js` 时工作台用简易回退表（解析当前 sheet 的 `rows`），仍可查看/保存数据。回退编辑器不画 sheet 页签。
 
 右栏页签：结构、检查规则、导出规则（展示 `{id}_docs.md` 对应章节）、历史记录（该表文件的 git / svn 提交，可筛选结构 / 检查规则 / 导出规则 / 数值修改，显示作者与时间）。
 
@@ -113,7 +113,7 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 | GET | `/api/tables/{id}/files` | 五件套文本 + `docs` |
 | GET | `/api/tables/{id}/history` | `{ vcs, entries[] }` 表文件提交；`?kinds=struct,check,export,data` 可选 |
 | PUT | `/api/tables/{id}/data` | `{ data }` 只写 data |
-| GET | `/api/tables/{id}/editor` | iframe HTML 壳（内联 editor.js） |
+| GET | `/api/tables/{id}/editor` | iframe HTML 壳（内联编译后的 editor） |
 | GET | `/api/events` | SSE：`file_changed`，data 为 `{ tableId, kind }` |
 
 路径必须落在启动 root 内。

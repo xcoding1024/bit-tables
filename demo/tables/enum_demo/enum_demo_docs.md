@@ -13,9 +13,9 @@
 
 - 校整表所有 sheet；路径形如 `sheets.rarities.rows.0.id`
 - id、name 必填；id 须小写字母开头，仅字母数字下划线，且在同一 sheet 内不重复
-- 对应 `enum_demo_checker.js` 的 `BitTableChecker.check`
+- 对应 `enum_demo_checker.ts` 的 `BitTableChecker.check`
 
 ## 导出规则
 
-- 对应 `enum_demo_export.js` 的 `BitTableExporter.export`
+- 对应 `enum_demo_export.ts` 的 `BitTableExporter.export`
 - 导出 `enum_demo.json`（`JSON.stringify` 整表 data）
