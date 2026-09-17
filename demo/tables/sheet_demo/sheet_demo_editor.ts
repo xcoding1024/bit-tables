@@ -34,8 +34,8 @@ const PARAM_TITLES: Record<string, string> = {
 class SheetDemoEditor extends BitTableEditorBase {
   testPrefix = "demo";
   rootTestId = "table-editor";
-  toolbarHint = "表格与卡片 · 表头漏斗可筛选 · 勾选后可批量修改或删除";
-  enableCardView = true;
+  toolbarHint = "表头漏斗可筛选 · 勾选后可批量修改或删除";
+  enableCardView = false;
   enableColFilters = true;
   enableTableScroll = true;
   checkboxHint = "开启后对玩家可见";

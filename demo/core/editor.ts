@@ -45,6 +45,7 @@ export class BitTableEditorBase {
     this.enumsBag = (api.getEnums && api.getEnums()) || {};
     this.fields = this.parseFields(this.struct);
     this.title = String(this.struct.name || this.title || "配置表");
+    this.view = String(this.struct.view || "").trim() === "card" ? "card" : "table";
     if (!this.batchKey) {
       const first = this.batchableFields()[0];
       this.batchKey = first ? first.key : "";
@@ -393,11 +394,12 @@ export class BitTableEditorBase {
   protected renderToolbar(): string {
     const n = this.selectedIndexes().length;
     const disabled = n === 0 ? "opacity:.45;cursor:default" : "";
-    const layout = this.enableTableScroll
+    const flexHost = this.enableTableScroll || this.view === "card";
+    const layout = flexHost
       ? "padding:16px 20px;box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0"
       : "padding:12px;box-sizing:border-box;height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px";
     let html = `<div data-testid="${escapeAttr(this.rootTestId)}" style="${layout}">`;
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;flex-shrink:0">';
     html += `<div><div style="font-weight:500">${escapeHtml(this.titleForToolbar())}</div>`;
     html += `<div style="color:#a3a3a3;margin-top:2px">${escapeHtml(this.hintForToolbar())}</div></div>`;
     html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
@@ -526,7 +528,7 @@ export class BitTableEditorBase {
       });
       html += "</section>";
     });
-    return html;
+    return `<div data-testid="${this.tid("cards")}" style="flex:1;min-height:0;overflow:auto">${html}</div>`;
   }
 
   protected removeFilterMenu(): void {
@@ -854,7 +856,7 @@ export class BitTableEditorBase {
     const savedScrollTop = prevTable ? prevTable.scrollTop : 0;
     let html = this.renderToolbar();
     html += this.renderExtra();
-    html += this.view === "card" && this.enableCardView ? this.renderCards(this.data.rows) : this.renderTable();
+    html += this.view === "card" ? this.renderCards(this.data.rows) : this.renderTable();
     html += "</div>";
     this.el.innerHTML = html;
 

@@ -23,6 +23,14 @@ class SheetDemoChecker extends BitTableCheckerBase {
     if (row.power != null && row.power !== "" && (Number.isNaN(power) || power < 0 || power > 100)) {
       this.errors.push({ path: `${prefix}.power`, message: "强度须在 0–100" });
     }
+    const price = Number(row.price);
+    if (row.price != null && row.price !== "" && (Number.isNaN(price) || price < 0)) {
+      this.errors.push({ path: `${prefix}.price`, message: "价格须 ≥ 0" });
+    }
+    const bonus = Number(row.bonus);
+    if (row.bonus != null && row.bonus !== "" && (Number.isNaN(bonus) || bonus < 0 || bonus > 100)) {
+      this.errors.push({ path: `${prefix}.bonus`, message: "加赠比例须在 0–100" });
+    }
     if (row.params == null || row.params === "") return;
     if (typeof row.params !== "object" || Array.isArray(row.params)) {
       this.errors.push({ path: `${prefix}.params`, message: "自定义参数须为对象" });

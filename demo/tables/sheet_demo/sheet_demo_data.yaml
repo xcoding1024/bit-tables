@@ -61,6 +61,29 @@ sheets:
           purity: 0.82
           craft_bonus: 15
           refine_cost: 3
+  packs:
+    rows:
+      - id: starter_pack
+        name: 新手礼包
+        price: 60
+        bonus: 20
+        enabled: true
+        desc: 含铁剑与治疗药水，适合开荒。
+        tags: starter, melee
+      - id: forge_pack
+        name: 锻造礼包
+        price: 120
+        bonus: 35
+        enabled: true
+        desc: 魔晶矿与强化素材合集。
+        tags: craft, rare
+      - id: dragon_pack
+        name: 龙鳞礼包
+        price: 680
+        bonus: 50
+        enabled: false
+        desc: 龙鳞甲主题礼包，限时上架。
+        tags: armor, fire, late
   kinds:
     rows:
       - id: weapon

@@ -38,6 +38,7 @@ export type SheetInfo = {
   id: string;
   name: string;
   fields: unknown[];
+  view?: "table" | "card";
 };
 
 const SHEET_ID = /^[a-z][a-z0-9_]{0,31}$/;
@@ -92,10 +93,13 @@ export function listSheets(struct: unknown): SheetInfo[] {
     const sheet = asRecord(item);
     const id = String(sheet?.id || "").trim();
     if (!SHEET_ID.test(id)) continue;
+    const viewRaw = String(sheet?.view || "").trim();
+    const view = viewRaw === "card" || viewRaw === "table" ? viewRaw : undefined;
     out.push({
       id,
       name: String(sheet?.name || id),
       fields: Array.isArray(sheet?.fields) ? sheet.fields : [],
+      view,
     });
   }
   if (out.length) return out;
@@ -138,7 +142,13 @@ export function sliceForSheet(struct: unknown, data: unknown, sheetId: string): 
   const sheets = listSheets(struct);
   const sheet = sheets.find((item) => item.id === sheetId) || sheets[0];
   const rec = asRecord(struct) || {};
-  const slicedStruct = { ...rec, fields: sheet?.fields || [] };
+  const view = sheet?.view || "table";
+  const slicedStruct = {
+    ...rec,
+    name: sheet?.name || rec.name,
+    fields: sheet?.fields || [],
+    view,
+  };
   const part = sheetData(data, sheet?.id || sheetId);
   const dataRec = asRecord(data) || {};
   return {

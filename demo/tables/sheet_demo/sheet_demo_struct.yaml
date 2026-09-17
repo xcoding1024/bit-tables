@@ -1,11 +1,7 @@
 id: sheet_demo
 name: Sheet 控件演示表
-desc: 覆盖常用字段类型与编辑器控件，支持表格与卡片，以及批量修改/删除；稀有度/标签枚举引用 enum_demo
+desc: 道具用表格、礼包用卡片；覆盖常用字段与批量操作；稀有度/标签枚举引用 enum_demo
 default_sheet: items
-views:
-  - table
-  - card
-default_view: table
 groups:
   - id: basic
     name: 基础信息
@@ -16,6 +12,7 @@ groups:
 sheets:
   - id: items
     name: 道具
+    view: table
     fields:
       - key: id
         label: ID
@@ -97,6 +94,59 @@ sheets:
         widget: params
         group: extra
         hint: 对象结构随 kind 变化；表格摘要 + 弹窗编辑（形态由 editor 按分类写死）
+  - id: packs
+    name: 礼包
+    view: card
+    fields:
+      - key: id
+        label: ID
+        type: string
+        required: true
+        widget: text
+        group: basic
+        hint: 英文标识，创建后不建议改
+      - key: name
+        label: 名称
+        type: string
+        required: true
+        widget: text
+        group: basic
+      - key: icon
+        label: 图标
+        type: icon
+        widget: icon
+        group: basic
+        path: res/item_icons/{id}.png
+        hint: 按 path 模板展示，不落库
+      - key: price
+        label: 价格
+        type: int
+        widget: number
+        group: value
+        min: 0
+      - key: bonus
+        label: 加赠比例
+        type: int
+        widget: range
+        group: value
+        min: 0
+        max: 100
+      - key: enabled
+        label: 上架
+        type: bool
+        widget: checkbox
+        group: value
+      - key: desc
+        label: 说明
+        type: string
+        widget: textarea
+        group: extra
+      - key: tags
+        label: 标签
+        type: enum
+        widget: multiselect
+        group: extra
+        enum: enum_demo.tags
   - id: kinds
     name: 分类
     kind: enum
