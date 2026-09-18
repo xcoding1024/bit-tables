@@ -10,6 +10,7 @@ export class BitTableEditorBase {
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
+  pageSize = 100;
   idReadonly = true;
   checkboxHint = "";
   groupNames: Record<string, string> = {};
@@ -32,6 +33,8 @@ export class BitTableEditorBase {
   protected openMultiKey: string | null = null;
   protected paramsEditRi: number | null = null;
   protected paramsDraft: Row | null = null;
+  protected pageIndex = 0;
+  private resetTableScroll = false;
   private filterCloseBound = false;
   private multiCloseBound = false;
   private multiScrollBound = false;
@@ -339,6 +342,40 @@ export class BitTableEditorBase {
     return out;
   }
 
+  protected allVisibleRowIndexes(): number[] {
+    return this.enableColFilters ? this.filteredRowIndexes() : this.data.rows.map((_, i) => i);
+  }
+
+  protected pageCount(total = this.allVisibleRowIndexes().length): number {
+    const size = Math.max(1, this.pageSize);
+    return Math.max(1, Math.ceil(total / size));
+  }
+
+  protected clampPage(total = this.allVisibleRowIndexes().length): void {
+    const last = this.pageCount(total) - 1;
+    if (this.pageIndex > last) this.pageIndex = last;
+    if (this.pageIndex < 0) this.pageIndex = 0;
+  }
+
+  protected pagedRowIndexes(): number[] {
+    const all = this.allVisibleRowIndexes();
+    this.clampPage(all.length);
+    if (all.length <= this.pageSize) return all;
+    const start = this.pageIndex * this.pageSize;
+    return all.slice(start, start + this.pageSize);
+  }
+
+  protected gotoPage(page: number): void {
+    this.pageIndex = page;
+    this.clampPage();
+    this.openFilterKey = null;
+    this.openMultiKey = null;
+    this.removeFilterMenu();
+    this.removeMultiMenu();
+    this.resetTableScroll = true;
+    this.render();
+  }
+
   protected hasActiveFilters(): boolean {
     return this.fields.some((field) => field?.key && String(this.colFilters[field.key] || "").trim());
   }
@@ -481,7 +518,7 @@ export class BitTableEditorBase {
   }
 
   protected renderTable(): string {
-    const idxs = this.enableColFilters ? this.filteredRowIndexes() : this.data.rows.map((_, i) => i);
+    const idxs = this.pagedRowIndexes();
     const allOn = idxs.length > 0 && idxs.every((i) => this.picked[i]);
     const wrapTest = this.tid("table");
     const sticky = this.enableTableScroll
@@ -514,13 +551,14 @@ export class BitTableEditorBase {
     return html;
   }
 
-  protected renderCards(rows: Row[]): string {
-    if (!rows.length) {
+  protected renderCards(): string {
+    const idxs = this.pagedRowIndexes();
+    if (!idxs.length) {
       return '<div style="color:#a3a3a3;padding:24px 0;text-align:center">暂无行，点击「新增一行」</div>';
     }
     let html = "";
-    rows.forEach((row, ri) => {
-      row = row || {};
+    idxs.forEach((ri) => {
+      const row = this.data.rows[ri] || {};
       html += `<section data-testid="${this.tid(`row-${ri}`)}" style="margin-bottom:12px;border:1px solid #3a3a3a;border-radius:8px;background:#141414">`;
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #3a3a3a">';
       html += `<label style="display:flex;align-items:center;gap:8px;font-family:ui-monospace,monospace;color:#d4d4d4"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} />${escapeHtml(String(row.id || "未命名"))}${row.name ? ` · ${escapeHtml(String(row.name))}` : ""}</label>`;
@@ -549,6 +587,23 @@ export class BitTableEditorBase {
       html += "</section>";
     });
     return `<div data-testid="${this.tid("cards")}" style="flex:1;min-height:0;overflow:auto">${html}</div>`;
+  }
+
+  protected renderPager(): string {
+    const total = this.allVisibleRowIndexes().length;
+    if (total <= this.pageSize) return "";
+    this.clampPage(total);
+    const pages = this.pageCount(total);
+    const start = this.pageIndex * this.pageSize + 1;
+    const end = Math.min(total, start + this.pageSize - 1);
+    const prevOff = this.pageIndex <= 0;
+    const nextOff = this.pageIndex >= pages - 1;
+    let html = `<div data-testid="${this.tid("pager")}" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0;margin-top:8px;flex-wrap:wrap">`;
+    html += `<span data-testid="${this.tid("page-info")}" style="color:#a3a3a3">${start}–${end} / ${total} 行</span>`;
+    html += `<button type="button" data-testid="${this.tid("page-prev")}" ${prevOff ? "disabled " : ""}style="${this.btn("ghost", prevOff ? "opacity:.45;cursor:default" : "")}">上一页</button>`;
+    html += `<span style="color:#d4d4d4;min-width:72px;text-align:center">第 ${this.pageIndex + 1} / ${pages} 页</span>`;
+    html += `<button type="button" data-testid="${this.tid("page-next")}" ${nextOff ? "disabled " : ""}style="${this.btn("ghost", nextOff ? "opacity:.45;cursor:default" : "")}">下一页</button>`;
+    return html + "</div>";
   }
 
   protected removeFilterMenu(): void {
@@ -595,7 +650,9 @@ export class BitTableEditorBase {
     const applyAndClose = (next: string) => {
       this.colFilters[field.key] = next ?? "";
       this.openFilterKey = null;
+      this.pageIndex = 0;
       this.removeFilterMenu();
+      this.resetTableScroll = true;
       this.render();
     };
     menu.querySelector('[data-role="col-filter-clear"]')?.addEventListener("click", () => applyAndClose(""));
@@ -872,18 +929,17 @@ export class BitTableEditorBase {
 
   protected render(): void {
     const prevTable = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
-    const savedScrollLeft = prevTable ? prevTable.scrollLeft : 0;
-    const savedScrollTop = prevTable ? prevTable.scrollTop : 0;
+    const savedScrollLeft = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollLeft : 0;
+    const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
+    this.resetTableScroll = false;
     let html = this.renderToolbar();
     html += this.renderExtra();
-    html += this.view === "card" ? this.renderCards(this.data.rows) : this.renderTable();
+    html += this.view === "card" ? this.renderCards() : this.renderTable();
+    html += this.renderPager();
     html += "</div>";
     this.el.innerHTML = html;
 
-    const visible =
-      this.view === "table" && this.enableColFilters
-        ? this.filteredRowIndexes()
-        : this.data.rows.map((_, i) => i);
+    const visible = this.pagedRowIndexes();
     visible.forEach((ri) => {
       this.fields.forEach((field) => this.bindControl(this.el, field, ri));
     });
@@ -906,7 +962,9 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("filter-clear")}"]`)?.addEventListener("click", () => {
       this.colFilters = {};
       this.openFilterKey = null;
+      this.pageIndex = 0;
       this.removeFilterMenu();
+      this.resetTableScroll = true;
       this.render();
     });
     if (!this.filterCloseBound) {
@@ -985,6 +1043,10 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("add")}"]`)?.addEventListener("click", () => {
       this.data.rows.push(this.emptyRow());
       this.api.setData(this.data);
+      const all = this.allVisibleRowIndexes();
+      const pos = all.indexOf(this.data.rows.length - 1);
+      this.pageIndex = pos >= 0 ? Math.floor(pos / Math.max(1, this.pageSize)) : this.pageCount(all.length) - 1;
+      this.resetTableScroll = true;
       this.render();
     });
     this.el.querySelector(`[data-testid="${this.tid("undo")}"]`)?.addEventListener("click", () => this.api.undo?.());
@@ -1001,7 +1063,7 @@ export class BitTableEditorBase {
     const pickAll = this.el.querySelector(`[data-testid="${this.tid("pick-all")}"]`) as HTMLInputElement | null;
     if (pickAll) {
       pickAll.addEventListener("change", () => {
-        const idxs = this.enableColFilters ? this.filteredRowIndexes() : this.data.rows.map((_, i) => i);
+        const idxs = this.pagedRowIndexes();
         if (pickAll.checked) idxs.forEach((i) => (this.picked[i] = true));
         else idxs.forEach((i) => delete this.picked[i]);
         this.render();
@@ -1051,6 +1113,14 @@ export class BitTableEditorBase {
       this.api.setData(this.data);
       this.batchOpen = false;
       this.render();
+    });
+    this.el.querySelector(`[data-testid="${this.tid("page-prev")}"]`)?.addEventListener("click", () => {
+      if (this.pageIndex <= 0) return;
+      this.gotoPage(this.pageIndex - 1);
+    });
+    this.el.querySelector(`[data-testid="${this.tid("page-next")}"]`)?.addEventListener("click", () => {
+      if (this.pageIndex >= this.pageCount() - 1) return;
+      this.gotoPage(this.pageIndex + 1);
     });
     this.bindExtra();
   }

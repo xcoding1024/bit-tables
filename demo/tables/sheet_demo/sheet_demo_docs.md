@@ -6,6 +6,7 @@
 - 表名：Sheet 控件演示表
 - `default_sheet: items`
 - sheet 用 `view: table` / `view: card` 指定展示形态
+- 当前可见行超过 100 行时分页，每页 100 行
 - sheet `items`（道具，`view: table`）：表格；表头漏斗筛选；分组基础信息 / 数值与开关 / 展示与扩展
 - `items` 字段：
   - id：英文标识，必填，创建后不建议改

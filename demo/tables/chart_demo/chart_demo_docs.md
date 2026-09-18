@@ -7,7 +7,7 @@
 - sheet `line`（折线图）：`month` / `value` — 月度趋势
 - sheet `bar`（柱状图）：`category` / `value` — 分类对比
 - sheet `pie`（饼图）：`label` / `value` — 占比（按 value 求和归一）
-- 编辑器按当前 sheet 用纯 SVG 绘制对应图表，下方可编辑数据行；支持勾选后批量修改 / 批量删除
+- 编辑器按当前 sheet 用纯 SVG 绘制对应图表，下方可编辑数据行；支持勾选后批量修改 / 批量删除；当前可见行超过 100 行时分页，每页 100 行
 
 ## 检查规则
 
