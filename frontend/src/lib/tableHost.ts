@@ -413,7 +413,7 @@ export function runTableExporter(
     };
     window.addEventListener("message", onMsg);
     document.body.appendChild(iframe);
-    window.setTimeout(() => finish({ ok: false, client: [], server: [], error: "导出超时" }), 8000);
+    window.setTimeout(() => finish({ ok: false, client: [], server: [], error: "导出超时" }), 120000);
   });
 }
 
@@ -465,6 +465,6 @@ export function runTableChecker(
     };
     window.addEventListener("message", onMsg);
     document.body.appendChild(iframe);
-    window.setTimeout(() => finish({ ok: false, errors: [{ path: "", message: "检查器超时" }] }), 4000);
+    window.setTimeout(() => finish({ ok: false, errors: [{ path: "", message: "检查器超时" }] }), 60000);
   });
 }

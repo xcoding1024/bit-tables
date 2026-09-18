@@ -134,7 +134,11 @@ func (r *Root) bundleScript(entry string) (string, error) {
 		Target:      api.ES2020,
 		LogLevel:    api.LogLevelSilent,
 		AbsWorkingDir: projectRoot,
-		Plugins:     []api.Plugin{sandboxPlugin(projectRoot)},
+		Loader: map[string]api.Loader{
+			".yaml": api.LoaderText,
+			".yml":  api.LoaderText,
+		},
+		Plugins: []api.Plugin{sandboxPlugin(projectRoot)},
 	}
 	result := api.Build(opts)
 	if len(result.Errors) > 0 {
