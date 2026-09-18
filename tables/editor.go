@@ -158,6 +158,15 @@ func EditorHTML(editorJS string) string {
     }
     return el;
   }
+  function clearReveal() {
+    var editor = window.BitTableEditor;
+    if (editor && typeof editor.clearReveal === "function") {
+      editor.clearReveal();
+      return;
+    }
+    var prev = root.querySelectorAll("[data-reveal='1']");
+    for (var i = 0; i < prev.length; i++) prev[i].removeAttribute("data-reveal");
+  }
   function markRevealDom(target) {
     var prev = root.querySelectorAll("[data-reveal='1']");
     for (var i = 0; i < prev.length; i++) prev[i].removeAttribute("data-reveal");
@@ -177,6 +186,10 @@ func EditorHTML(editorJS string) string {
     if (!msg || typeof msg !== "object") return;
     if (msg.type === "reveal") {
       scheduleReveal(msg);
+      return;
+    }
+    if (msg.type === "clearReveal") {
+      clearReveal();
       return;
     }
     if (msg.type === "init" || msg.type === "setSheet") {
@@ -211,6 +224,13 @@ func EditorHTML(editorJS string) string {
     }
   });
   window.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      var editor = window.BitTableEditor;
+      if (editor && typeof editor.clearReveal === "function") return;
+      ev.preventDefault();
+      clearReveal();
+      return;
+    }
     var key = String(ev.key || "").toLowerCase();
     var mod = ev.ctrlKey || ev.metaKey;
     if (!mod || ev.altKey) return;

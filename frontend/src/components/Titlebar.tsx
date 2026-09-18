@@ -19,7 +19,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
     { action: "撤销", keys: `${mod}+Z` },
     { action: "重做", keys: `${mod}+Y` },
     { action: "重做", keys: `${mod}+${shift}+Z` },
-    { action: "关闭菜单 / 对话框", keys: "Esc" },
+    { action: "关闭菜单 / 取消单元格高亮", keys: "Esc" },
   ];
 }
 

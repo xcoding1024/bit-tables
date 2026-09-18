@@ -23,6 +23,9 @@ func TestEditorHTMLIncludesUndoRedo(t *testing.T) {
 		"function applyReveal",
 		"function scheduleReveal",
 		"function markRevealDom",
+		"function clearReveal",
+		`msg.type === "clearReveal"`,
+		`ev.key === "Escape"`,
 		`key === "s"`,
 	} {
 		if !strings.Contains(html, needle) {

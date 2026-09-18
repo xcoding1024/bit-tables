@@ -43,6 +43,7 @@ export class BitTableEditorBase {
   private multiCloseBound = false;
   private multiScrollBound = false;
   private resizeBound = false;
+  private escapeBound = false;
 
   mount(el: HTMLElement, api: EditorAPI): void {
     this.el = el;
@@ -80,6 +81,38 @@ export class BitTableEditorBase {
     this.revealTarget = { ri, key, query };
     this.render();
     requestAnimationFrame(() => this.scrollRevealIntoView());
+  }
+
+  clearReveal(): void {
+    if (!this.revealTarget) return;
+    this.revealTarget = null;
+    this.render();
+  }
+
+  protected onEscape(ev: KeyboardEvent): void {
+    if (ev.key !== "Escape" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (this.paramsEditRi != null) {
+      ev.preventDefault();
+      this.paramsEditRi = null;
+      this.paramsDraft = null;
+      this.render();
+      return;
+    }
+    if (this.openFilterKey) {
+      ev.preventDefault();
+      this.openFilterKey = null;
+      this.removeFilterMenu();
+      this.render();
+      return;
+    }
+    if (this.editingCell || this.openMultiKey) {
+      ev.preventDefault();
+      this.endEditCell();
+      return;
+    }
+    if (!this.revealTarget) return;
+    ev.preventDefault();
+    this.clearReveal();
   }
 
   protected isRevealCell(ri: number, key: string): boolean {
@@ -1259,6 +1292,10 @@ export class BitTableEditorBase {
         this.resizeBound = true;
         window.addEventListener("resize", () => this.syncTableScroll());
       }
+    }
+    if (!this.escapeBound) {
+      this.escapeBound = true;
+      document.addEventListener("keydown", (raw) => this.onEscape(raw as KeyboardEvent));
     }
     if (!this.multiCloseBound) {
       this.multiCloseBound = true;

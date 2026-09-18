@@ -41,6 +41,7 @@ declare global {
     BitTableEditor?: {
       mount(el: HTMLElement, api: EditorAPI): void;
       reveal?(target: { rowIndex: number; field?: string; query?: string }): void;
+      clearReveal?(): void;
     };
     BitTableChecker?: { check(data: unknown, struct: unknown, enums?: unknown): CheckResult };
     BitTableExporter?: {

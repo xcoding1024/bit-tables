@@ -300,7 +300,7 @@ export default function Workbench({
     return report;
   }, [fullDataOf]);
 
-  const postEditorCmd = useCallback((type: "undo" | "redo" | "save") => {
+  const postEditorCmd = useCallback((type: "undo" | "redo" | "save" | "clearReveal") => {
     const id = activeRef.current;
     if (!id) return;
     iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
@@ -341,6 +341,10 @@ export default function Workbench({
     function onKey(ev: KeyboardEvent) {
       const key = String(ev.key || "").toLowerCase();
       const mod = ev.ctrlKey || ev.metaKey;
+      if (key === "escape" && !mod && !ev.altKey) {
+        postEditorCmd("clearReveal");
+        return;
+      }
       if (!mod || ev.altKey) return;
       if (key === "p") {
         ev.preventDefault();
