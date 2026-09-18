@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
+import { PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
 import { QuickSearch } from "../components/QuickSearch";
 import { TableHistoryPanel } from "../components/TableHistory";
@@ -8,7 +8,16 @@ import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
 import { buildDepGraph, emptyExportReport, exportSet, type ExportReport, type TableSnap } from "../lib/deps";
 import { filterFileHits, listFileHits, searchTableContent, type ContentHit, type FileHit } from "../lib/search";
-import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
+import {
+  LEFT_COLLAPSE_AT,
+  LEFT_DEFAULT,
+  LEFT_MAX,
+  LEFT_MIN,
+  RIGHT_COLLAPSE_AT,
+  RIGHT_DEFAULT,
+  RIGHT_MAX,
+  RIGHT_MIN,
+} from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
   buildEnumsPayload,
@@ -70,7 +79,6 @@ function writeTableParam(id: string) {
 }
 
 export default function Workbench({
-  rootPath,
   enumsCatalog = [],
   tablePacks = [],
   editorCommandsRef,
@@ -82,8 +90,8 @@ export default function Workbench({
   editorCommandsRef?: MutableRefObject<EditorCommands | null>;
   onActiveIdChange?: (id: string) => void;
 }) {
-  const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1);
-  const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1);
+  const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1, LEFT_COLLAPSE_AT);
+  const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1, RIGHT_COLLAPSE_AT);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [tabs, setTabs] = useState<string[]>([]);
   const [activeId, setActiveId] = useState("");
@@ -685,12 +693,12 @@ export default function Workbench({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1">
-        <aside className="relative flex shrink-0 flex-col bg-sidebar" style={{ width: left.displayWidth }}>
+        <aside className="relative flex shrink-0 flex-col overflow-hidden bg-sidebar" style={{ width: left.displayWidth }}>
           {left.collapsed ? (
             <button
               type="button"
               data-testid="tables-left-expand"
-              title={rootPath || "展开文件栏"}
+              title="展开文件栏"
               onClick={left.expand}
               className="flex h-8 w-full items-center justify-center text-muted hover:bg-hover hover:text-ink"
             >
@@ -698,23 +706,14 @@ export default function Workbench({
             </button>
           ) : (
             <>
-              <div className="flex items-center gap-1 p-3">
+              <div className="p-3">
                 <button
                   type="button"
                   data-testid="tables-new"
                   onClick={() => setNewOpen(true)}
-                  className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
+                  className="flex h-8 w-full items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
                 >
                   <Plus size={14} /> 新建表
-                </button>
-                <button
-                  type="button"
-                  data-testid="tables-left-collapse"
-                  title="折叠文件栏"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-ink"
-                  onClick={left.toggle}
-                >
-                  <ChevronLeft size={14} />
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
@@ -727,14 +726,11 @@ export default function Workbench({
               </div>
             </>
           )}
-          {left.collapsed ? null : (
-            <div
-              data-testid="tables-left-resize"
-              className={`panel-resize absolute inset-y-0 right-0 z-20 w-1.5 ${left.dragging ? "dragging" : ""}`}
-              onPointerDown={left.onResizeStart}
-              onDoubleClick={left.toggle}
-            />
-          )}
+          <div
+            data-testid="tables-left-resize"
+            className={`panel-resize absolute inset-y-0 right-0 z-20 w-1.5 ${left.dragging ? "dragging" : ""}`}
+            onPointerDown={left.onResizeStart}
+          />
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col bg-bg">
@@ -834,15 +830,12 @@ export default function Workbench({
           ) : null}
         </section>
 
-        <aside className="relative flex shrink-0 flex-col bg-sidebar" style={{ width: right.displayWidth }}>
-          {right.collapsed ? null : (
-            <div
-              data-testid="tables-right-resize"
-              className={`panel-resize absolute inset-y-0 left-0 z-20 w-1.5 ${right.dragging ? "dragging" : ""}`}
-              onPointerDown={right.onResizeStart}
-              onDoubleClick={right.toggle}
-            />
-          )}
+        <aside className="relative flex shrink-0 flex-col overflow-hidden bg-sidebar" style={{ width: right.displayWidth }}>
+          <div
+            data-testid="tables-right-resize"
+            className={`panel-resize absolute inset-y-0 left-0 z-20 w-1.5 ${right.dragging ? "dragging" : ""}`}
+            onPointerDown={right.onResizeStart}
+          />
           {right.collapsed ? (
             <button
               type="button"
@@ -874,16 +867,6 @@ export default function Workbench({
                     {label}
                   </button>
                 ))}
-                <div className="min-w-0 flex-1" />
-                <button
-                  type="button"
-                  data-testid="tables-right-collapse"
-                  title="折叠编辑栏"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-ink"
-                  onClick={right.toggle}
-                >
-                  <ChevronRight size={14} />
-                </button>
               </div>
               <div
                 className={`min-h-0 flex-1 px-3 py-3 ${rightTab === "history" ? "overflow-hidden" : "overflow-auto"}`}

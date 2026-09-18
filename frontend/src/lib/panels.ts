@@ -3,9 +3,11 @@ const PREFIX = "bit-tables.panel.";
 export const LEFT_MIN = 180;
 export const LEFT_MAX = 420;
 export const LEFT_DEFAULT = 244;
+export const LEFT_COLLAPSE_AT = 140;
 export const RIGHT_MIN = 220;
 export const RIGHT_MAX = 480;
 export const RIGHT_DEFAULT = 360;
+export const RIGHT_COLLAPSE_AT = 160;
 export const RAIL = 36;
 
 function clamp(n: number, min: number, max: number) {
