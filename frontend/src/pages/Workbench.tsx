@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
-import { SearchHits } from "../components/SearchHits";
+import { QuickSearch } from "../components/QuickSearch";
 import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
 import { buildDepGraph, emptyExportReport, exportSet, type ExportReport, type TableSnap } from "../lib/deps";
-import { filterTreeByFile, searchTableContent, type SearchScope } from "../lib/search";
+import { filterFileHits, listFileHits, searchTableContent, type ContentHit, type FileHit } from "../lib/search";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
@@ -95,8 +95,11 @@ export default function Workbench({
   const [historyReload, setHistoryReload] = useState(0);
   const [newOpen, setNewOpen] = useState(false);
   const [newId, setNewId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchScope, setSearchScope] = useState<SearchScope>("file");
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [fileQuery, setFileQuery] = useState("");
+  const [findQuery, setFindQuery] = useState("");
+  const [findScope, setFindScope] = useState<"sheet" | "all">("all");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const frameReadyRef = useRef<Record<string, boolean>>({});
   const filesRef = useRef(filesById);
@@ -138,19 +141,18 @@ export default function Workbench({
     return [...byId.values()];
   }, [draftById, filesById, tablePacks]);
 
-  const fileTree = useMemo(() => {
-    if (searchScope !== "file" || !searchQuery.trim()) return tree;
-    return filterTreeByFile(tree, searchQuery);
-  }, [searchQuery, searchScope, tree]);
+  const fileHits = useMemo(
+    () => filterFileHits(listFileHits(tree), fileQuery),
+    [fileQuery, tree],
+  );
 
   const contentHits = useMemo(() => {
-    if (searchScope === "file" || !searchQuery.trim()) return [];
-    if (searchScope === "sheet") {
-      if (!activeId || !activeSheetId) return [];
-      return searchTableContent(searchPacks, searchQuery, { tableId: activeId, sheetId: activeSheetId });
-    }
-    return searchTableContent(searchPacks, searchQuery);
-  }, [activeId, activeSheetId, searchPacks, searchQuery, searchScope]);
+    if (!findOpen || !findQuery.trim() || !activeId) return [];
+    return searchTableContent(searchPacks, findQuery, {
+      tableId: activeId,
+      sheetId: findScope === "sheet" ? activeSheetId : undefined,
+    });
+  }, [activeId, activeSheetId, findOpen, findQuery, findScope, searchPacks]);
 
   const fullDataOf = useCallback((id: string, fallbackText?: string) => {
     if (Object.prototype.hasOwnProperty.call(draftRef.current, id)) {
@@ -315,6 +317,20 @@ export default function Workbench({
       const key = String(ev.key || "").toLowerCase();
       const mod = ev.ctrlKey || ev.metaKey;
       if (!mod || ev.altKey) return;
+      if (key === "p") {
+        ev.preventDefault();
+        setFindOpen(false);
+        setQuickOpen(true);
+        setFileQuery("");
+        return;
+      }
+      if (key === "f") {
+        ev.preventDefault();
+        setQuickOpen(false);
+        setFindOpen(true);
+        setFindQuery("");
+        return;
+      }
       if (key === "s") {
         ev.preventDefault();
         postEditorCmd("save");
@@ -530,7 +546,7 @@ export default function Workbench({
       const id = Object.keys(iframeRefs.current).find((key) => iframeRefs.current[key]?.contentWindow === ev.source);
       if (!id || !ev.data || typeof ev.data !== "object") return;
       const frame = iframeRefs.current[id];
-      const msg = ev.data as { type?: string; data?: unknown };
+      const msg = ev.data as { type?: string; data?: unknown; key?: string };
       const cur = filesRef.current[id];
       if (msg.type === "ready" && frame) {
         frameReadyRef.current[id] = true;
@@ -562,6 +578,17 @@ export default function Workbench({
               },
             }));
           });
+      } else if (msg.type === "shortcut") {
+        const key = String(msg.key || "");
+        if (key === "p") {
+          setFindOpen(false);
+          setQuickOpen(true);
+          setFileQuery("");
+        } else if (key === "f") {
+          setQuickOpen(false);
+          setFindOpen(true);
+          setFindQuery("");
+        }
       } else if (msg.type === "askAI") {
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(msg, "*");
@@ -671,84 +698,32 @@ export default function Workbench({
             </button>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-1 border-b border-line px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-[11px] text-muted">文件</div>
-                  <div className="truncate font-mono text-[11px] text-muted" data-testid="tables-root-current" title={rootPath}>
-                    {rootPath}
-                  </div>
-                </div>
+              <div className="flex items-center gap-1 p-3">
+                <button
+                  type="button"
+                  data-testid="tables-new"
+                  onClick={() => setNewOpen(true)}
+                  className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
+                >
+                  <Plus size={14} /> 新建表
+                </button>
                 <button
                   type="button"
                   data-testid="tables-left-collapse"
                   title="折叠文件栏"
-                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-ink"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-ink"
                   onClick={left.toggle}
                 >
                   <ChevronLeft size={14} />
                 </button>
               </div>
-              <div className="p-3">
-                <Input
-                  data-testid="tables-search"
-                  placeholder={
-                    searchScope === "file" ? "搜索文件名" : searchScope === "sheet" ? "搜索当前 Sheet" : "搜索全部 Sheet"
-                  }
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <div className="mt-1 flex gap-1">
-                  {(
-                    [
-                      ["file", "文件名"],
-                      ["sheet", "当前"],
-                      ["all", "全部"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      data-testid={`tables-search-scope-${id}`}
-                      title={id === "file" ? "按文件名" : id === "sheet" ? "当前 Sheet" : "全部 Sheet"}
-                      className={`h-6 flex-1 rounded px-1 text-[11px] ${
-                        searchScope === id ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
-                      }`}
-                      onClick={() => setSearchScope(id)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
-                {searchScope === "file" || !searchQuery.trim() ? (
-                  <TableTree
-                    tree={fileTree}
-                    activeId={activeId}
-                    openIds={tabs}
-                    expandAll={searchScope === "file" && Boolean(searchQuery.trim())}
-                    emptyText={searchQuery.trim() ? "无匹配文件" : "暂无配置表"}
-                    onOpen={(id) => handleOpenTable(id, !filesById[id])}
-                  />
-                ) : (
-                  <SearchHits
-                    hits={contentHits}
-                    emptyText={
-                      searchScope === "sheet" && !activeId ? "先打开一张配置表" : "无匹配内容"
-                    }
-                    onOpen={(hit) => handleOpenHit(hit.tableId, hit.sheetId)}
-                  />
-                )}
-              </div>
-              <div className="shrink-0 border-t border-line p-3">
-                <button
-                  type="button"
-                  data-testid="tables-new"
-                  onClick={() => setNewOpen(true)}
-                  className="flex h-8 w-full items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
-                >
-                  <Plus size={14} /> 新建表
-                </button>
+                <TableTree
+                  tree={tree}
+                  activeId={activeId}
+                  openIds={tabs}
+                  onOpen={(id) => handleOpenTable(id, !filesById[id])}
+                />
               </div>
             </>
           )}
@@ -943,6 +918,72 @@ export default function Workbench({
         </span>
       </footer>
 
+      <QuickSearch<FileHit>
+        open={quickOpen}
+        title="打开文件"
+        placeholder="搜索文件名"
+        query={fileQuery}
+        onQuery={setFileQuery}
+        items={fileHits}
+        emptyText={tree.length ? "无匹配文件" : "暂无配置表"}
+        testId="tables-quick-open"
+        onClose={() => setQuickOpen(false)}
+        onPick={(item) => {
+          setQuickOpen(false);
+          handleOpenTable(item.id, !filesById[item.id]);
+        }}
+        renderItem={(item) => (
+          <>
+            <div className="truncate text-[13px]">{item.name}</div>
+            <div className="truncate font-mono text-[11px] text-muted">{item.path || item.id}</div>
+          </>
+        )}
+      />
+      <QuickSearch<ContentHit>
+        open={findOpen}
+        title="在当前表中查找"
+        placeholder={activeId ? "搜索当前表" : "先打开一张配置表"}
+        query={findQuery}
+        onQuery={setFindQuery}
+        items={contentHits}
+        emptyText={!activeId ? "先打开一张配置表" : findQuery.trim() ? "无匹配内容" : "输入关键字"}
+        testId="tables-find"
+        onClose={() => setFindOpen(false)}
+        extra={
+          <div className="flex gap-1">
+            {(
+              [
+                ["all", "全部 Sheet"],
+                ["sheet", "当前 Sheet"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`h-6 rounded px-2 text-[11px] ${
+                  findScope === id ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
+                }`}
+                onClick={() => setFindScope(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+        onPick={(hit) => {
+          setFindOpen(false);
+          handleOpenHit(hit.tableId, hit.sheetId);
+        }}
+        renderItem={(hit) => (
+          <>
+            <div className="truncate text-[13px]">
+              {hit.sheetName}
+              <span className="text-muted"> · {hit.label}</span>
+            </div>
+            <div className="truncate text-[11px] text-muted">{hit.value}</div>
+          </>
+        )}
+      />
       <Dialog
         open={newOpen}
         title="新建表"

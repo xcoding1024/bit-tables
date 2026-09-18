@@ -4,6 +4,37 @@ import { listSheets, sheetData } from "./tableHost";
 
 export type SearchScope = "file" | "sheet" | "all";
 
+export type FileHit = {
+  id: string;
+  name: string;
+  path: string;
+};
+
+export function listFileHits(tree: TreeNode[]): FileHit[] {
+  const out: FileHit[] = [];
+  const walk = (nodes: TreeNode[]) => {
+    for (const node of nodes) {
+      if (node.kind === "table" && node.table) {
+        const id = node.table.id;
+        out.push({
+          id,
+          name: node.table.name?.trim() || id,
+          path: node.table.path || node.path,
+        });
+      }
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(tree);
+  return out;
+}
+
+export function filterFileHits(files: FileHit[], query: string): FileHit[] {
+  const q = norm(query);
+  if (!q) return files;
+  return files.filter((item) => [item.id, item.name, item.path].some((part) => norm(part).includes(q)));
+}
+
 export type ContentHit = {
   tableId: string;
   tableName: string;

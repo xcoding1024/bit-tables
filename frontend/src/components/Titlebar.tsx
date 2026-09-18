@@ -13,6 +13,8 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
   const mod = isMac ? "⌘" : "Ctrl";
   const shift = isMac ? "⇧" : "Shift";
   return [
+    { action: "打开文件", keys: `${mod}+P` },
+    { action: "在当前表中查找", keys: `${mod}+F` },
     { action: "保存", keys: `${mod}+S` },
     { action: "撤销", keys: `${mod}+Z` },
     { action: "重做", keys: `${mod}+Y` },

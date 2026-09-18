@@ -161,6 +161,9 @@ func EditorHTML(editorJS string) string {
     if (key === "s") {
       ev.preventDefault();
       api.save();
+    } else if (key === "p" || key === "f") {
+      ev.preventDefault();
+      parent.postMessage({ type: "shortcut", key: key }, "*");
     } else if (key === "z" && ev.shiftKey) {
       ev.preventDefault();
       redo();
