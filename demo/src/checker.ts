@@ -22,7 +22,12 @@ export class BitTableCheckerBase {
         const part = asRecord(bag[sid]);
         let rows = part && Array.isArray(part.rows) ? (part.rows as Row[]) : [];
         if (!part && Array.isArray(this.data.rows) && sid === def) rows = this.data.rows as Row[];
-        this.checkSheet(sid, rows, (Array.isArray(sheet.fields) ? sheet.fields : []) as FieldDef[]);
+        this.checkSheet(
+          sid,
+          rows,
+          (Array.isArray(sheet.fields) ? sheet.fields : []) as FieldDef[],
+          sheet,
+        );
       });
       return { ok: this.errors.length === 0, errors: this.errors };
     }
@@ -75,22 +80,40 @@ export class BitTableCheckerBase {
     return set;
   }
 
-  protected checkSheet(sheetId: string, rows: Row[], fields: FieldDef[]): void {
+  protected idFieldType(fields: FieldDef[]): string {
+    const idField = fields.find((f) => f?.key === "id");
+    return idField?.type ? String(idField.type).replace(/\?$/, "") : "string";
+  }
+
+  protected checkSheet(sheetId: string, rows: Row[], fields: FieldDef[], sheetMeta?: Row): void {
     const required = [...this.requiredKeys(fields), ...this.extraRequired(sheetId, fields)];
     const ids: Record<string, boolean> = {};
     const enumFields = (fields || []).filter((f) => f && (f.enum || f.type === "enum"));
+    const idType = this.idFieldType(fields);
+    const isEnumSheet = sheetMeta?.kind === "enum";
+    const seasonScoped = fields.some((f) => f?.key === "$season");
     rows.forEach((row, i) => {
       row = row || {};
       const prefix = `sheets.${sheetId}.rows.${i}`;
       required.forEach((key) => {
         if (!String(row[key] ?? "").trim()) this.errors.push({ path: `${prefix}.${key}`, message: `${key} 必填` });
       });
-      if (row.id) {
-        if (!/^[a-z][a-z0-9_]*$/.test(String(row.id))) {
-          this.errors.push({ path: `${prefix}.id`, message: "id 须小写字母开头，仅字母数字下划线" });
+      if (row.id != null && row.id !== "" && String(row.id) !== "-") {
+        const idStr = String(row.id);
+        const uniqueKey = seasonScoped ? `${idStr}::${row.$season ?? ""}` : idStr;
+        if (idType === "string" && !isEnumSheet) {
+          if (!/^[a-z][a-z0-9_]*$/.test(idStr)) {
+            this.errors.push({ path: `${prefix}.id`, message: "id 须小写字母开头，仅字母数字下划线" });
+          }
+          if (ids[uniqueKey]) this.errors.push({ path: `${prefix}.id`, message: `id 重复：${row.id}` });
+          ids[uniqueKey] = true;
+        } else if (idType === "string" && isEnumSheet) {
+          if (ids[idStr]) this.errors.push({ path: `${prefix}.id`, message: `id 重复：${row.id}` });
+          ids[idStr] = true;
+        } else if (idType !== "auto" && idStr !== "-") {
+          if (ids[uniqueKey]) this.errors.push({ path: `${prefix}.id`, message: `id 重复：${row.id}` });
+          ids[uniqueKey] = true;
         }
-        if (ids[String(row.id)]) this.errors.push({ path: `${prefix}.id`, message: `id 重复：${row.id}` });
-        ids[String(row.id)] = true;
       }
       enumFields.forEach((field) => {
         const val = row[field.key];
