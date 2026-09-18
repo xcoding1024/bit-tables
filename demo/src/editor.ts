@@ -6,7 +6,7 @@ type RowIndex = number | "batch";
 export class BitTableEditorBase {
   testPrefix = "demo";
   rootTestId = "table-editor";
-  toolbarHint = "勾选后可批量修改或删除";
+  toolbarHint = "双击单元格编辑 · 勾选后可批量修改或删除";
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
@@ -35,6 +35,8 @@ export class BitTableEditorBase {
   protected paramsEditRi: number | null = null;
   protected paramsDraft: Row | null = null;
   protected pageIndex = 0;
+  protected editingCell: { ri: number; key: string } | null = null;
+  private editBlurTimer = 0;
   private resetTableScroll = false;
   private filterCloseBound = false;
   private multiCloseBound = false;
@@ -389,12 +391,113 @@ export class BitTableEditorBase {
   protected gotoPage(page: number): void {
     this.pageIndex = page;
     this.clampPage();
+    this.editingCell = null;
     this.openFilterKey = null;
     this.openMultiKey = null;
     this.removeFilterMenu();
     this.removeMultiMenu();
     this.resetTableScroll = true;
     this.render();
+  }
+
+  protected isEditingCell(ri: RowIndex, key: string): boolean {
+    return typeof ri === "number" && this.editingCell?.ri === ri && this.editingCell.key === key;
+  }
+
+  protected cellEditable(field: FieldDef | undefined, row: Row): boolean {
+    if (!field?.key) return false;
+    if (field.widget === "icon" || field.type === "icon") return false;
+    if (this.idReadonly && field.key === "id" && row.id) return false;
+    return true;
+  }
+
+  protected cellDisplayText(field: FieldDef, row: Row): string {
+    if (field.widget === "params" || field.type === "object") {
+      const summary = this.paramsSummary(row[field.key], row);
+      return summary === "未设置" ? "" : summary;
+    }
+    if (field.widget === "multiselect" || field.widget === "tags") {
+      const ids = splitMulti(row[field.key]);
+      return ids.length ? this.multiSummary(field, row[field.key]) : "";
+    }
+    if (field.widget === "checkbox" || field.type === "bool") return truthy(row[field.key]) ? "开启" : "关闭";
+    const val = row[field.key] == null ? "" : row[field.key];
+    if (field.enum || field.type === "enum") {
+      let name = "";
+      this.enumOptions(field).forEach((opt) => {
+        if (String(opt.id) === String(val)) name = opt.name;
+      });
+      return name || String(val);
+    }
+    return val === "" ? "" : String(val);
+  }
+
+  protected beginEditCell(ri: number, key: string): void {
+    window.clearTimeout(this.editBlurTimer);
+    const field = this.fields.find((f) => f.key === key);
+    const row = this.data.rows[ri] || {};
+    if (!this.cellEditable(field, row) || !field) return;
+    if (field.widget === "params" || field.type === "object") {
+      this.editingCell = null;
+      this.paramsEditRi = ri;
+      this.paramsDraft = this.normalizeParams(row.params, row);
+      this.render();
+      return;
+    }
+    if (field.widget === "multiselect" || field.widget === "tags") {
+      this.editingCell = { ri, key };
+      this.openMultiKey = `${key}-${ri}`;
+      this.render();
+      return;
+    }
+    this.editingCell = { ri, key };
+    this.render();
+    this.focusEditingControl();
+  }
+
+  protected endEditCell(): void {
+    window.clearTimeout(this.editBlurTimer);
+    if (!this.editingCell && this.openMultiKey == null) return;
+    this.editingCell = null;
+    this.openMultiKey = null;
+    this.removeMultiMenu();
+    this.render();
+  }
+
+  protected scheduleEndEdit(): void {
+    window.clearTimeout(this.editBlurTimer);
+    this.editBlurTimer = window.setTimeout(() => {
+      if (this.openMultiKey || this.paramsEditRi != null) return;
+      this.endEditCell();
+    }, 150);
+  }
+
+  protected focusEditingControl(): void {
+    if (!this.editingCell) return;
+    const { ri, key } = this.editingCell;
+    const el = this.el.querySelector(`[data-testid="${this.testPrefix}-${key}-${ri}"]`) as HTMLElement | null;
+    if (!el) return;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      el.focus();
+      if (el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "range" && el.type !== "date") {
+        el.select();
+      }
+      if (el instanceof HTMLTextAreaElement) el.select();
+    }
+  }
+
+  protected bindEditExit(node: HTMLElement, ri: number, key: string): void {
+    node.addEventListener("keydown", (raw) => {
+      const ev = raw as KeyboardEvent;
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        this.endEditCell();
+      } else if (ev.key === "Enter" && node.tagName !== "TEXTAREA") {
+        ev.preventDefault();
+        this.endEditCell();
+      }
+    });
+    node.addEventListener("blur", () => this.scheduleEndEdit());
   }
 
   protected setPageSize(size: number): void {
@@ -571,13 +674,26 @@ export class BitTableEditorBase {
       html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"}">`;
       html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
       this.fields.forEach((field) => {
-        html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle">${this.fieldControl(field, row, ri, true)}</td>`;
+        html += this.renderTableCell(field, row, ri);
       });
       html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a"><button type="button" data-role="remove" data-index="${ri}" style="${this.btn("danger")}">删除</button></td></tr>`;
     });
     html += "</tbody></table></div>";
     if (this.enableTableScroll) html += "</div>";
     return html;
+  }
+
+  protected renderTableCell(field: FieldDef, row: Row, ri: number): string {
+    const td = 'padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle';
+    if (field.widget === "icon" || field.type === "icon") {
+      return `<td style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+    }
+    if (this.isEditingCell(ri, field.key)) {
+      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}" style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+    }
+    const canEdit = this.cellEditable(field, row);
+    const text = this.cellDisplayText(field, row);
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${escapeHtml(text || "—")}</div></td>`;
   }
 
   protected renderCards(): string {
@@ -689,6 +805,7 @@ export class BitTableEditorBase {
     const applyAndClose = (next: string) => {
       this.colFilters[field.key] = next ?? "";
       this.openFilterKey = null;
+      this.editingCell = null;
       this.pageIndex = 0;
       this.removeFilterMenu();
       this.resetTableScroll = true;
@@ -888,6 +1005,10 @@ export class BitTableEditorBase {
     if (node.tagName === "TEXTAREA") widget = "textarea";
     if ("type" in node && node.type === "checkbox") widget = "checkbox";
     if ("type" in node && node.type === "range") widget = "range";
+    const inTableEdit = typeof ri === "number" && this.view === "table" && this.isEditingCell(ri, field.key);
+    const finishInstant = () => {
+      if (inTableEdit) this.endEditCell();
+    };
     const apply = (value: unknown) => {
       if (field.type === "int") this.setRow(ri, field.key, String(parseInt(String(value), 10) || 0));
       else if (field.type === "float") this.setRow(ri, field.key, String(Number(value) || 0));
@@ -898,19 +1019,27 @@ export class BitTableEditorBase {
         const row = this.data.rows[ri] || {};
         row.params = this.normalizeParams(row.params, { ...row, kind: value });
         this.api.setData(this.data);
-        this.render();
+        if (!inTableEdit) this.render();
       }
     };
     if (widget === "checkbox") {
-      nodes[0].addEventListener("change", (ev) => apply((ev.target as HTMLInputElement).checked));
+      nodes[0].addEventListener("change", (ev) => {
+        apply((ev.target as HTMLInputElement).checked);
+        finishInstant();
+      });
+      if (inTableEdit) this.bindEditExit(nodes[0], ri as number, field.key);
       return;
     }
     if (widget === "radio") {
       nodes.forEach((item) => {
         item.addEventListener("change", (ev) => {
           const target = ev.target as HTMLInputElement;
-          if (target.checked) apply(target.value);
+          if (target.checked) {
+            apply(target.value);
+            finishInstant();
+          }
         });
+        if (inTableEdit) this.bindEditExit(item, ri as number, field.key);
       });
       return;
     }
@@ -921,13 +1050,18 @@ export class BitTableEditorBase {
         if (rangeLabel) rangeLabel.textContent = value;
         apply(value);
       });
+      if (inTableEdit) this.bindEditExit(nodes[0], ri as number, field.key);
       return;
     }
     const evName = widget === "select" || widget === "date" || widget === "number" ? "change" : "input";
-    nodes[0].addEventListener(evName, (ev) => apply((ev.target as HTMLInputElement).value));
+    nodes[0].addEventListener(evName, (ev) => {
+      apply((ev.target as HTMLInputElement).value);
+      if (widget === "select" || widget === "date") finishInstant();
+    });
     if (widget === "number") {
       nodes[0].addEventListener("input", (ev) => apply((ev.target as HTMLInputElement).value));
     }
+    if (inTableEdit) this.bindEditExit(nodes[0], ri as number, field.key);
   }
 
   protected syncTableScroll(): void {
@@ -980,8 +1114,19 @@ export class BitTableEditorBase {
 
     const visible = this.pagedRowIndexes();
     visible.forEach((ri) => {
-      this.fields.forEach((field) => this.bindControl(this.el, field, ri));
+      this.fields.forEach((field) => {
+        if (this.view === "table" && !this.isEditingCell(ri, field.key)) return;
+        this.bindControl(this.el, field, ri);
+      });
     });
+    this.el.querySelectorAll("[data-role=cell]").forEach((td) => {
+      td.addEventListener("dblclick", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.beginEditCell(Number(td.getAttribute("data-index")), td.getAttribute("data-key") || "");
+      });
+    });
+    if (this.editingCell && !this.openMultiKey) this.focusEditingControl();
     if (this.paramsEditRi != null) this.placeParamsDialog();
 
     this.el.querySelectorAll('[data-role="col-filter-btn"]').forEach((btn) => {
@@ -1001,6 +1146,7 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("filter-clear")}"]`)?.addEventListener("click", () => {
       this.colFilters = {};
       this.openFilterKey = null;
+      this.editingCell = null;
       this.pageIndex = 0;
       this.removeFilterMenu();
       this.resetTableScroll = true;
@@ -1037,9 +1183,7 @@ export class BitTableEditorBase {
         if (!this.openMultiKey) return;
         const target = ev.target as HTMLElement | null;
         if (target?.closest?.('[data-role="multi-wrap"]') || target?.closest?.('[data-role="multi-menu"]')) return;
-        this.openMultiKey = null;
-        this.removeMultiMenu();
-        this.render();
+        this.endEditCell();
       });
     }
     if (!this.multiScrollBound) {
@@ -1053,9 +1197,7 @@ export class BitTableEditorBase {
           if (menu && (target === menu || menu.contains(target))) return;
           const table = this.el.querySelector(`[data-testid="${this.tid("table")}"]`);
           if (table && (target === table || table.contains(target))) {
-            this.openMultiKey = null;
-            this.removeMultiMenu();
-            this.render();
+            this.endEditCell();
           }
         },
         true,

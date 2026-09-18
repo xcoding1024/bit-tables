@@ -7,7 +7,7 @@
 - sheet `rarities`（`kind: enum`）：稀有度，字段 id / name
 - sheet `tags`（`kind: enum`）：标签，字段 id / name
 - 供他表以 `enum: enum_demo.rarities` / `enum: enum_demo.tags` 引用（如 sheet_demo）
-- 编辑器支持勾选后批量修改 / 批量删除；可选择每页行数，默认 100；超过当前每页行数时分页
+- 编辑器表格默认只读，双击单元格编辑；支持勾选后批量修改 / 批量删除；可选择每页行数，默认 100；超过当前每页行数时分页
 
 ## 检查规则
 
