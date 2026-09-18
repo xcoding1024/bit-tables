@@ -159,7 +159,7 @@ function searchSheetRows(
           label,
           value,
         });
-        break;
+        if (hits.length >= HIT_LIMIT) return;
       }
     }
     if (hits.length >= HIT_LIMIT) return;

@@ -17,6 +17,9 @@ func EditorHTML(editorJS string) string {
   *::-webkit-scrollbar-thumb{background:#525252;border-radius:4px}
   *::-webkit-scrollbar-thumb:hover{background:#737373}
   *::-webkit-scrollbar-corner{background:#1a1a1a}
+  [data-reveal="1"]{outline:2px solid #3794ff;outline-offset:-2px;box-shadow:inset 0 0 0 999px rgba(55,148,255,.22);animation:bit-reveal-flash .7s ease-out}
+  @keyframes bit-reveal-flash{0%{box-shadow:inset 0 0 0 999px rgba(55,148,255,.45)}100%{box-shadow:inset 0 0 0 999px rgba(55,148,255,.22)}}
+  mark[data-reveal-mark]{background:#e2b340;color:#1a1a1a;padding:0 2px;border-radius:2px}
 </style>
 </head>
 <body>
@@ -116,6 +119,53 @@ func EditorHTML(editorJS string) string {
       return "/api/tables/" + encodeURIComponent(id) + "/asset?path=" + encodeURIComponent(String(rel));
     }
   };
+  function attrEscape(value) {
+    return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+  function applyReveal(target) {
+    if (!target) return;
+    var editor = window.BitTableEditor;
+    if (editor && typeof editor.reveal === "function") {
+      editor.reveal(target);
+      requestAnimationFrame(function () {
+        var el = findRevealEl(target);
+        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", inline: "nearest" });
+      });
+      return;
+    }
+    requestAnimationFrame(function () {
+      markRevealDom(target);
+    });
+  }
+  function scheduleReveal(target) {
+    if (!target) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { applyReveal(target); });
+    });
+  }
+  function findRevealEl(target) {
+    var ri = target.rowIndex;
+    var key = String(target.field || "");
+    var el = null;
+    if (key) {
+      el = root.querySelector('[data-role="cell"][data-index="' + ri + '"][data-key="' + attrEscape(key) + '"]')
+        || root.querySelector('[data-role="cell-edit"][data-index="' + ri + '"][data-key="' + attrEscape(key) + '"]')
+        || root.querySelector('[data-testid$="-' + attrEscape(key) + '-' + ri + '"]');
+    }
+    if (!el) {
+      el = root.querySelector('[data-testid$="row-' + ri + '"]')
+        || root.querySelector('[data-testid="fallback-row-' + ri + '"]');
+    }
+    return el;
+  }
+  function markRevealDom(target) {
+    var prev = root.querySelectorAll("[data-reveal='1']");
+    for (var i = 0; i < prev.length; i++) prev[i].removeAttribute("data-reveal");
+    var el = findRevealEl(target);
+    if (!el) return;
+    el.setAttribute("data-reveal", "1");
+    if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", inline: "nearest" });
+  }
   function mount() {
     root.innerHTML = "";
     if (window.BitTableEditor && typeof window.BitTableEditor.mount === "function") {
@@ -125,6 +175,10 @@ func EditorHTML(editorJS string) string {
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
     if (!msg || typeof msg !== "object") return;
+    if (msg.type === "reveal") {
+      scheduleReveal(msg);
+      return;
+    }
     if (msg.type === "init" || msg.type === "setSheet") {
       var prevSheet = sheetId;
       if (msg.struct != null) struct = msg.struct;
@@ -139,6 +193,7 @@ func EditorHTML(editorJS string) string {
         alignHistory();
       }
       mount();
+      if (msg.reveal) scheduleReveal(msg.reveal);
     } else if (msg.type === "replaceData") {
       if (msg.struct != null) struct = msg.struct;
       if (msg.sheetId != null) sheetId = msg.sheetId;
@@ -146,6 +201,7 @@ func EditorHTML(editorJS string) string {
       if (msg.enums != null) enums = msg.enums;
       alignHistory();
       mount();
+      if (msg.reveal) scheduleReveal(msg.reveal);
     } else if (msg.type === "undo") {
       undo();
     } else if (msg.type === "redo") {
@@ -208,9 +264,9 @@ func FallbackEditorJS() string {
       });
       html += "</tr></thead><tbody>";
       rows.forEach(function (row, ri) {
-        html += "<tr>";
+        html += '<tr data-testid="fallback-row-' + ri + '">';
         keys.forEach(function (k) {
-          html += '<td style="padding:6px;border-bottom:1px solid #3a3a3a">' + esc(row[k] || "") + "</td>";
+          html += '<td data-role="cell" data-index="' + ri + '" data-key="' + esc(k) + '" style="padding:6px;border-bottom:1px solid #3a3a3a">' + esc(row[k] || "") + "</td>";
         });
         html += "</tr>";
       });

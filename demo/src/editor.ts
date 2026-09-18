@@ -35,6 +35,7 @@ export class BitTableEditorBase {
   protected paramsEditRi: number | null = null;
   protected paramsDraft: Row | null = null;
   protected pageIndex = 0;
+  protected revealTarget: { ri: number; key: string; query: string } | null = null;
   protected editingCell: { ri: number; key: string } | null = null;
   private editBlurTimer = 0;
   private resetTableScroll = false;
@@ -56,7 +57,88 @@ export class BitTableEditorBase {
       const first = this.batchableFields()[0];
       this.batchKey = first ? first.key : "";
     }
+    this.revealTarget = null;
     this.render();
+  }
+
+  reveal(target: { rowIndex: number; field?: string; query?: string }): void {
+    const ri = Number(target?.rowIndex);
+    const key = String(target?.field || "").trim();
+    const query = String(target?.query || "").trim();
+    if (!Number.isFinite(ri) || ri < 0 || ri >= this.data.rows.length) return;
+    if (this.hasActiveFilters() && !this.filteredRowIndexes().includes(ri)) {
+      this.colFilters = {};
+      this.openFilterKey = null;
+      this.removeFilterMenu();
+    }
+    const all = this.allVisibleRowIndexes();
+    const pos = all.indexOf(ri);
+    if (pos >= 0) {
+      this.pageIndex = Math.floor(pos / this.resolvedPageSize());
+      this.clampPage(all.length);
+    }
+    this.revealTarget = { ri, key, query };
+    this.render();
+    requestAnimationFrame(() => this.scrollRevealIntoView());
+  }
+
+  protected isRevealCell(ri: number, key: string): boolean {
+    if (!this.revealTarget || this.revealTarget.ri !== ri) return false;
+    if (this.revealTarget.key && this.revealTarget.key !== key) return false;
+    return true;
+  }
+
+  protected revealAttr(ri: number, key: string): string {
+    return this.isRevealCell(ri, key) ? ' data-reveal="1"' : "";
+  }
+
+  protected revealCellStyle(ri: number, key: string): string {
+    if (!this.isRevealCell(ri, key)) return "";
+    return "outline:2px solid #3794ff;outline-offset:-2px;box-shadow:inset 0 0 0 999px rgba(55,148,255,.22);";
+  }
+
+  protected revealRowStyle(ri: number): string {
+    if (!this.revealTarget || this.revealTarget.ri !== ri || this.revealTarget.key) return "";
+    return "outline:2px solid #3794ff;outline-offset:-2px;";
+  }
+
+  protected highlightQuery(text: string, ri: number, key: string): string {
+    const q = this.revealTarget?.query || "";
+    if (!q || !this.isRevealCell(ri, key)) return escapeHtml(text);
+    const lower = text.toLowerCase();
+    const needle = q.toLowerCase();
+    const i = lower.indexOf(needle);
+    if (i < 0) return escapeHtml(text);
+    return (
+      escapeHtml(text.slice(0, i)) +
+      `<mark data-reveal-mark="1">${escapeHtml(text.slice(i, i + q.length))}</mark>` +
+      escapeHtml(text.slice(i + q.length))
+    );
+  }
+
+  protected scrollRevealIntoView(): void {
+    if (!this.el || !this.revealTarget) return;
+    const { ri, key } = this.revealTarget;
+    const cell = key
+      ? (this.el.querySelector(`[data-role="cell"][data-index="${ri}"][data-key="${key}"]`) as HTMLElement | null) ||
+        (this.el.querySelector(`[data-role="cell-edit"][data-index="${ri}"][data-key="${key}"]`) as HTMLElement | null) ||
+        (this.el.querySelector(`[data-testid="${this.testPrefix}-${key}-${ri}"]`) as HTMLElement | null)
+      : null;
+    const el =
+      cell || (this.el.querySelector(`[data-testid="${this.tid(`row-${ri}`)}"]`) as HTMLElement | null);
+    if (!el) return;
+    const wrap = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
+    const host = (wrap?.parentElement as HTMLElement | null) || this.el;
+    el.scrollIntoView({ block: "center", inline: "nearest" });
+    for (const scroller of [wrap, host, this.el]) {
+      if (!scroller) continue;
+      const er = el.getBoundingClientRect();
+      const wr = scroller.getBoundingClientRect();
+      if (er.top < wr.top) scroller.scrollTop += er.top - wr.top - 24;
+      if (er.bottom > wr.bottom) scroller.scrollTop += er.bottom - wr.bottom + 24;
+      if (er.left < wr.left) scroller.scrollLeft += er.left - wr.left - 24;
+      if (er.right > wr.right) scroller.scrollLeft += er.right - wr.right + 24;
+    }
   }
 
   protected normalizeData(raw: unknown): { rows: Row[] } {
@@ -657,8 +739,8 @@ export class BitTableEditorBase {
       ? "position:sticky;top:0;z-index:2;"
       : "";
     let html = this.enableTableScroll
-      ? `<div style="flex:1;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" style="width:100%;overflow-x:auto;overflow-y:hidden;border:1px solid #3a3a3a;border-radius:8px">`
-      : `<div data-testid="${wrapTest}" style="border:1px solid #3a3a3a;border-radius:8px;overflow:hidden">`;
+      ? `<div style="flex:1;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px">`
+      : `<div data-testid="${wrapTest}" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto">`;
     html += `<table style="${this.enableTableScroll ? "width:max-content;min-width:100%;" : "width:100%;"}border-collapse:collapse">`;
     html += "<thead><tr>";
     html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
@@ -671,7 +753,7 @@ export class BitTableEditorBase {
     }
     idxs.forEach((ri, vis) => {
       const row = this.data.rows[ri] || {};
-      html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"}">`;
+      html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
       html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
       this.fields.forEach((field) => {
         html += this.renderTableCell(field, row, ri);
@@ -684,16 +766,17 @@ export class BitTableEditorBase {
   }
 
   protected renderTableCell(field: FieldDef, row: Row, ri: number): string {
-    const td = 'padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle';
+    const td = `padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle;${this.revealCellStyle(ri, field.key)}`;
+    const reveal = this.revealAttr(ri, field.key);
     if (field.widget === "icon" || field.type === "icon") {
-      return `<td style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     if (this.isEditingCell(ri, field.key)) {
-      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}" style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     const canEdit = this.cellEditable(field, row);
     const text = this.cellDisplayText(field, row);
-    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${escapeHtml(text || "—")}</div></td>`;
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
   }
 
   protected renderCards(): string {
@@ -704,7 +787,7 @@ export class BitTableEditorBase {
     let html = "";
     idxs.forEach((ri) => {
       const row = this.data.rows[ri] || {};
-      html += `<section data-testid="${this.tid(`row-${ri}`)}" style="margin-bottom:12px;border:1px solid #3a3a3a;border-radius:8px;background:#141414">`;
+      html += `<section data-testid="${this.tid(`row-${ri}`)}" style="margin-bottom:12px;border:1px solid #3a3a3a;border-radius:8px;background:#141414;${this.revealRowStyle(ri)}">`;
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #3a3a3a">';
       html += `<label style="display:flex;align-items:center;gap:8px;font-family:ui-monospace,monospace;color:#d4d4d4"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} />${escapeHtml(String(row.id || "未命名"))}${row.name ? ` · ${escapeHtml(String(row.name))}` : ""}</label>`;
       html += `<button type="button" data-role="remove" data-index="${ri}" style="height:28px;padding:0 8px;background:transparent;color:#eb5757;border:1px solid #3a3a3a;border-radius:4px">删除</button></div>`;
@@ -722,7 +805,7 @@ export class BitTableEditorBase {
             field.widget === "tags" ||
             field.widget === "params" ||
             field.type === "object";
-          html += `<label style="display:block${wide ? ";grid-column:1/-1" : ""}"><div style="margin-bottom:4px;color:#a3a3a3">${escapeHtml(field.label || field.key)}${field.required === true || field.required === "true" ? " *" : ""}</div>`;
+          html += `<label data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${this.revealAttr(ri, field.key)} style="display:block${wide ? ";grid-column:1/-1" : ""};${this.revealCellStyle(ri, field.key)}"><div style="margin-bottom:4px;color:#a3a3a3">${escapeHtml(field.label || field.key)}${field.required === true || field.required === "true" ? " *" : ""}</div>`;
           html += this.fieldControl(field, row, ri, false);
           if (field.hint) html += `<div style="margin-top:4px;color:#737373;font-size:11px">${escapeHtml(field.hint)}</div>`;
           html += "</label>";

@@ -20,7 +20,7 @@
 ```
 
 - 表 id = 目录名：`^[a-z][a-z0-9_]{0,31}$`
-- 只有包含 `*_struct.yaml` 的目录才识别为配置表；其它目录是普通文件夹。左侧列表按文件树展示，可嵌套（`combat/skill`）。Ctrl/Cmd+P 按文件名打开表，Ctrl/Cmd+F 在当前表中查找（当前 Sheet 或全部 Sheet）
+- 只有包含 `*_struct.yaml` 的目录才识别为配置表；其它目录是普通文件夹。左侧列表按文件树展示，可嵌套（`combat/skill`）。Ctrl/Cmd+P 按文件名打开表，Ctrl/Cmd+F 在当前表中查找（当前 Sheet 或全部 Sheet），选中结果定位并高亮对应单元格
 - 结构修改：`*_struct.yaml`、`*_editor.ts`、`*_checker.ts`、`*_export.ts`（兼容旧 `*.js`）；字段不兼容时可迁移 data；同时更新 `{id}_docs.md`
 - 数据修改：只改 `*_data.yaml`，并核对更新 `{id}_docs.md`
 - `struct.yaml` 无统一 schema，推荐 `id` / `name` / `default_sheet` / `sheets[]`（每张 sheet 自带 `id` / `name` / `fields[]`，以及该表 editor 需要的 views/groups 等），由该表 editor/checker/export 解释

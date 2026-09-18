@@ -51,6 +51,7 @@ function resolveSheetId(struct: unknown, preferred?: string): string {
 }
 
 type RightTab = DocsKind | "history";
+type RevealTarget = { rowIndex: number; field?: string; query?: string };
 
 export type EditorCommands = {
   undo: () => void;
@@ -110,6 +111,7 @@ export default function Workbench({
   const [findScope, setFindScope] = useState<"sheet" | "all">("all");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const frameReadyRef = useRef<Record<string, boolean>>({});
+  const pendingRevealRef = useRef<({ tableId: string } & RevealTarget) | null>(null);
   const filesRef = useRef(filesById);
   const draftRef = useRef(draftById);
   const sheetRef = useRef(sheetById);
@@ -187,8 +189,22 @@ export default function Workbench({
     setFilesById((prev) => ({ ...prev, [id]: next }));
   }, []);
 
+  const postReveal = useCallback((id: string, target: RevealTarget) => {
+    iframeRefs.current[id]?.contentWindow?.postMessage(
+      { type: "reveal", rowIndex: target.rowIndex, field: target.field || "", query: target.query || "" },
+      "*",
+    );
+  }, []);
+
+  const takePendingReveal = useCallback((id: string): RevealTarget | null => {
+    const pending = pendingRevealRef.current;
+    if (!pending || pending.tableId !== id) return null;
+    pendingRevealRef.current = null;
+    return { rowIndex: pending.rowIndex, field: pending.field, query: pending.query };
+  }, []);
+
   const postSlice = useCallback(
-    (id: string, type: "init" | "setSheet" | "replaceData") => {
+    (id: string, type: "init" | "setSheet" | "replaceData", extra?: { reveal?: RevealTarget | null }) => {
       const frame = iframeRefs.current[id];
       const cur = filesRef.current[id];
       if (!frame?.contentWindow || !cur) return;
@@ -196,15 +212,16 @@ export default function Workbench({
       const sheetId = sheetOf(id, struct);
       const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
       const enums = buildEnumsPayload(struct, cur.id, enumsRef.current);
+      const reveal = extra?.reveal || undefined;
       if (type === "replaceData") {
         frame.contentWindow.postMessage(
-          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums },
+          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, reveal },
           "*",
         );
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, theme: "dark" },
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, theme: "dark", reveal },
         "*",
       );
     },
@@ -217,9 +234,9 @@ export default function Workbench({
       if (!id || !frameReadyRef.current[id] || !filesRef.current[id] || !iframeRefs.current[id]?.contentWindow) {
         return;
       }
-      postSlice(id, "init");
+      postSlice(id, "init", { reveal: takePendingReveal(id) });
     },
-    [postSlice],
+    [postSlice, takePendingReveal],
   );
 
   const runExport = useCallback(async (tableIds: string[]): Promise<ExportReport> => {
@@ -421,6 +438,9 @@ export default function Workbench({
         return { ...prev, [id]: sheetId };
       });
       rememberFiles(id, next);
+      if (remount) {
+        frameReadyRef.current[id] = false;
+      }
       setChecks((prev) => ({
         ...prev,
         [id]: {
@@ -430,15 +450,12 @@ export default function Workbench({
           editorKey: remount ? (prev[id]?.editorKey || 0) + 1 : prev[id]?.editorKey || 1,
         },
       }));
-      if (remount) {
-        // 新 iframe 会再发 ready；若 ready 已到则立刻补 init
-        tryInitFrame(id);
-      } else {
-        postSlice(id, "replaceData");
+      if (!remount) {
+        postSlice(id, "replaceData", { reveal: takePendingReveal(id) });
       }
       await runCheck(id, next, data);
     },
-    [postSlice, rememberDraft, rememberFiles, runCheck, tryInitFrame],
+    [postSlice, rememberDraft, rememberFiles, runCheck, takePendingReveal],
   );
 
   const handleOpenTable = useCallback(
@@ -459,25 +476,40 @@ export default function Workbench({
   );
 
   const handleOpenHit = useCallback(
-    (tableId: string, sheetId: string) => {
-      const cur = filesRef.current[tableId];
+    (hit: ContentHit) => {
+      const target: RevealTarget = { rowIndex: hit.rowIndex, field: hit.field, query: findQuery };
+      pendingRevealRef.current = { tableId: hit.tableId, ...target };
+      const cur = filesRef.current[hit.tableId];
       if (!cur) {
-        handleOpenTable(tableId, true, sheetId);
+        handleOpenTable(hit.tableId, true, hit.sheetId);
         return;
       }
-      const nextSheet = resolveSheetId(parseDoc(cur.struct), sheetId);
-      writeTableParam(tableId);
-      setActiveId(tableId);
-      if (!tabsRef.current.includes(tableId)) {
-        setTabs((prev) => (prev.includes(tableId) ? prev : [...prev, tableId]));
+      const nextSheet = resolveSheetId(parseDoc(cur.struct), hit.sheetId);
+      writeTableParam(hit.tableId);
+      setActiveId(hit.tableId);
+      if (!tabsRef.current.includes(hit.tableId)) {
+        setTabs((prev) => (prev.includes(hit.tableId) ? prev : [...prev, hit.tableId]));
       }
-      if (sheetRef.current[tableId] !== nextSheet) {
-        sheetRef.current = { ...sheetRef.current, [tableId]: nextSheet };
-        setSheetById((prev) => ({ ...prev, [tableId]: nextSheet }));
-        postSlice(tableId, "setSheet");
+      const sheetChanged = sheetRef.current[hit.tableId] !== nextSheet;
+      if (sheetChanged) {
+        sheetRef.current = { ...sheetRef.current, [hit.tableId]: nextSheet };
+        setSheetById((prev) => ({ ...prev, [hit.tableId]: nextSheet }));
       }
+      const send = () => {
+        if (!iframeRefs.current[hit.tableId]?.contentWindow) return false;
+        pendingRevealRef.current = null;
+        if (sheetChanged) postSlice(hit.tableId, "setSheet", { reveal: target });
+        else postReveal(hit.tableId, target);
+        return true;
+      };
+      if (send()) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          send();
+        });
+      });
     },
-    [handleOpenTable, postSlice],
+    [findQuery, handleOpenTable, postReveal, postSlice],
   );
 
   const closeTab = useCallback(
@@ -955,7 +987,7 @@ export default function Workbench({
         }
         onPick={(hit) => {
           setFindOpen(false);
-          handleOpenHit(hit.tableId, hit.sheetId);
+          handleOpenHit(hit);
         }}
         renderItem={(hit) => (
           <>
