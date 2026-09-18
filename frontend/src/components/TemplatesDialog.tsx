@@ -20,7 +20,7 @@ const TEMPLATES: EditorTemplate[] = [
     importHint: 'import { BitTableEditorBase } from "bit-tables.editor";\nimport type { ParamField, Row } from "bit-tables.types";',
     usage: [
       "配表根上一级放 src/（如 demo/src），表脚本即可 import \"bit-tables.*\"。",
-      "sheet 设 view: table（默认）；按需打开 enableColFilters / enableTableScroll。可见行超过 100 行时自动分页。",
+      "sheet 设 view: table（默认）；按需打开 enableColFilters / enableTableScroll。可选择每页行数，默认 100。",
       "复杂对象字段用 widget: params，在子类实现 paramsSchema / paramsTitle / formatParamValue。",
       "参考 sheet_demo 的 items sheet。",
     ],

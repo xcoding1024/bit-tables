@@ -11,6 +11,7 @@ export class BitTableEditorBase {
   enableColFilters = false;
   enableTableScroll = false;
   pageSize = 100;
+  pageSizeOptions = [20, 50, 100, 200];
   idReadonly = true;
   checkboxHint = "";
   groupNames: Record<string, string> = {};
@@ -346,9 +347,22 @@ export class BitTableEditorBase {
     return this.enableColFilters ? this.filteredRowIndexes() : this.data.rows.map((_, i) => i);
   }
 
+  protected resolvedPageSize(): number {
+    return Math.max(1, Math.floor(this.pageSize) || 100);
+  }
+
+  protected resolvedPageSizeOptions(): number[] {
+    const sizes = new Set<number>();
+    this.pageSizeOptions.forEach((n) => {
+      const size = Math.max(1, Math.floor(Number(n)) || 0);
+      if (size) sizes.add(size);
+    });
+    sizes.add(this.resolvedPageSize());
+    return [...sizes].sort((a, b) => a - b);
+  }
+
   protected pageCount(total = this.allVisibleRowIndexes().length): number {
-    const size = Math.max(1, this.pageSize);
-    return Math.max(1, Math.ceil(total / size));
+    return Math.max(1, Math.ceil(total / this.resolvedPageSize()));
   }
 
   protected clampPage(total = this.allVisibleRowIndexes().length): void {
@@ -360,9 +374,16 @@ export class BitTableEditorBase {
   protected pagedRowIndexes(): number[] {
     const all = this.allVisibleRowIndexes();
     this.clampPage(all.length);
-    if (all.length <= this.pageSize) return all;
-    const start = this.pageIndex * this.pageSize;
-    return all.slice(start, start + this.pageSize);
+    const size = this.resolvedPageSize();
+    if (all.length <= size) return all;
+    const start = this.pageIndex * size;
+    return all.slice(start, start + size);
+  }
+
+  protected shouldShowPager(total = this.allVisibleRowIndexes().length): boolean {
+    const options = this.resolvedPageSizeOptions();
+    const minSize = options.length ? options[0] : this.resolvedPageSize();
+    return total > minSize;
   }
 
   protected gotoPage(page: number): void {
@@ -374,6 +395,14 @@ export class BitTableEditorBase {
     this.removeMultiMenu();
     this.resetTableScroll = true;
     this.render();
+  }
+
+  protected setPageSize(size: number): void {
+    const next = Math.max(1, Math.floor(size) || 100);
+    const first = this.pageIndex * this.resolvedPageSize();
+    this.pageSize = next;
+    this.pageIndex = Math.floor(first / next);
+    this.gotoPage(this.pageIndex);
   }
 
   protected hasActiveFilters(): boolean {
@@ -591,18 +620,28 @@ export class BitTableEditorBase {
 
   protected renderPager(): string {
     const total = this.allVisibleRowIndexes().length;
-    if (total <= this.pageSize) return "";
+    if (!this.shouldShowPager(total)) return "";
     this.clampPage(total);
+    const size = this.resolvedPageSize();
     const pages = this.pageCount(total);
-    const start = this.pageIndex * this.pageSize + 1;
-    const end = Math.min(total, start + this.pageSize - 1);
+    const start = total ? this.pageIndex * size + 1 : 0;
+    const end = Math.min(total, start + size - 1);
     const prevOff = this.pageIndex <= 0;
     const nextOff = this.pageIndex >= pages - 1;
+    const selectStyle =
+      "height:28px;background:#1a1a1a;border:1px solid #3a3a3a;color:#f5f5f5;border-radius:4px;padding:0 8px";
     let html = `<div data-testid="${this.tid("pager")}" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0;margin-top:8px;flex-wrap:wrap">`;
-    html += `<span data-testid="${this.tid("page-info")}" style="color:#a3a3a3">${start}–${end} / ${total} 行</span>`;
-    html += `<button type="button" data-testid="${this.tid("page-prev")}" ${prevOff ? "disabled " : ""}style="${this.btn("ghost", prevOff ? "opacity:.45;cursor:default" : "")}">上一页</button>`;
-    html += `<span style="color:#d4d4d4;min-width:72px;text-align:center">第 ${this.pageIndex + 1} / ${pages} 页</span>`;
-    html += `<button type="button" data-testid="${this.tid("page-next")}" ${nextOff ? "disabled " : ""}style="${this.btn("ghost", nextOff ? "opacity:.45;cursor:default" : "")}">下一页</button>`;
+    html += `<label style="display:flex;align-items:center;gap:6px;color:#a3a3a3"><span>每页</span><select data-testid="${this.tid("page-size")}" style="${selectStyle}">`;
+    this.resolvedPageSizeOptions().forEach((n) => {
+      html += `<option value="${n}"${n === size ? " selected" : ""}>${n}</option>`;
+    });
+    html += "</select><span>行</span></label>";
+    if (total) html += `<span data-testid="${this.tid("page-info")}" style="color:#a3a3a3">${start}–${end} / ${total} 行</span>`;
+    if (pages > 1) {
+      html += `<button type="button" data-testid="${this.tid("page-prev")}" ${prevOff ? "disabled " : ""}style="${this.btn("ghost", prevOff ? "opacity:.45;cursor:default" : "")}">上一页</button>`;
+      html += `<span style="color:#d4d4d4;min-width:72px;text-align:center">第 ${this.pageIndex + 1} / ${pages} 页</span>`;
+      html += `<button type="button" data-testid="${this.tid("page-next")}" ${nextOff ? "disabled " : ""}style="${this.btn("ghost", nextOff ? "opacity:.45;cursor:default" : "")}">下一页</button>`;
+    }
     return html + "</div>";
   }
 
@@ -1045,7 +1084,7 @@ export class BitTableEditorBase {
       this.api.setData(this.data);
       const all = this.allVisibleRowIndexes();
       const pos = all.indexOf(this.data.rows.length - 1);
-      this.pageIndex = pos >= 0 ? Math.floor(pos / Math.max(1, this.pageSize)) : this.pageCount(all.length) - 1;
+      this.pageIndex = pos >= 0 ? Math.floor(pos / this.resolvedPageSize()) : this.pageCount(all.length) - 1;
       this.resetTableScroll = true;
       this.render();
     });
@@ -1114,6 +1153,10 @@ export class BitTableEditorBase {
       this.batchOpen = false;
       this.render();
     });
+    const pageSizeSel = this.el.querySelector(`[data-testid="${this.tid("page-size")}"]`) as HTMLSelectElement | null;
+    if (pageSizeSel) {
+      pageSizeSel.addEventListener("change", () => this.setPageSize(Number(pageSizeSel.value)));
+    }
     this.el.querySelector(`[data-testid="${this.tid("page-prev")}"]`)?.addEventListener("click", () => {
       if (this.pageIndex <= 0) return;
       this.gotoPage(this.pageIndex - 1);

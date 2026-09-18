@@ -38,7 +38,7 @@ sheets:
         desc: 传说中的龙鳞锻成，极重。
         enabled: false
         stack: 1
-        weight: 18.0
+        weight: 18
         power: 96
         available_from: 2026-09-01
         tags: armor, fire, late
@@ -61,6 +61,2946 @@ sheets:
           purity: 0.82
           craft_bonus: 15
           refine_cost: 3
+      - id: oak_sword
+        name: 橡木剑
+        kind: weapon
+        rarity: common
+        desc: 橡木剑。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 0.2
+        power: 0
+        available_from: 2026-01-01
+        tags: melee, late
+        params:
+          atk: 8
+          crit: 0.02
+          durability: 60
+      - id: oak_mail
+        name: 橡木甲
+        kind: armor
+        rarity: rare
+        desc: 橡木甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.3
+        power: 1
+        available_from: 2026-02-02
+        tags: fire
+        params:
+          def: 7
+          resist_fire: 1
+          durability: 85
+      - id: oak_potion
+        name: 橡木药水
+        kind: consumable
+        rarity: epic
+        desc: 橡木药水。使用后生效的消耗品。
+        enabled: true
+        stack: 12
+        weight: 0.4
+        power: 2
+        available_from: 2026-03-03
+        tags: heal, starter
+        params:
+          heal: 20
+          duration: 2
+          cooldown: 6
+      - id: oak_ore
+        name: 橡木矿
+        kind: material
+        rarity: legendary
+        desc: 橡木矿。用于打造与强化的材料。
+        enabled: true
+        stack: 13
+        weight: 0.5
+        power: 3
+        available_from: 2026-04-04
+        tags: rare
+        params:
+          purity: 0.23
+          craft_bonus: 3
+          refine_cost: 4
+      - id: copper_sword
+        name: 青铜剑
+        kind: weapon
+        rarity: common
+        desc: 青铜剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.6
+        power: 4
+        available_from: 2026-05-05
+        tags: melee, late
+        params:
+          atk: 12
+          crit: 0.06
+          durability: 76
+      - id: copper_mail
+        name: 青铜甲
+        kind: armor
+        rarity: rare
+        desc: 青铜甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.7
+        power: 5
+        available_from: 2026-06-06
+        tags: fire
+        params:
+          def: 11
+          resist_fire: 5
+          durability: 105
+      - id: copper_potion
+        name: 青铜药水
+        kind: consumable
+        rarity: epic
+        desc: 青铜药水。使用后生效的消耗品。
+        enabled: true
+        stack: 16
+        weight: 0.8
+        power: 6
+        available_from: 2026-07-07
+        tags: heal, starter
+        params:
+          heal: 40
+          duration: 6
+          cooldown: 10
+      - id: copper_ore
+        name: 青铜矿
+        kind: material
+        rarity: legendary
+        desc: 青铜矿。用于打造与强化的材料。
+        enabled: false
+        stack: 17
+        weight: 0.9
+        power: 7
+        available_from: 2026-08-08
+        tags: rare
+        params:
+          purity: 0.27
+          craft_bonus: 7
+          refine_cost: 8
+      - id: steel_sword
+        name: 精钢剑
+        kind: weapon
+        rarity: common
+        desc: 精钢剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1
+        power: 8
+        available_from: 2026-09-09
+        tags: melee, late
+        params:
+          atk: 16
+          crit: 0.1
+          durability: 92
+      - id: steel_mail
+        name: 精钢甲
+        kind: armor
+        rarity: rare
+        desc: 精钢甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.1
+        power: 9
+        available_from: 2026-10-10
+        tags: fire
+        params:
+          def: 15
+          resist_fire: 9
+          durability: 125
+      - id: steel_potion
+        name: 精钢药水
+        kind: consumable
+        rarity: epic
+        desc: 精钢药水。使用后生效的消耗品。
+        enabled: true
+        stack: 20
+        weight: 1.2
+        power: 10
+        available_from: 2026-11-11
+        tags: heal, starter
+        params:
+          heal: 60
+          duration: 10
+          cooldown: 14
+      - id: steel_ore
+        name: 精钢矿
+        kind: material
+        rarity: legendary
+        desc: 精钢矿。用于打造与强化的材料。
+        enabled: true
+        stack: 21
+        weight: 1.3
+        power: 11
+        available_from: 2026-12-12
+        tags: rare
+        params:
+          purity: 0.31
+          craft_bonus: 11
+          refine_cost: 12
+      - id: silver_sword
+        name: 秘银剑
+        kind: weapon
+        rarity: common
+        desc: 秘银剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.4
+        power: 12
+        available_from: 2026-01-13
+        tags: melee, late
+        params:
+          atk: 20
+          crit: 0.14
+          durability: 108
+      - id: silver_mail
+        name: 秘银甲
+        kind: armor
+        rarity: rare
+        desc: 秘银甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.5
+        power: 13
+        available_from: 2026-02-14
+        tags: fire
+        params:
+          def: 19
+          resist_fire: 13
+          durability: 145
+      - id: silver_potion
+        name: 秘银药水
+        kind: consumable
+        rarity: epic
+        desc: 秘银药水。使用后生效的消耗品。
+        enabled: false
+        stack: 24
+        weight: 1.6
+        power: 14
+        available_from: 2026-03-15
+        tags: heal, starter
+        params:
+          heal: 80
+          duration: 2
+          cooldown: 18
+      - id: silver_ore
+        name: 秘银矿
+        kind: material
+        rarity: legendary
+        desc: 秘银矿。用于打造与强化的材料。
+        enabled: true
+        stack: 25
+        weight: 1.7
+        power: 15
+        available_from: 2026-04-16
+        tags: rare
+        params:
+          purity: 0.35
+          craft_bonus: 15
+          refine_cost: 4
+      - id: darkiron_sword
+        name: 黑铁剑
+        kind: weapon
+        rarity: common
+        desc: 黑铁剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.8
+        power: 16
+        available_from: 2026-05-17
+        tags: melee, late
+        params:
+          atk: 24
+          crit: 0.18
+          durability: 124
+      - id: darkiron_mail
+        name: 黑铁甲
+        kind: armor
+        rarity: rare
+        desc: 黑铁甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.9
+        power: 17
+        available_from: 2026-06-18
+        tags: fire
+        params:
+          def: 23
+          resist_fire: 17
+          durability: 165
+      - id: darkiron_potion
+        name: 黑铁药水
+        kind: consumable
+        rarity: epic
+        desc: 黑铁药水。使用后生效的消耗品。
+        enabled: true
+        stack: 28
+        weight: 2
+        power: 18
+        available_from: 2026-07-19
+        tags: heal, starter
+        params:
+          heal: 100
+          duration: 6
+          cooldown: 6
+      - id: darkiron_ore
+        name: 黑铁矿
+        kind: material
+        rarity: legendary
+        desc: 黑铁矿。用于打造与强化的材料。
+        enabled: true
+        stack: 29
+        weight: 2.1
+        power: 19
+        available_from: 2026-08-20
+        tags: rare
+        params:
+          purity: 0.39
+          craft_bonus: 19
+          refine_cost: 8
+      - id: jade_sword
+        name: 寒玉剑
+        kind: weapon
+        rarity: common
+        desc: 寒玉剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.2
+        power: 20
+        available_from: 2026-09-21
+        tags: melee, late
+        params:
+          atk: 28
+          crit: 0.02
+          durability: 140
+      - id: jade_mail
+        name: 寒玉甲
+        kind: armor
+        rarity: rare
+        desc: 寒玉甲。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 2.3
+        power: 21
+        available_from: 2026-10-22
+        tags: fire
+        params:
+          def: 27
+          resist_fire: 21
+          durability: 185
+      - id: jade_potion
+        name: 寒玉药水
+        kind: consumable
+        rarity: epic
+        desc: 寒玉药水。使用后生效的消耗品。
+        enabled: true
+        stack: 32
+        weight: 2.4
+        power: 22
+        available_from: 2026-11-23
+        tags: heal, starter
+        params:
+          heal: 120
+          duration: 10
+          cooldown: 10
+      - id: jade_ore
+        name: 寒玉矿
+        kind: material
+        rarity: legendary
+        desc: 寒玉矿。用于打造与强化的材料。
+        enabled: true
+        stack: 33
+        weight: 2.5
+        power: 23
+        available_from: 2026-12-24
+        tags: rare
+        params:
+          purity: 0.43
+          craft_bonus: 23
+          refine_cost: 12
+      - id: flame_sword
+        name: 赤焰剑
+        kind: weapon
+        rarity: common
+        desc: 赤焰剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.6
+        power: 24
+        available_from: 2026-01-25
+        tags: melee, late
+        params:
+          atk: 32
+          crit: 0.06
+          durability: 156
+      - id: flame_mail
+        name: 赤焰甲
+        kind: armor
+        rarity: rare
+        desc: 赤焰甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.7
+        power: 25
+        available_from: 2026-02-26
+        tags: fire
+        params:
+          def: 31
+          resist_fire: 25
+          durability: 205
+      - id: flame_potion
+        name: 赤焰药水
+        kind: consumable
+        rarity: epic
+        desc: 赤焰药水。使用后生效的消耗品。
+        enabled: true
+        stack: 36
+        weight: 2.8
+        power: 26
+        available_from: 2026-03-27
+        tags: heal, starter
+        params:
+          heal: 140
+          duration: 2
+          cooldown: 14
+      - id: flame_ore
+        name: 赤焰矿
+        kind: material
+        rarity: legendary
+        desc: 赤焰矿。用于打造与强化的材料。
+        enabled: true
+        stack: 37
+        weight: 2.9
+        power: 27
+        available_from: 2026-04-28
+        tags: rare
+        params:
+          purity: 0.47
+          craft_bonus: 27
+          refine_cost: 4
+      - id: shadow_sword
+        name: 暗影剑
+        kind: weapon
+        rarity: common
+        desc: 暗影剑。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 3
+        power: 28
+        available_from: 2026-05-01
+        tags: melee, late
+        params:
+          atk: 36
+          crit: 0.1
+          durability: 172
+      - id: shadow_mail
+        name: 暗影甲
+        kind: armor
+        rarity: rare
+        desc: 暗影甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.1
+        power: 29
+        available_from: 2026-06-02
+        tags: fire
+        params:
+          def: 35
+          resist_fire: 29
+          durability: 225
+      - id: shadow_potion
+        name: 暗影药水
+        kind: consumable
+        rarity: epic
+        desc: 暗影药水。使用后生效的消耗品。
+        enabled: true
+        stack: 40
+        weight: 3.2
+        power: 30
+        available_from: 2026-07-03
+        tags: heal, starter
+        params:
+          heal: 10
+          duration: 6
+          cooldown: 18
+      - id: shadow_ore
+        name: 暗影矿
+        kind: material
+        rarity: legendary
+        desc: 暗影矿。用于打造与强化的材料。
+        enabled: true
+        stack: 41
+        weight: 3.3
+        power: 31
+        available_from: 2026-08-04
+        tags: rare
+        params:
+          purity: 0.51
+          craft_bonus: 31
+          refine_cost: 8
+      - id: holy_sword
+        name: 圣光剑
+        kind: weapon
+        rarity: common
+        desc: 圣光剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.4
+        power: 32
+        available_from: 2026-09-05
+        tags: melee, late
+        params:
+          atk: 40
+          crit: 0.14
+          durability: 188
+      - id: holy_mail
+        name: 圣光甲
+        kind: armor
+        rarity: rare
+        desc: 圣光甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.5
+        power: 33
+        available_from: 2026-10-06
+        tags: fire
+        params:
+          def: 39
+          resist_fire: 33
+          durability: 245
+      - id: holy_potion
+        name: 圣光药水
+        kind: consumable
+        rarity: epic
+        desc: 圣光药水。使用后生效的消耗品。
+        enabled: true
+        stack: 44
+        weight: 3.6
+        power: 34
+        available_from: 2026-11-07
+        tags: heal, starter
+        params:
+          heal: 30
+          duration: 10
+          cooldown: 6
+      - id: holy_ore
+        name: 圣光矿
+        kind: material
+        rarity: legendary
+        desc: 圣光矿。用于打造与强化的材料。
+        enabled: false
+        stack: 45
+        weight: 3.7
+        power: 35
+        available_from: 2026-12-08
+        tags: rare
+        params:
+          purity: 0.55
+          craft_bonus: 35
+          refine_cost: 12
+      - id: storm_sword
+        name: 风暴剑
+        kind: weapon
+        rarity: common
+        desc: 风暴剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.8
+        power: 36
+        available_from: 2026-01-09
+        tags: melee, late
+        params:
+          atk: 44
+          crit: 0.18
+          durability: 204
+      - id: storm_mail
+        name: 风暴甲
+        kind: armor
+        rarity: rare
+        desc: 风暴甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.9
+        power: 37
+        available_from: 2026-02-10
+        tags: fire
+        params:
+          def: 43
+          resist_fire: 37
+          durability: 265
+      - id: storm_potion
+        name: 风暴药水
+        kind: consumable
+        rarity: epic
+        desc: 风暴药水。使用后生效的消耗品。
+        enabled: true
+        stack: 48
+        weight: 4
+        power: 38
+        available_from: 2026-03-11
+        tags: heal, starter
+        params:
+          heal: 50
+          duration: 2
+          cooldown: 10
+      - id: storm_ore
+        name: 风暴矿
+        kind: material
+        rarity: legendary
+        desc: 风暴矿。用于打造与强化的材料。
+        enabled: true
+        stack: 49
+        weight: 4.1
+        power: 39
+        available_from: 2026-04-12
+        tags: rare
+        params:
+          purity: 0.59
+          craft_bonus: 39
+          refine_cost: 4
+      - id: thunder_sword
+        name: 雷鸣剑
+        kind: weapon
+        rarity: common
+        desc: 雷鸣剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.2
+        power: 40
+        available_from: 2026-05-13
+        tags: melee, late
+        params:
+          atk: 8
+          crit: 0.02
+          durability: 220
+      - id: thunder_mail
+        name: 雷鸣甲
+        kind: armor
+        rarity: rare
+        desc: 雷鸣甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.3
+        power: 41
+        available_from: 2026-06-14
+        tags: fire
+        params:
+          def: 7
+          resist_fire: 1
+          durability: 85
+      - id: thunder_potion
+        name: 雷鸣药水
+        kind: consumable
+        rarity: epic
+        desc: 雷鸣药水。使用后生效的消耗品。
+        enabled: false
+        stack: 52
+        weight: 4.4
+        power: 42
+        available_from: 2026-07-15
+        tags: heal, starter
+        params:
+          heal: 70
+          duration: 6
+          cooldown: 14
+      - id: thunder_ore
+        name: 雷鸣矿
+        kind: material
+        rarity: legendary
+        desc: 雷鸣矿。用于打造与强化的材料。
+        enabled: true
+        stack: 53
+        weight: 4.5
+        power: 43
+        available_from: 2026-08-16
+        tags: rare
+        params:
+          purity: 0.63
+          craft_bonus: 3
+          refine_cost: 8
+      - id: moon_sword
+        name: 月光剑
+        kind: weapon
+        rarity: common
+        desc: 月光剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.6
+        power: 44
+        available_from: 2026-09-17
+        tags: melee, late
+        params:
+          atk: 12
+          crit: 0.06
+          durability: 236
+      - id: moon_mail
+        name: 月光甲
+        kind: armor
+        rarity: rare
+        desc: 月光甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.7
+        power: 45
+        available_from: 2026-10-18
+        tags: fire
+        params:
+          def: 11
+          resist_fire: 5
+          durability: 105
+      - id: moon_potion
+        name: 月光药水
+        kind: consumable
+        rarity: epic
+        desc: 月光药水。使用后生效的消耗品。
+        enabled: true
+        stack: 56
+        weight: 4.8
+        power: 46
+        available_from: 2026-11-19
+        tags: heal, starter
+        params:
+          heal: 90
+          duration: 10
+          cooldown: 18
+      - id: moon_ore
+        name: 月光矿
+        kind: material
+        rarity: legendary
+        desc: 月光矿。用于打造与强化的材料。
+        enabled: true
+        stack: 57
+        weight: 4.9
+        power: 47
+        available_from: 2026-12-20
+        tags: rare
+        params:
+          purity: 0.67
+          craft_bonus: 7
+          refine_cost: 12
+      - id: star_sword
+        name: 星尘剑
+        kind: weapon
+        rarity: common
+        desc: 星尘剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 5
+        power: 48
+        available_from: 2026-01-21
+        tags: melee, late
+        params:
+          atk: 16
+          crit: 0.1
+          durability: 252
+      - id: star_mail
+        name: 星尘甲
+        kind: armor
+        rarity: rare
+        desc: 星尘甲。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 5.1
+        power: 49
+        available_from: 2026-02-22
+        tags: fire
+        params:
+          def: 15
+          resist_fire: 9
+          durability: 125
+      - id: star_potion
+        name: 星尘药水
+        kind: consumable
+        rarity: epic
+        desc: 星尘药水。使用后生效的消耗品。
+        enabled: true
+        stack: 60
+        weight: 0.2
+        power: 50
+        available_from: 2026-03-23
+        tags: heal, starter
+        params:
+          heal: 110
+          duration: 2
+          cooldown: 6
+      - id: star_ore
+        name: 星尘矿
+        kind: material
+        rarity: legendary
+        desc: 星尘矿。用于打造与强化的材料。
+        enabled: true
+        stack: 61
+        weight: 0.3
+        power: 51
+        available_from: 2026-04-24
+        tags: rare
+        params:
+          purity: 0.71
+          craft_bonus: 11
+          refine_cost: 4
+      - id: sea_sword
+        name: 深海剑
+        kind: weapon
+        rarity: common
+        desc: 深海剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.4
+        power: 52
+        available_from: 2026-05-25
+        tags: melee, late
+        params:
+          atk: 20
+          crit: 0.14
+          durability: 68
+      - id: sea_mail
+        name: 深海甲
+        kind: armor
+        rarity: rare
+        desc: 深海甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.5
+        power: 53
+        available_from: 2026-06-26
+        tags: fire
+        params:
+          def: 19
+          resist_fire: 13
+          durability: 145
+      - id: sea_potion
+        name: 深海药水
+        kind: consumable
+        rarity: epic
+        desc: 深海药水。使用后生效的消耗品。
+        enabled: true
+        stack: 64
+        weight: 0.6
+        power: 54
+        available_from: 2026-07-27
+        tags: heal, starter
+        params:
+          heal: 130
+          duration: 6
+          cooldown: 10
+      - id: sea_ore
+        name: 深海矿
+        kind: material
+        rarity: legendary
+        desc: 深海矿。用于打造与强化的材料。
+        enabled: true
+        stack: 65
+        weight: 0.7
+        power: 55
+        available_from: 2026-08-28
+        tags: rare
+        params:
+          purity: 0.75
+          craft_bonus: 15
+          refine_cost: 8
+      - id: wild_sword
+        name: 荒原剑
+        kind: weapon
+        rarity: common
+        desc: 荒原剑。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 0.8
+        power: 56
+        available_from: 2026-09-01
+        tags: melee, late
+        params:
+          atk: 24
+          crit: 0.18
+          durability: 84
+      - id: wild_mail
+        name: 荒原甲
+        kind: armor
+        rarity: rare
+        desc: 荒原甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.9
+        power: 57
+        available_from: 2026-10-02
+        tags: fire
+        params:
+          def: 23
+          resist_fire: 17
+          durability: 165
+      - id: wild_potion
+        name: 荒原药水
+        kind: consumable
+        rarity: epic
+        desc: 荒原药水。使用后生效的消耗品。
+        enabled: true
+        stack: 68
+        weight: 1
+        power: 58
+        available_from: 2026-11-03
+        tags: heal, starter
+        params:
+          heal: 150
+          duration: 10
+          cooldown: 14
+      - id: wild_ore
+        name: 荒原矿
+        kind: material
+        rarity: legendary
+        desc: 荒原矿。用于打造与强化的材料。
+        enabled: true
+        stack: 69
+        weight: 1.1
+        power: 59
+        available_from: 2026-12-04
+        tags: rare
+        params:
+          purity: 0.79
+          craft_bonus: 19
+          refine_cost: 12
+      - id: frost_sword
+        name: 霜冻剑
+        kind: weapon
+        rarity: common
+        desc: 霜冻剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.2
+        power: 60
+        available_from: 2026-01-05
+        tags: melee, late
+        params:
+          atk: 28
+          crit: 0.02
+          durability: 100
+      - id: frost_mail
+        name: 霜冻甲
+        kind: armor
+        rarity: rare
+        desc: 霜冻甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.3
+        power: 61
+        available_from: 2026-02-06
+        tags: fire
+        params:
+          def: 27
+          resist_fire: 21
+          durability: 185
+      - id: frost_potion
+        name: 霜冻药水
+        kind: consumable
+        rarity: epic
+        desc: 霜冻药水。使用后生效的消耗品。
+        enabled: true
+        stack: 72
+        weight: 1.4
+        power: 62
+        available_from: 2026-03-07
+        tags: heal, starter
+        params:
+          heal: 20
+          duration: 2
+          cooldown: 18
+      - id: frost_ore
+        name: 霜冻矿
+        kind: material
+        rarity: legendary
+        desc: 霜冻矿。用于打造与强化的材料。
+        enabled: false
+        stack: 73
+        weight: 1.5
+        power: 63
+        available_from: 2026-04-08
+        tags: rare
+        params:
+          purity: 0.83
+          craft_bonus: 23
+          refine_cost: 4
+      - id: ember_sword
+        name: 余烬剑
+        kind: weapon
+        rarity: common
+        desc: 余烬剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.6
+        power: 64
+        available_from: 2026-05-09
+        tags: melee, late
+        params:
+          atk: 32
+          crit: 0.06
+          durability: 116
+      - id: ember_mail
+        name: 余烬甲
+        kind: armor
+        rarity: rare
+        desc: 余烬甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.7
+        power: 65
+        available_from: 2026-06-10
+        tags: fire
+        params:
+          def: 31
+          resist_fire: 25
+          durability: 205
+      - id: ember_potion
+        name: 余烬药水
+        kind: consumable
+        rarity: epic
+        desc: 余烬药水。使用后生效的消耗品。
+        enabled: true
+        stack: 76
+        weight: 1.8
+        power: 66
+        available_from: 2026-07-11
+        tags: heal, starter
+        params:
+          heal: 40
+          duration: 6
+          cooldown: 6
+      - id: ember_ore
+        name: 余烬矿
+        kind: material
+        rarity: legendary
+        desc: 余烬矿。用于打造与强化的材料。
+        enabled: true
+        stack: 77
+        weight: 1.9
+        power: 67
+        available_from: 2026-08-12
+        tags: rare
+        params:
+          purity: 0.87
+          craft_bonus: 27
+          refine_cost: 8
+      - id: void_sword
+        name: 虚空剑
+        kind: weapon
+        rarity: common
+        desc: 虚空剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2
+        power: 68
+        available_from: 2026-09-13
+        tags: melee, late
+        params:
+          atk: 36
+          crit: 0.1
+          durability: 132
+      - id: void_mail
+        name: 虚空甲
+        kind: armor
+        rarity: rare
+        desc: 虚空甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.1
+        power: 69
+        available_from: 2026-10-14
+        tags: fire
+        params:
+          def: 35
+          resist_fire: 29
+          durability: 225
+      - id: void_potion
+        name: 虚空药水
+        kind: consumable
+        rarity: epic
+        desc: 虚空药水。使用后生效的消耗品。
+        enabled: false
+        stack: 80
+        weight: 2.2
+        power: 70
+        available_from: 2026-11-15
+        tags: heal, starter
+        params:
+          heal: 60
+          duration: 10
+          cooldown: 10
+      - id: void_ore
+        name: 虚空矿
+        kind: material
+        rarity: legendary
+        desc: 虚空矿。用于打造与强化的材料。
+        enabled: true
+        stack: 81
+        weight: 2.3
+        power: 71
+        available_from: 2026-12-16
+        tags: rare
+        params:
+          purity: 0.91
+          craft_bonus: 31
+          refine_cost: 12
+      - id: crystal_sword
+        name: 水晶剑
+        kind: weapon
+        rarity: common
+        desc: 水晶剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.4
+        power: 72
+        available_from: 2026-01-17
+        tags: melee, late
+        params:
+          atk: 40
+          crit: 0.14
+          durability: 148
+      - id: crystal_mail
+        name: 水晶甲
+        kind: armor
+        rarity: rare
+        desc: 水晶甲。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.5
+        power: 73
+        available_from: 2026-02-18
+        tags: fire
+        params:
+          def: 39
+          resist_fire: 33
+          durability: 245
+      - id: crystal_potion
+        name: 水晶药水
+        kind: consumable
+        rarity: epic
+        desc: 水晶药水。使用后生效的消耗品。
+        enabled: true
+        stack: 84
+        weight: 2.6
+        power: 74
+        available_from: 2026-03-19
+        tags: heal, starter
+        params:
+          heal: 80
+          duration: 2
+          cooldown: 14
+      - id: crystal_ore
+        name: 水晶矿
+        kind: material
+        rarity: legendary
+        desc: 水晶矿。用于打造与强化的材料。
+        enabled: true
+        stack: 85
+        weight: 2.7
+        power: 75
+        available_from: 2026-04-20
+        tags: rare
+        params:
+          purity: 0.95
+          craft_bonus: 35
+          refine_cost: 4
+      - id: bone_sword
+        name: 白骨剑
+        kind: weapon
+        rarity: common
+        desc: 白骨剑。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.8
+        power: 76
+        available_from: 2026-05-21
+        tags: melee, late
+        params:
+          atk: 44
+          crit: 0.18
+          durability: 164
+      - id: bone_mail
+        name: 白骨甲
+        kind: armor
+        rarity: rare
+        desc: 白骨甲。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 2.9
+        power: 77
+        available_from: 2026-06-22
+        tags: fire
+        params:
+          def: 43
+          resist_fire: 37
+          durability: 265
+      - id: bone_potion
+        name: 白骨药水
+        kind: consumable
+        rarity: epic
+        desc: 白骨药水。使用后生效的消耗品。
+        enabled: true
+        stack: 88
+        weight: 3
+        power: 78
+        available_from: 2026-07-23
+        tags: heal, starter
+        params:
+          heal: 100
+          duration: 6
+          cooldown: 18
+      - id: bone_ore
+        name: 白骨矿
+        kind: material
+        rarity: legendary
+        desc: 白骨矿。用于打造与强化的材料。
+        enabled: true
+        stack: 89
+        weight: 3.1
+        power: 79
+        available_from: 2026-08-24
+        tags: rare
+        params:
+          purity: 0.99
+          craft_bonus: 39
+          refine_cost: 8
+      - id: oak_blade
+        name: 橡木刀
+        kind: weapon
+        rarity: common
+        desc: 橡木刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.2
+        power: 80
+        available_from: 2026-09-25
+        tags: melee, late
+        params:
+          atk: 8
+          crit: 0.02
+          durability: 180
+      - id: oak_helm
+        name: 橡木盔
+        kind: armor
+        rarity: rare
+        desc: 橡木盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.3
+        power: 81
+        available_from: 2026-10-26
+        tags: fire
+        params:
+          def: 7
+          resist_fire: 1
+          durability: 85
+      - id: oak_elixir
+        name: 橡木药剂
+        kind: consumable
+        rarity: epic
+        desc: 橡木药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 92
+        weight: 3.4
+        power: 82
+        available_from: 2026-11-27
+        tags: heal, starter
+        params:
+          heal: 120
+          duration: 10
+          cooldown: 6
+      - id: oak_shard
+        name: 橡木碎片
+        kind: material
+        rarity: legendary
+        desc: 橡木碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 93
+        weight: 3.5
+        power: 83
+        available_from: 2026-12-28
+        tags: rare
+        params:
+          purity: 0.23
+          craft_bonus: 3
+          refine_cost: 12
+      - id: copper_blade
+        name: 青铜刀
+        kind: weapon
+        rarity: common
+        desc: 青铜刀。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 3.6
+        power: 84
+        available_from: 2026-01-01
+        tags: melee, late
+        params:
+          atk: 12
+          crit: 0.06
+          durability: 196
+      - id: copper_helm
+        name: 青铜盔
+        kind: armor
+        rarity: rare
+        desc: 青铜盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.7
+        power: 85
+        available_from: 2026-02-02
+        tags: fire
+        params:
+          def: 11
+          resist_fire: 5
+          durability: 105
+      - id: copper_elixir
+        name: 青铜药剂
+        kind: consumable
+        rarity: epic
+        desc: 青铜药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 96
+        weight: 3.8
+        power: 86
+        available_from: 2026-03-03
+        tags: heal, starter
+        params:
+          heal: 140
+          duration: 2
+          cooldown: 10
+      - id: copper_shard
+        name: 青铜碎片
+        kind: material
+        rarity: legendary
+        desc: 青铜碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 97
+        weight: 3.9
+        power: 87
+        available_from: 2026-04-04
+        tags: rare
+        params:
+          purity: 0.27
+          craft_bonus: 7
+          refine_cost: 4
+      - id: steel_blade
+        name: 精钢刀
+        kind: weapon
+        rarity: common
+        desc: 精钢刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4
+        power: 88
+        available_from: 2026-05-05
+        tags: melee, late
+        params:
+          atk: 16
+          crit: 0.1
+          durability: 212
+      - id: steel_helm
+        name: 精钢盔
+        kind: armor
+        rarity: rare
+        desc: 精钢盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.1
+        power: 89
+        available_from: 2026-06-06
+        tags: fire
+        params:
+          def: 15
+          resist_fire: 9
+          durability: 125
+      - id: steel_elixir
+        name: 精钢药剂
+        kind: consumable
+        rarity: epic
+        desc: 精钢药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 10
+        weight: 4.2
+        power: 90
+        available_from: 2026-07-07
+        tags: heal, starter
+        params:
+          heal: 10
+          duration: 6
+          cooldown: 14
+      - id: steel_shard
+        name: 精钢碎片
+        kind: material
+        rarity: legendary
+        desc: 精钢碎片。用于打造与强化的材料。
+        enabled: false
+        stack: 11
+        weight: 4.3
+        power: 91
+        available_from: 2026-08-08
+        tags: rare
+        params:
+          purity: 0.31
+          craft_bonus: 11
+          refine_cost: 8
+      - id: silver_blade
+        name: 秘银刀
+        kind: weapon
+        rarity: common
+        desc: 秘银刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.4
+        power: 92
+        available_from: 2026-09-09
+        tags: melee, late
+        params:
+          atk: 20
+          crit: 0.14
+          durability: 228
+      - id: silver_helm
+        name: 秘银盔
+        kind: armor
+        rarity: rare
+        desc: 秘银盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.5
+        power: 93
+        available_from: 2026-10-10
+        tags: fire
+        params:
+          def: 19
+          resist_fire: 13
+          durability: 145
+      - id: silver_elixir
+        name: 秘银药剂
+        kind: consumable
+        rarity: epic
+        desc: 秘银药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 14
+        weight: 4.6
+        power: 94
+        available_from: 2026-11-11
+        tags: heal, starter
+        params:
+          heal: 30
+          duration: 10
+          cooldown: 18
+      - id: silver_shard
+        name: 秘银碎片
+        kind: material
+        rarity: legendary
+        desc: 秘银碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 15
+        weight: 4.7
+        power: 95
+        available_from: 2026-12-12
+        tags: rare
+        params:
+          purity: 0.35
+          craft_bonus: 15
+          refine_cost: 12
+      - id: darkiron_blade
+        name: 黑铁刀
+        kind: weapon
+        rarity: common
+        desc: 黑铁刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.8
+        power: 96
+        available_from: 2026-01-13
+        tags: melee, late
+        params:
+          atk: 24
+          crit: 0.18
+          durability: 244
+      - id: darkiron_helm
+        name: 黑铁盔
+        kind: armor
+        rarity: rare
+        desc: 黑铁盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.9
+        power: 97
+        available_from: 2026-02-14
+        tags: fire
+        params:
+          def: 23
+          resist_fire: 17
+          durability: 165
+      - id: darkiron_elixir
+        name: 黑铁药剂
+        kind: consumable
+        rarity: epic
+        desc: 黑铁药剂。使用后生效的消耗品。
+        enabled: false
+        stack: 18
+        weight: 5
+        power: 98
+        available_from: 2026-03-15
+        tags: heal, starter
+        params:
+          heal: 50
+          duration: 2
+          cooldown: 6
+      - id: darkiron_shard
+        name: 黑铁碎片
+        kind: material
+        rarity: legendary
+        desc: 黑铁碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 19
+        weight: 5.1
+        power: 99
+        available_from: 2026-04-16
+        tags: rare
+        params:
+          purity: 0.39
+          craft_bonus: 19
+          refine_cost: 4
+      - id: jade_blade
+        name: 寒玉刀
+        kind: weapon
+        rarity: common
+        desc: 寒玉刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.2
+        power: 100
+        available_from: 2026-05-17
+        tags: melee, late
+        params:
+          atk: 28
+          crit: 0.02
+          durability: 60
+      - id: jade_helm
+        name: 寒玉盔
+        kind: armor
+        rarity: rare
+        desc: 寒玉盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.3
+        power: 0
+        available_from: 2026-06-18
+        tags: fire
+        params:
+          def: 27
+          resist_fire: 21
+          durability: 185
+      - id: jade_elixir
+        name: 寒玉药剂
+        kind: consumable
+        rarity: epic
+        desc: 寒玉药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 22
+        weight: 0.4
+        power: 1
+        available_from: 2026-07-19
+        tags: heal, starter
+        params:
+          heal: 70
+          duration: 6
+          cooldown: 10
+      - id: jade_shard
+        name: 寒玉碎片
+        kind: material
+        rarity: legendary
+        desc: 寒玉碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 23
+        weight: 0.5
+        power: 2
+        available_from: 2026-08-20
+        tags: rare
+        params:
+          purity: 0.43
+          craft_bonus: 23
+          refine_cost: 8
+      - id: flame_blade
+        name: 赤焰刀
+        kind: weapon
+        rarity: common
+        desc: 赤焰刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.6
+        power: 3
+        available_from: 2026-09-21
+        tags: melee, late
+        params:
+          atk: 32
+          crit: 0.06
+          durability: 76
+      - id: flame_helm
+        name: 赤焰盔
+        kind: armor
+        rarity: rare
+        desc: 赤焰盔。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 0.7
+        power: 4
+        available_from: 2026-10-22
+        tags: fire
+        params:
+          def: 31
+          resist_fire: 25
+          durability: 205
+      - id: flame_elixir
+        name: 赤焰药剂
+        kind: consumable
+        rarity: epic
+        desc: 赤焰药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 26
+        weight: 0.8
+        power: 5
+        available_from: 2026-11-23
+        tags: heal, starter
+        params:
+          heal: 90
+          duration: 10
+          cooldown: 14
+      - id: flame_shard
+        name: 赤焰碎片
+        kind: material
+        rarity: legendary
+        desc: 赤焰碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 27
+        weight: 0.9
+        power: 6
+        available_from: 2026-12-24
+        tags: rare
+        params:
+          purity: 0.47
+          craft_bonus: 27
+          refine_cost: 12
+      - id: shadow_blade
+        name: 暗影刀
+        kind: weapon
+        rarity: common
+        desc: 暗影刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1
+        power: 7
+        available_from: 2026-01-25
+        tags: melee, late
+        params:
+          atk: 36
+          crit: 0.1
+          durability: 92
+      - id: shadow_helm
+        name: 暗影盔
+        kind: armor
+        rarity: rare
+        desc: 暗影盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.1
+        power: 8
+        available_from: 2026-02-26
+        tags: fire
+        params:
+          def: 35
+          resist_fire: 29
+          durability: 225
+      - id: shadow_elixir
+        name: 暗影药剂
+        kind: consumable
+        rarity: epic
+        desc: 暗影药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 30
+        weight: 1.2
+        power: 9
+        available_from: 2026-03-27
+        tags: heal, starter
+        params:
+          heal: 110
+          duration: 2
+          cooldown: 18
+      - id: shadow_shard
+        name: 暗影碎片
+        kind: material
+        rarity: legendary
+        desc: 暗影碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 31
+        weight: 1.3
+        power: 10
+        available_from: 2026-04-28
+        tags: rare
+        params:
+          purity: 0.51
+          craft_bonus: 31
+          refine_cost: 4
+      - id: holy_blade
+        name: 圣光刀
+        kind: weapon
+        rarity: common
+        desc: 圣光刀。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 1.4
+        power: 11
+        available_from: 2026-05-01
+        tags: melee, late
+        params:
+          atk: 40
+          crit: 0.14
+          durability: 108
+      - id: holy_helm
+        name: 圣光盔
+        kind: armor
+        rarity: rare
+        desc: 圣光盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.5
+        power: 12
+        available_from: 2026-06-02
+        tags: fire
+        params:
+          def: 39
+          resist_fire: 33
+          durability: 245
+      - id: holy_elixir
+        name: 圣光药剂
+        kind: consumable
+        rarity: epic
+        desc: 圣光药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 34
+        weight: 1.6
+        power: 13
+        available_from: 2026-07-03
+        tags: heal, starter
+        params:
+          heal: 130
+          duration: 6
+          cooldown: 6
+      - id: holy_shard
+        name: 圣光碎片
+        kind: material
+        rarity: legendary
+        desc: 圣光碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 35
+        weight: 1.7
+        power: 14
+        available_from: 2026-08-04
+        tags: rare
+        params:
+          purity: 0.55
+          craft_bonus: 35
+          refine_cost: 8
+      - id: storm_blade
+        name: 风暴刀
+        kind: weapon
+        rarity: common
+        desc: 风暴刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.8
+        power: 15
+        available_from: 2026-09-05
+        tags: melee, late
+        params:
+          atk: 44
+          crit: 0.18
+          durability: 124
+      - id: storm_helm
+        name: 风暴盔
+        kind: armor
+        rarity: rare
+        desc: 风暴盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.9
+        power: 16
+        available_from: 2026-10-06
+        tags: fire
+        params:
+          def: 43
+          resist_fire: 37
+          durability: 265
+      - id: storm_elixir
+        name: 风暴药剂
+        kind: consumable
+        rarity: epic
+        desc: 风暴药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 38
+        weight: 2
+        power: 17
+        available_from: 2026-11-07
+        tags: heal, starter
+        params:
+          heal: 150
+          duration: 10
+          cooldown: 10
+      - id: storm_shard
+        name: 风暴碎片
+        kind: material
+        rarity: legendary
+        desc: 风暴碎片。用于打造与强化的材料。
+        enabled: false
+        stack: 39
+        weight: 2.1
+        power: 18
+        available_from: 2026-12-08
+        tags: rare
+        params:
+          purity: 0.59
+          craft_bonus: 39
+          refine_cost: 12
+      - id: thunder_blade
+        name: 雷鸣刀
+        kind: weapon
+        rarity: common
+        desc: 雷鸣刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.2
+        power: 19
+        available_from: 2026-01-09
+        tags: melee, late
+        params:
+          atk: 8
+          crit: 0.02
+          durability: 140
+      - id: thunder_helm
+        name: 雷鸣盔
+        kind: armor
+        rarity: rare
+        desc: 雷鸣盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.3
+        power: 20
+        available_from: 2026-02-10
+        tags: fire
+        params:
+          def: 7
+          resist_fire: 1
+          durability: 85
+      - id: thunder_elixir
+        name: 雷鸣药剂
+        kind: consumable
+        rarity: epic
+        desc: 雷鸣药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 42
+        weight: 2.4
+        power: 21
+        available_from: 2026-03-11
+        tags: heal, starter
+        params:
+          heal: 20
+          duration: 2
+          cooldown: 14
+      - id: thunder_shard
+        name: 雷鸣碎片
+        kind: material
+        rarity: legendary
+        desc: 雷鸣碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 43
+        weight: 2.5
+        power: 22
+        available_from: 2026-04-12
+        tags: rare
+        params:
+          purity: 0.63
+          craft_bonus: 3
+          refine_cost: 4
+      - id: moon_blade
+        name: 月光刀
+        kind: weapon
+        rarity: common
+        desc: 月光刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.6
+        power: 23
+        available_from: 2026-05-13
+        tags: melee, late
+        params:
+          atk: 12
+          crit: 0.06
+          durability: 156
+      - id: moon_helm
+        name: 月光盔
+        kind: armor
+        rarity: rare
+        desc: 月光盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.7
+        power: 24
+        available_from: 2026-06-14
+        tags: fire
+        params:
+          def: 11
+          resist_fire: 5
+          durability: 105
+      - id: moon_elixir
+        name: 月光药剂
+        kind: consumable
+        rarity: epic
+        desc: 月光药剂。使用后生效的消耗品。
+        enabled: false
+        stack: 46
+        weight: 2.8
+        power: 25
+        available_from: 2026-07-15
+        tags: heal, starter
+        params:
+          heal: 40
+          duration: 6
+          cooldown: 18
+      - id: moon_shard
+        name: 月光碎片
+        kind: material
+        rarity: legendary
+        desc: 月光碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 47
+        weight: 2.9
+        power: 26
+        available_from: 2026-08-16
+        tags: rare
+        params:
+          purity: 0.67
+          craft_bonus: 7
+          refine_cost: 8
+      - id: star_blade
+        name: 星尘刀
+        kind: weapon
+        rarity: common
+        desc: 星尘刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3
+        power: 27
+        available_from: 2026-09-17
+        tags: melee, late
+        params:
+          atk: 16
+          crit: 0.1
+          durability: 172
+      - id: star_helm
+        name: 星尘盔
+        kind: armor
+        rarity: rare
+        desc: 星尘盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.1
+        power: 28
+        available_from: 2026-10-18
+        tags: fire
+        params:
+          def: 15
+          resist_fire: 9
+          durability: 125
+      - id: star_elixir
+        name: 星尘药剂
+        kind: consumable
+        rarity: epic
+        desc: 星尘药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 50
+        weight: 3.2
+        power: 29
+        available_from: 2026-11-19
+        tags: heal, starter
+        params:
+          heal: 60
+          duration: 10
+          cooldown: 6
+      - id: star_shard
+        name: 星尘碎片
+        kind: material
+        rarity: legendary
+        desc: 星尘碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 51
+        weight: 3.3
+        power: 30
+        available_from: 2026-12-20
+        tags: rare
+        params:
+          purity: 0.71
+          craft_bonus: 11
+          refine_cost: 12
+      - id: sea_blade
+        name: 深海刀
+        kind: weapon
+        rarity: common
+        desc: 深海刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.4
+        power: 31
+        available_from: 2026-01-21
+        tags: melee, late
+        params:
+          atk: 20
+          crit: 0.14
+          durability: 188
+      - id: sea_helm
+        name: 深海盔
+        kind: armor
+        rarity: rare
+        desc: 深海盔。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 3.5
+        power: 32
+        available_from: 2026-02-22
+        tags: fire
+        params:
+          def: 19
+          resist_fire: 13
+          durability: 145
+      - id: sea_elixir
+        name: 深海药剂
+        kind: consumable
+        rarity: epic
+        desc: 深海药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 54
+        weight: 3.6
+        power: 33
+        available_from: 2026-03-23
+        tags: heal, starter
+        params:
+          heal: 80
+          duration: 2
+          cooldown: 10
+      - id: sea_shard
+        name: 深海碎片
+        kind: material
+        rarity: legendary
+        desc: 深海碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 55
+        weight: 3.7
+        power: 34
+        available_from: 2026-04-24
+        tags: rare
+        params:
+          purity: 0.75
+          craft_bonus: 15
+          refine_cost: 4
+      - id: wild_blade
+        name: 荒原刀
+        kind: weapon
+        rarity: common
+        desc: 荒原刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.8
+        power: 35
+        available_from: 2026-05-25
+        tags: melee, late
+        params:
+          atk: 24
+          crit: 0.18
+          durability: 204
+      - id: wild_helm
+        name: 荒原盔
+        kind: armor
+        rarity: rare
+        desc: 荒原盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.9
+        power: 36
+        available_from: 2026-06-26
+        tags: fire
+        params:
+          def: 23
+          resist_fire: 17
+          durability: 165
+      - id: wild_elixir
+        name: 荒原药剂
+        kind: consumable
+        rarity: epic
+        desc: 荒原药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 58
+        weight: 4
+        power: 37
+        available_from: 2026-07-27
+        tags: heal, starter
+        params:
+          heal: 100
+          duration: 6
+          cooldown: 14
+      - id: wild_shard
+        name: 荒原碎片
+        kind: material
+        rarity: legendary
+        desc: 荒原碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 59
+        weight: 4.1
+        power: 38
+        available_from: 2026-08-28
+        tags: rare
+        params:
+          purity: 0.79
+          craft_bonus: 19
+          refine_cost: 8
+      - id: frost_blade
+        name: 霜冻刀
+        kind: weapon
+        rarity: common
+        desc: 霜冻刀。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 4.2
+        power: 39
+        available_from: 2026-09-01
+        tags: melee, late
+        params:
+          atk: 28
+          crit: 0.02
+          durability: 220
+      - id: frost_helm
+        name: 霜冻盔
+        kind: armor
+        rarity: rare
+        desc: 霜冻盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.3
+        power: 40
+        available_from: 2026-10-02
+        tags: fire
+        params:
+          def: 27
+          resist_fire: 21
+          durability: 185
+      - id: frost_elixir
+        name: 霜冻药剂
+        kind: consumable
+        rarity: epic
+        desc: 霜冻药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 62
+        weight: 4.4
+        power: 41
+        available_from: 2026-11-03
+        tags: heal, starter
+        params:
+          heal: 120
+          duration: 10
+          cooldown: 18
+      - id: frost_shard
+        name: 霜冻碎片
+        kind: material
+        rarity: legendary
+        desc: 霜冻碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 63
+        weight: 4.5
+        power: 42
+        available_from: 2026-12-04
+        tags: rare
+        params:
+          purity: 0.83
+          craft_bonus: 23
+          refine_cost: 12
+      - id: ember_blade
+        name: 余烬刀
+        kind: weapon
+        rarity: common
+        desc: 余烬刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.6
+        power: 43
+        available_from: 2026-01-05
+        tags: melee, late
+        params:
+          atk: 32
+          crit: 0.06
+          durability: 236
+      - id: ember_helm
+        name: 余烬盔
+        kind: armor
+        rarity: rare
+        desc: 余烬盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.7
+        power: 44
+        available_from: 2026-02-06
+        tags: fire
+        params:
+          def: 31
+          resist_fire: 25
+          durability: 205
+      - id: ember_elixir
+        name: 余烬药剂
+        kind: consumable
+        rarity: epic
+        desc: 余烬药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 66
+        weight: 4.8
+        power: 45
+        available_from: 2026-03-07
+        tags: heal, starter
+        params:
+          heal: 140
+          duration: 2
+          cooldown: 6
+      - id: ember_shard
+        name: 余烬碎片
+        kind: material
+        rarity: legendary
+        desc: 余烬碎片。用于打造与强化的材料。
+        enabled: false
+        stack: 67
+        weight: 4.9
+        power: 46
+        available_from: 2026-04-08
+        tags: rare
+        params:
+          purity: 0.87
+          craft_bonus: 27
+          refine_cost: 4
+      - id: void_blade
+        name: 虚空刀
+        kind: weapon
+        rarity: common
+        desc: 虚空刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 5
+        power: 47
+        available_from: 2026-05-09
+        tags: melee, late
+        params:
+          atk: 36
+          crit: 0.1
+          durability: 252
+      - id: void_helm
+        name: 虚空盔
+        kind: armor
+        rarity: rare
+        desc: 虚空盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 5.1
+        power: 48
+        available_from: 2026-06-10
+        tags: fire
+        params:
+          def: 35
+          resist_fire: 29
+          durability: 225
+      - id: void_elixir
+        name: 虚空药剂
+        kind: consumable
+        rarity: epic
+        desc: 虚空药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 70
+        weight: 0.2
+        power: 49
+        available_from: 2026-07-11
+        tags: heal, starter
+        params:
+          heal: 10
+          duration: 6
+          cooldown: 10
+      - id: void_shard
+        name: 虚空碎片
+        kind: material
+        rarity: legendary
+        desc: 虚空碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 71
+        weight: 0.3
+        power: 50
+        available_from: 2026-08-12
+        tags: rare
+        params:
+          purity: 0.91
+          craft_bonus: 31
+          refine_cost: 8
+      - id: crystal_blade
+        name: 水晶刀
+        kind: weapon
+        rarity: common
+        desc: 水晶刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.4
+        power: 51
+        available_from: 2026-09-13
+        tags: melee, late
+        params:
+          atk: 40
+          crit: 0.14
+          durability: 68
+      - id: crystal_helm
+        name: 水晶盔
+        kind: armor
+        rarity: rare
+        desc: 水晶盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.5
+        power: 52
+        available_from: 2026-10-14
+        tags: fire
+        params:
+          def: 39
+          resist_fire: 33
+          durability: 245
+      - id: crystal_elixir
+        name: 水晶药剂
+        kind: consumable
+        rarity: epic
+        desc: 水晶药剂。使用后生效的消耗品。
+        enabled: false
+        stack: 74
+        weight: 0.6
+        power: 53
+        available_from: 2026-11-15
+        tags: heal, starter
+        params:
+          heal: 30
+          duration: 10
+          cooldown: 14
+      - id: crystal_shard
+        name: 水晶碎片
+        kind: material
+        rarity: legendary
+        desc: 水晶碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 75
+        weight: 0.7
+        power: 54
+        available_from: 2026-12-16
+        tags: rare
+        params:
+          purity: 0.95
+          craft_bonus: 35
+          refine_cost: 12
+      - id: bone_blade
+        name: 白骨刀
+        kind: weapon
+        rarity: common
+        desc: 白骨刀。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 0.8
+        power: 55
+        available_from: 2026-01-17
+        tags: melee, late
+        params:
+          atk: 44
+          crit: 0.18
+          durability: 84
+      - id: bone_helm
+        name: 白骨盔
+        kind: armor
+        rarity: rare
+        desc: 白骨盔。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 0.9
+        power: 56
+        available_from: 2026-02-18
+        tags: fire
+        params:
+          def: 43
+          resist_fire: 37
+          durability: 265
+      - id: bone_elixir
+        name: 白骨药剂
+        kind: consumable
+        rarity: epic
+        desc: 白骨药剂。使用后生效的消耗品。
+        enabled: true
+        stack: 78
+        weight: 1
+        power: 57
+        available_from: 2026-03-19
+        tags: heal, starter
+        params:
+          heal: 50
+          duration: 2
+          cooldown: 18
+      - id: bone_shard
+        name: 白骨碎片
+        kind: material
+        rarity: legendary
+        desc: 白骨碎片。用于打造与强化的材料。
+        enabled: true
+        stack: 79
+        weight: 1.1
+        power: 58
+        available_from: 2026-04-20
+        tags: rare
+        params:
+          purity: 0.99
+          craft_bonus: 39
+          refine_cost: 4
+      - id: oak_axe
+        name: 橡木斧
+        kind: weapon
+        rarity: common
+        desc: 橡木斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.2
+        power: 59
+        available_from: 2026-05-21
+        tags: melee, late
+        params:
+          atk: 8
+          crit: 0.02
+          durability: 100
+      - id: oak_boots
+        name: 橡木靴
+        kind: armor
+        rarity: rare
+        desc: 橡木靴。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 1.3
+        power: 60
+        available_from: 2026-06-22
+        tags: fire
+        params:
+          def: 7
+          resist_fire: 1
+          durability: 85
+      - id: oak_scroll
+        name: 橡木卷轴
+        kind: consumable
+        rarity: epic
+        desc: 橡木卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 82
+        weight: 1.4
+        power: 61
+        available_from: 2026-07-23
+        tags: heal, starter
+        params:
+          heal: 70
+          duration: 6
+          cooldown: 6
+      - id: oak_powder
+        name: 橡木粉末
+        kind: material
+        rarity: legendary
+        desc: 橡木粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 83
+        weight: 1.5
+        power: 62
+        available_from: 2026-08-24
+        tags: rare
+        params:
+          purity: 0.23
+          craft_bonus: 3
+          refine_cost: 8
+      - id: copper_axe
+        name: 青铜斧
+        kind: weapon
+        rarity: common
+        desc: 青铜斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 1.6
+        power: 63
+        available_from: 2026-09-25
+        tags: melee, late
+        params:
+          atk: 12
+          crit: 0.06
+          durability: 116
+      - id: copper_boots
+        name: 青铜靴
+        kind: armor
+        rarity: rare
+        desc: 青铜靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 1.7
+        power: 64
+        available_from: 2026-10-26
+        tags: fire
+        params:
+          def: 11
+          resist_fire: 5
+          durability: 105
+      - id: copper_scroll
+        name: 青铜卷轴
+        kind: consumable
+        rarity: epic
+        desc: 青铜卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 86
+        weight: 1.8
+        power: 65
+        available_from: 2026-11-27
+        tags: heal, starter
+        params:
+          heal: 90
+          duration: 10
+          cooldown: 10
+      - id: copper_powder
+        name: 青铜粉末
+        kind: material
+        rarity: legendary
+        desc: 青铜粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 87
+        weight: 1.9
+        power: 66
+        available_from: 2026-12-28
+        tags: rare
+        params:
+          purity: 0.27
+          craft_bonus: 7
+          refine_cost: 12
+      - id: steel_axe
+        name: 精钢斧
+        kind: weapon
+        rarity: common
+        desc: 精钢斧。可用于战斗的武器。
+        enabled: false
+        stack: 1
+        weight: 2
+        power: 67
+        available_from: 2026-01-01
+        tags: melee, late
+        params:
+          atk: 16
+          crit: 0.1
+          durability: 132
+      - id: steel_boots
+        name: 精钢靴
+        kind: armor
+        rarity: rare
+        desc: 精钢靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.1
+        power: 68
+        available_from: 2026-02-02
+        tags: fire
+        params:
+          def: 15
+          resist_fire: 9
+          durability: 125
+      - id: steel_scroll
+        name: 精钢卷轴
+        kind: consumable
+        rarity: epic
+        desc: 精钢卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 90
+        weight: 2.2
+        power: 69
+        available_from: 2026-03-03
+        tags: heal, starter
+        params:
+          heal: 110
+          duration: 2
+          cooldown: 14
+      - id: steel_powder
+        name: 精钢粉末
+        kind: material
+        rarity: legendary
+        desc: 精钢粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 91
+        weight: 2.3
+        power: 70
+        available_from: 2026-04-04
+        tags: rare
+        params:
+          purity: 0.31
+          craft_bonus: 11
+          refine_cost: 4
+      - id: silver_axe
+        name: 秘银斧
+        kind: weapon
+        rarity: common
+        desc: 秘银斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.4
+        power: 71
+        available_from: 2026-05-05
+        tags: melee, late
+        params:
+          atk: 20
+          crit: 0.14
+          durability: 148
+      - id: silver_boots
+        name: 秘银靴
+        kind: armor
+        rarity: rare
+        desc: 秘银靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.5
+        power: 72
+        available_from: 2026-06-06
+        tags: fire
+        params:
+          def: 19
+          resist_fire: 13
+          durability: 145
+      - id: silver_scroll
+        name: 秘银卷轴
+        kind: consumable
+        rarity: epic
+        desc: 秘银卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 94
+        weight: 2.6
+        power: 73
+        available_from: 2026-07-07
+        tags: heal, starter
+        params:
+          heal: 130
+          duration: 6
+          cooldown: 18
+      - id: silver_powder
+        name: 秘银粉末
+        kind: material
+        rarity: legendary
+        desc: 秘银粉末。用于打造与强化的材料。
+        enabled: false
+        stack: 95
+        weight: 2.7
+        power: 74
+        available_from: 2026-08-08
+        tags: rare
+        params:
+          purity: 0.35
+          craft_bonus: 15
+          refine_cost: 8
+      - id: darkiron_axe
+        name: 黑铁斧
+        kind: weapon
+        rarity: common
+        desc: 黑铁斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 2.8
+        power: 75
+        available_from: 2026-09-09
+        tags: melee, late
+        params:
+          atk: 24
+          crit: 0.18
+          durability: 164
+      - id: darkiron_boots
+        name: 黑铁靴
+        kind: armor
+        rarity: rare
+        desc: 黑铁靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 2.9
+        power: 76
+        available_from: 2026-10-10
+        tags: fire
+        params:
+          def: 23
+          resist_fire: 17
+          durability: 165
+      - id: darkiron_scroll
+        name: 黑铁卷轴
+        kind: consumable
+        rarity: epic
+        desc: 黑铁卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 98
+        weight: 3
+        power: 77
+        available_from: 2026-11-11
+        tags: heal, starter
+        params:
+          heal: 150
+          duration: 10
+          cooldown: 6
+      - id: darkiron_powder
+        name: 黑铁粉末
+        kind: material
+        rarity: legendary
+        desc: 黑铁粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 99
+        weight: 3.1
+        power: 78
+        available_from: 2026-12-12
+        tags: rare
+        params:
+          purity: 0.39
+          craft_bonus: 19
+          refine_cost: 12
+      - id: jade_axe
+        name: 寒玉斧
+        kind: weapon
+        rarity: common
+        desc: 寒玉斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.2
+        power: 79
+        available_from: 2026-01-13
+        tags: melee, late
+        params:
+          atk: 28
+          crit: 0.02
+          durability: 180
+      - id: jade_boots
+        name: 寒玉靴
+        kind: armor
+        rarity: rare
+        desc: 寒玉靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.3
+        power: 80
+        available_from: 2026-02-14
+        tags: fire
+        params:
+          def: 27
+          resist_fire: 21
+          durability: 185
+      - id: jade_scroll
+        name: 寒玉卷轴
+        kind: consumable
+        rarity: epic
+        desc: 寒玉卷轴。使用后生效的消耗品。
+        enabled: false
+        stack: 12
+        weight: 3.4
+        power: 81
+        available_from: 2026-03-15
+        tags: heal, starter
+        params:
+          heal: 20
+          duration: 2
+          cooldown: 10
+      - id: jade_powder
+        name: 寒玉粉末
+        kind: material
+        rarity: legendary
+        desc: 寒玉粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 13
+        weight: 3.5
+        power: 82
+        available_from: 2026-04-16
+        tags: rare
+        params:
+          purity: 0.43
+          craft_bonus: 23
+          refine_cost: 4
+      - id: flame_axe
+        name: 赤焰斧
+        kind: weapon
+        rarity: common
+        desc: 赤焰斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 3.6
+        power: 83
+        available_from: 2026-05-17
+        tags: melee, late
+        params:
+          atk: 32
+          crit: 0.06
+          durability: 196
+      - id: flame_boots
+        name: 赤焰靴
+        kind: armor
+        rarity: rare
+        desc: 赤焰靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 3.7
+        power: 84
+        available_from: 2026-06-18
+        tags: fire
+        params:
+          def: 31
+          resist_fire: 25
+          durability: 205
+      - id: flame_scroll
+        name: 赤焰卷轴
+        kind: consumable
+        rarity: epic
+        desc: 赤焰卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 16
+        weight: 3.8
+        power: 85
+        available_from: 2026-07-19
+        tags: heal, starter
+        params:
+          heal: 40
+          duration: 6
+          cooldown: 14
+      - id: flame_powder
+        name: 赤焰粉末
+        kind: material
+        rarity: legendary
+        desc: 赤焰粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 17
+        weight: 3.9
+        power: 86
+        available_from: 2026-08-20
+        tags: rare
+        params:
+          purity: 0.47
+          craft_bonus: 27
+          refine_cost: 8
+      - id: shadow_axe
+        name: 暗影斧
+        kind: weapon
+        rarity: common
+        desc: 暗影斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4
+        power: 87
+        available_from: 2026-09-21
+        tags: melee, late
+        params:
+          atk: 36
+          crit: 0.1
+          durability: 212
+      - id: shadow_boots
+        name: 暗影靴
+        kind: armor
+        rarity: rare
+        desc: 暗影靴。提供防护的防具。
+        enabled: false
+        stack: 1
+        weight: 4.1
+        power: 88
+        available_from: 2026-10-22
+        tags: fire
+        params:
+          def: 35
+          resist_fire: 29
+          durability: 225
+      - id: shadow_scroll
+        name: 暗影卷轴
+        kind: consumable
+        rarity: epic
+        desc: 暗影卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 20
+        weight: 4.2
+        power: 89
+        available_from: 2026-11-23
+        tags: heal, starter
+        params:
+          heal: 60
+          duration: 10
+          cooldown: 18
+      - id: shadow_powder
+        name: 暗影粉末
+        kind: material
+        rarity: legendary
+        desc: 暗影粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 21
+        weight: 4.3
+        power: 90
+        available_from: 2026-12-24
+        tags: rare
+        params:
+          purity: 0.51
+          craft_bonus: 31
+          refine_cost: 12
+      - id: holy_axe
+        name: 圣光斧
+        kind: weapon
+        rarity: common
+        desc: 圣光斧。可用于战斗的武器。
+        enabled: true
+        stack: 1
+        weight: 4.4
+        power: 91
+        available_from: 2026-01-25
+        tags: melee, late
+        params:
+          atk: 40
+          crit: 0.14
+          durability: 228
+      - id: holy_boots
+        name: 圣光靴
+        kind: armor
+        rarity: rare
+        desc: 圣光靴。提供防护的防具。
+        enabled: true
+        stack: 1
+        weight: 4.5
+        power: 92
+        available_from: 2026-02-26
+        tags: fire
+        params:
+          def: 39
+          resist_fire: 33
+          durability: 245
+      - id: holy_scroll
+        name: 圣光卷轴
+        kind: consumable
+        rarity: epic
+        desc: 圣光卷轴。使用后生效的消耗品。
+        enabled: true
+        stack: 24
+        weight: 4.6
+        power: 93
+        available_from: 2026-03-27
+        tags: heal, starter
+        params:
+          heal: 80
+          duration: 2
+          cooldown: 6
+      - id: holy_powder
+        name: 圣光粉末
+        kind: material
+        rarity: legendary
+        desc: 圣光粉末。用于打造与强化的材料。
+        enabled: true
+        stack: 25
+        weight: 4.7
+        power: 94
+        available_from: 2026-04-28
+        tags: rare
+        params:
+          purity: 0.55
+          craft_bonus: 35
+          refine_cost: 4
   packs:
     rows:
       - id: starter_pack
