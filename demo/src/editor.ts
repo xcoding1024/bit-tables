@@ -780,9 +780,9 @@ export class BitTableEditorBase {
     this.fields.forEach((field) => {
       html += `<th style="${sticky}background:#1a1a1a;text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:2px">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span></th>`;
     });
-    html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;color:#a3a3a3">操作</th></tr></thead><tbody>`;
+    html += "</tr></thead><tbody>";
     if (!idxs.length) {
-      html += `<tr><td colspan="${this.fields.length + 2}" style="padding:24px;text-align:center;color:#a3a3a3">${this.data.rows.length ? "无匹配行，试试清除筛选" : "暂无行，点击「新增一行」"}</td></tr>`;
+      html += `<tr><td colspan="${this.fields.length + 1}" style="padding:24px;text-align:center;color:#a3a3a3">${this.data.rows.length ? "无匹配行，试试清除筛选" : "暂无行，点击「新增一行」"}</td></tr>`;
     }
     idxs.forEach((ri, vis) => {
       const row = this.data.rows[ri] || {};
@@ -791,7 +791,7 @@ export class BitTableEditorBase {
       this.fields.forEach((field) => {
         html += this.renderTableCell(field, row, ri);
       });
-      html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a"><button type="button" data-role="remove" data-index="${ri}" style="${this.btn("danger")}">删除</button></td></tr>`;
+      html += "</tr>";
     });
     html += "</tbody></table></div>";
     if (this.enableTableScroll) html += "</div>";
