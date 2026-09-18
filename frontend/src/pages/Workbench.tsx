@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
+import { SearchHits } from "../components/SearchHits";
 import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
 import { buildDepGraph, emptyExportReport, exportSet, type ExportReport, type TableSnap } from "../lib/deps";
+import { filterTreeByFile, searchTableContent, type SearchScope } from "../lib/search";
 import { LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN } from "../lib/panels";
 import { usePanel } from "../lib/usePanel";
 import {
@@ -93,6 +95,8 @@ export default function Workbench({
   const [historyReload, setHistoryReload] = useState(0);
   const [newOpen, setNewOpen] = useState(false);
   const [newId, setNewId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchScope, setSearchScope] = useState<SearchScope>("file");
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const frameReadyRef = useRef<Record<string, boolean>>({});
   const filesRef = useRef(filesById);
@@ -117,6 +121,36 @@ export default function Workbench({
   const activeStruct = files ? parseDoc(files.struct) : {};
   const activeSheets: SheetInfo[] = files ? listSheets(activeStruct) : [];
   const activeSheetId = files ? resolveSheetId(activeStruct, sheetById[activeId]) : "";
+
+  const searchPacks = useMemo(() => {
+    const byId = new Map<string, TableSnap>();
+    for (const pack of tablePacks) {
+      const id = String(pack.id || "").trim();
+      if (id) byId.set(id, pack);
+    }
+    for (const [id, next] of Object.entries(filesById)) {
+      byId.set(id, {
+        id,
+        struct: parseDoc(next.struct),
+        data: Object.prototype.hasOwnProperty.call(draftById, id) ? draftById[id] : parseDoc(next.data),
+      });
+    }
+    return [...byId.values()];
+  }, [draftById, filesById, tablePacks]);
+
+  const fileTree = useMemo(() => {
+    if (searchScope !== "file" || !searchQuery.trim()) return tree;
+    return filterTreeByFile(tree, searchQuery);
+  }, [searchQuery, searchScope, tree]);
+
+  const contentHits = useMemo(() => {
+    if (searchScope === "file" || !searchQuery.trim()) return [];
+    if (searchScope === "sheet") {
+      if (!activeId || !activeSheetId) return [];
+      return searchTableContent(searchPacks, searchQuery, { tableId: activeId, sheetId: activeSheetId });
+    }
+    return searchTableContent(searchPacks, searchQuery);
+  }, [activeId, activeSheetId, searchPacks, searchQuery, searchScope]);
 
   const fullDataOf = useCallback((id: string, fallbackText?: string) => {
     if (Object.prototype.hasOwnProperty.call(draftRef.current, id)) {
@@ -344,7 +378,7 @@ export default function Workbench({
   }, []);
 
   const openTable = useCallback(
-    async (id: string, remount: boolean) => {
+    async (id: string, remount: boolean, preferredSheet?: string) => {
       if (!id) {
         setActiveId("");
         writeTableParam("");
@@ -358,7 +392,7 @@ export default function Workbench({
       const data = parseDoc(next.data);
       rememberDraft(id, data);
       setSheetById((prev) => {
-        const sheetId = resolveSheetId(struct, prev[id]);
+        const sheetId = resolveSheetId(struct, preferredSheet || prev[id]);
         sheetRef.current = { ...sheetRef.current, [id]: sheetId };
         return { ...prev, [id]: sheetId };
       });
@@ -381,6 +415,45 @@ export default function Workbench({
       await runCheck(id, next, data);
     },
     [postSlice, rememberDraft, rememberFiles, runCheck, tryInitFrame],
+  );
+
+  const handleOpenTable = useCallback(
+    (id: string, remount: boolean, sheetId?: string) => {
+      void openTable(id, remount, sheetId).catch((err: unknown) => {
+        setChecks((prev) => ({
+          ...prev,
+          [id]: {
+            ok: false,
+            errors: [],
+            error: err instanceof Error ? err.message : "加载失败",
+            editorKey: prev[id]?.editorKey || 1,
+          },
+        }));
+      });
+    },
+    [openTable],
+  );
+
+  const handleOpenHit = useCallback(
+    (tableId: string, sheetId: string) => {
+      const cur = filesRef.current[tableId];
+      if (!cur) {
+        handleOpenTable(tableId, true, sheetId);
+        return;
+      }
+      const nextSheet = resolveSheetId(parseDoc(cur.struct), sheetId);
+      writeTableParam(tableId);
+      setActiveId(tableId);
+      if (!tabsRef.current.includes(tableId)) {
+        setTabs((prev) => (prev.includes(tableId) ? prev : [...prev, tableId]));
+      }
+      if (sheetRef.current[tableId] !== nextSheet) {
+        sheetRef.current = { ...sheetRef.current, [tableId]: nextSheet };
+        setSheetById((prev) => ({ ...prev, [tableId]: nextSheet }));
+        postSlice(tableId, "setSheet");
+      }
+    },
+    [handleOpenTable, postSlice],
   );
 
   const closeTab = useCallback(
@@ -624,26 +697,58 @@ export default function Workbench({
                 >
                   <Plus size={14} /> 新建表
                 </button>
+                <div className="mt-2">
+                  <Input
+                    data-testid="tables-search"
+                    placeholder={
+                      searchScope === "file" ? "搜索文件名" : searchScope === "sheet" ? "搜索当前 Sheet" : "搜索全部 Sheet"
+                    }
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <div className="mt-1 flex gap-1">
+                    {(
+                      [
+                        ["file", "文件名"],
+                        ["sheet", "当前"],
+                        ["all", "全部"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        data-testid={`tables-search-scope-${id}`}
+                        title={id === "file" ? "按文件名" : id === "sheet" ? "当前 Sheet" : "全部 Sheet"}
+                        className={`h-6 flex-1 rounded px-1 text-[11px] ${
+                          searchScope === id ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
+                        }`}
+                        onClick={() => setSearchScope(id)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
-                <TableTree
-                  tree={tree}
-                  activeId={activeId}
-                  openIds={tabs}
-                  onOpen={(id) =>
-                    void openTable(id, !filesById[id]).catch((err: unknown) => {
-                      setChecks((prev) => ({
-                        ...prev,
-                        [id]: {
-                          ok: false,
-                          errors: [],
-                          error: err instanceof Error ? err.message : "加载失败",
-                          editorKey: prev[id]?.editorKey || 1,
-                        },
-                      }));
-                    })
-                  }
-                />
+                {searchScope === "file" || !searchQuery.trim() ? (
+                  <TableTree
+                    tree={fileTree}
+                    activeId={activeId}
+                    openIds={tabs}
+                    expandAll={searchScope === "file" && Boolean(searchQuery.trim())}
+                    emptyText={searchQuery.trim() ? "无匹配文件" : "暂无配置表"}
+                    onOpen={(id) => handleOpenTable(id, !filesById[id])}
+                  />
+                ) : (
+                  <SearchHits
+                    hits={contentHits}
+                    emptyText={
+                      searchScope === "sheet" && !activeId ? "先打开一张配置表" : "无匹配内容"
+                    }
+                    onOpen={(hit) => handleOpenHit(hit.tableId, hit.sheetId)}
+                  />
+                )}
               </div>
             </>
           )}

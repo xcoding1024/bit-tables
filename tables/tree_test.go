@@ -99,6 +99,21 @@ func TestListTreeRecognizesStructOnly(t *testing.T) {
 	}
 }
 
+func TestInspectReadsStructName(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "item")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "item_struct.yaml"), []byte("id: item\nname: 道具表\nsheets:\n  - id: main\n    name: 主表\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info := Inspect(dir, "item")
+	if info.Name != "道具表" {
+		t.Fatalf("name %#v", info.Name)
+	}
+}
+
 func TestTableIDAndValidPath(t *testing.T) {
 	if TableID("combat/skill") != "skill" || TableID("item") != "item" {
 		t.Fatal(TableID("combat/skill"))

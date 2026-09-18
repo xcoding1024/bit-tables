@@ -1,5 +1,6 @@
 export type TableInfo = {
   id: string;
+  name?: string;
   path?: string;
   hasStruct: boolean;
   hasData: boolean;

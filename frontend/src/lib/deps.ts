@@ -1,6 +1,6 @@
 import { collectEnumRefs, parseEnumRef } from "./tableHost";
 
-export type TableSnap = { id: string; struct: unknown };
+export type TableSnap = { id: string; struct: unknown; data?: unknown };
 
 export type DepEdge = {
   from: string;

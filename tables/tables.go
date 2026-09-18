@@ -28,6 +28,7 @@ var (
 
 type Info struct {
 	ID         string `json:"id"`
+	Name       string `json:"name,omitempty"`
 	Path       string `json:"path,omitempty"`
 	HasStruct  bool   `json:"hasStruct"`
 	HasData    bool   `json:"hasData"`
@@ -242,7 +243,10 @@ func WriteText(dir, tableID, kind, text string) error {
 
 func Inspect(dir, tableID string) Info {
 	info := Info{ID: tableID}
-	_, info.HasStruct = readFile(dir, tableID, "struct.yaml")
+	if text, ok := readFile(dir, tableID, "struct.yaml"); ok {
+		info.HasStruct = true
+		info.Name = structDisplayName(text)
+	}
 	_, info.HasData = readFile(dir, tableID, "data.yaml")
 	info.HasEditor = hasScript(dir, tableID, "editor")
 	info.HasChecker = hasScript(dir, tableID, "checker")
@@ -250,6 +254,36 @@ func Inspect(dir, tableID string) Info {
 	_, info.HasDocs = readFile(dir, tableID, "docs.md")
 	info.Complete = info.HasStruct && info.HasData && info.HasEditor && info.HasChecker && info.HasExport
 	return info
+}
+
+func structDisplayName(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
+			continue
+		}
+		rest, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "name:")
+		if !ok {
+			continue
+		}
+		return yamlScalar(strings.TrimSpace(rest))
+	}
+	return ""
+}
+
+func yamlScalar(s string) string {
+	if s == "" || s == "|" || s == ">" || s == "|-" || s == ">-" {
+		return ""
+	}
+	if len(s) >= 2 {
+		q := s[0]
+		if (q == '"' || q == '\'') && s[len(s)-1] == byte(q) {
+			return s[1 : len(s)-1]
+		}
+	}
+	if i := strings.Index(s, " #"); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	return s
 }
 
 func hasStructYAML(dir string) bool {

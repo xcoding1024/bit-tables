@@ -54,24 +54,28 @@ export function TableTree({
   tree,
   activeId,
   openIds,
+  expandAll,
+  emptyText = "暂无配置表",
   onOpen,
 }: {
   tree: TreeNode[];
   activeId: string;
   openIds: string[];
+  expandAll?: boolean;
+  emptyText?: string;
   onOpen: (id: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   if (tree.length === 0) {
-    return <div className="px-2 py-6 text-center text-muted">暂无配置表</div>;
+    return <div className="px-2 py-6 text-center text-muted">{emptyText}</div>;
   }
 
   const render = (nodes: TreeNode[], depth: number) =>
     nodes.map((node) => {
       const pad = { paddingLeft: 8 + depth * 12 };
       if (node.kind === "dir") {
-        const closed = Boolean(collapsed[node.path]);
+        const closed = expandAll ? false : Boolean(collapsed[node.path]);
         return (
           <div key={node.path}>
             <button
@@ -104,9 +108,18 @@ export function TableTree({
           }`}
           onClick={() => onOpen(item.id)}
         >
-          <div className="flex items-center gap-1">
-            <FileSpreadsheet size={13} className="shrink-0 text-muted" />
-            <span className="truncate text-[13px]">{item.id}</span>
+          <div className="flex items-start gap-1">
+            <FileSpreadsheet size={13} className="mt-0.5 shrink-0 text-muted" />
+            <div className="min-w-0">
+              {item.name?.trim() ? (
+                <>
+                  <div className="truncate text-[13px]">{item.name.trim()}</div>
+                  <div className="truncate font-mono text-[11px] text-muted">{item.id}</div>
+                </>
+              ) : (
+                <div className="truncate text-[13px]">{item.id}</div>
+              )}
+            </div>
           </div>
           {item.complete ? null : <div className="pl-4 text-[11px] text-muted">五件套不完整</div>}
         </button>
