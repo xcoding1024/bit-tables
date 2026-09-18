@@ -196,6 +196,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-bg text-ink">
       <Titlebar
+        rootPath={workbenchReady ? rootPath : ""}
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
         recentRoots={recentRoots}

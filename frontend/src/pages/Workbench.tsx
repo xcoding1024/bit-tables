@@ -689,45 +689,35 @@ export default function Workbench({
                 </button>
               </div>
               <div className="p-3">
-                <button
-                  type="button"
-                  data-testid="tables-new"
-                  onClick={() => setNewOpen(true)}
-                  className="flex h-8 w-full items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
-                >
-                  <Plus size={14} /> 新建表
-                </button>
-                <div className="mt-2">
-                  <Input
-                    data-testid="tables-search"
-                    placeholder={
-                      searchScope === "file" ? "搜索文件名" : searchScope === "sheet" ? "搜索当前 Sheet" : "搜索全部 Sheet"
-                    }
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <div className="mt-1 flex gap-1">
-                    {(
-                      [
-                        ["file", "文件名"],
-                        ["sheet", "当前"],
-                        ["all", "全部"],
-                      ] as const
-                    ).map(([id, label]) => (
-                      <button
-                        key={id}
-                        type="button"
-                        data-testid={`tables-search-scope-${id}`}
-                        title={id === "file" ? "按文件名" : id === "sheet" ? "当前 Sheet" : "全部 Sheet"}
-                        className={`h-6 flex-1 rounded px-1 text-[11px] ${
-                          searchScope === id ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
-                        }`}
-                        onClick={() => setSearchScope(id)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                <Input
+                  data-testid="tables-search"
+                  placeholder={
+                    searchScope === "file" ? "搜索文件名" : searchScope === "sheet" ? "搜索当前 Sheet" : "搜索全部 Sheet"
+                  }
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <div className="mt-1 flex gap-1">
+                  {(
+                    [
+                      ["file", "文件名"],
+                      ["sheet", "当前"],
+                      ["all", "全部"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`tables-search-scope-${id}`}
+                      title={id === "file" ? "按文件名" : id === "sheet" ? "当前 Sheet" : "全部 Sheet"}
+                      className={`h-6 flex-1 rounded px-1 text-[11px] ${
+                        searchScope === id ? "bg-active text-ink" : "text-muted hover:bg-hover hover:text-ink"
+                      }`}
+                      onClick={() => setSearchScope(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
@@ -749,6 +739,16 @@ export default function Workbench({
                     onOpen={(hit) => handleOpenHit(hit.tableId, hit.sheetId)}
                   />
                 )}
+              </div>
+              <div className="shrink-0 border-t border-line p-3">
+                <button
+                  type="button"
+                  data-testid="tables-new"
+                  onClick={() => setNewOpen(true)}
+                  className="flex h-8 w-full items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
+                >
+                  <Plus size={14} /> 新建表
+                </button>
               </div>
             </>
           )}

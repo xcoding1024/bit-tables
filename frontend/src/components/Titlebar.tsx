@@ -22,6 +22,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
 }
 
 export default function Titlebar({
+  rootPath = "",
   onOpen,
   onCreateSample,
   recentRoots = [],
@@ -35,6 +36,7 @@ export default function Titlebar({
   onExportCurrent,
   onExportAll,
 }: {
+  rootPath?: string;
   onOpen?: () => void;
   onCreateSample?: () => void;
   recentRoots?: string[];
@@ -102,7 +104,7 @@ export default function Titlebar({
           toggleMax();
         }}
       >
-        <div ref={menusRef} className="flex min-w-0 items-stretch pl-1" data-no-drag>
+        <div ref={menusRef} className="relative z-10 flex min-w-0 items-stretch pl-1" data-no-drag>
           <Menu
             id="project"
             label="项目"
@@ -223,8 +225,19 @@ export default function Titlebar({
           </Menu>
         </div>
         <div className="min-w-0 flex-1" />
+        {rootPath ? (
+          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-40">
+            <div
+              data-testid="titlebar-root-path"
+              className="max-w-full truncate font-mono text-[12px] text-secondary"
+              title={rootPath}
+            >
+              {rootPath}
+            </div>
+          </div>
+        ) : null}
         {showWinCtl ? (
-          <div className="flex" data-no-drag>
+          <div className="relative z-10 flex" data-no-drag>
             <WinBtn label="最小化" onClick={() => ctl?.minimize()}>
               <Minus size={12} />
             </WinBtn>
