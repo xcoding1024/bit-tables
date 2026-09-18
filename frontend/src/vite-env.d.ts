@@ -10,6 +10,7 @@ export type BitTablesShell = {
   };
   pickDirectory: () => Promise<string>;
   rememberRoot: (dir: string) => Promise<string>;
+  listRecentRoots: () => Promise<string[]>;
 };
 
 declare global {

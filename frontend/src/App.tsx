@@ -33,6 +33,7 @@ export default function App() {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportReport, setExportReport] = useState<ExportReport | null>(null);
   const [activeTableId, setActiveTableId] = useState("");
+  const [recentRoots, setRecentRoots] = useState<string[]>([]);
   const dialogs = useGuideDialogs();
   const sh = shell();
   const editorCommandsRef = useRef<EditorCommands | null>(null);
@@ -41,6 +42,18 @@ export default function App() {
   const handleActiveIdChange = useCallback((id: string) => {
     setActiveTableId(id);
   }, []);
+
+  const refreshRecentRoots = useCallback(async () => {
+    if (!sh?.listRecentRoots) {
+      setRecentRoots([]);
+      return;
+    }
+    try {
+      setRecentRoots(await sh.listRecentRoots());
+    } catch {
+      setRecentRoots([]);
+    }
+  }, [sh]);
 
   const reloadEnumsCatalog = useCallback(async () => {
     try {
@@ -65,6 +78,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void refreshRecentRoots();
+  }, [refreshRecentRoots]);
+
+  useEffect(() => {
     tablesApi
       .root()
       .then(async (next) => {
@@ -72,6 +89,12 @@ export default function App() {
         setGuide(Boolean(next.guide));
         if (!next.guide && next.path) {
           await reloadEnumsCatalog();
+          try {
+            await sh?.rememberRoot?.(next.path);
+            await refreshRecentRoots();
+          } catch {
+            /* ignore */
+          }
         } else {
           setTablePacks([]);
           setEnumsCatalog([]);
@@ -80,7 +103,7 @@ export default function App() {
       .catch((err: unknown) => {
         setBootError(err instanceof Error ? err.message : "无法连接本机服务");
       });
-  }, [reloadEnumsCatalog]);
+  }, [reloadEnumsCatalog, refreshRecentRoots, sh]);
 
   useEffect(() => {
     if (guide || !rootPath || !window.EventSource) return;
@@ -107,8 +130,17 @@ export default function App() {
     }
     try {
       await sh?.rememberRoot?.(next.path);
+      await refreshRecentRoots();
     } catch {
       /* 记住上次目录失败不影响当前打开 */
+    }
+  }
+
+  async function openRecent(dir: string) {
+    try {
+      await applyRoot(dir);
+    } catch (err: unknown) {
+      setBootError(err instanceof Error ? err.message : "打开失败");
     }
   }
 
@@ -166,6 +198,8 @@ export default function App() {
       <Titlebar
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
+        recentRoots={recentRoots}
+        onOpenRecent={sh ? openRecent : undefined}
         onEnums={workbenchReady ? () => setEnumsOpen(true) : undefined}
         onDeps={workbenchReady ? () => setDepsOpen(true) : undefined}
         onTemplates={() => setTemplatesOpen(true)}

@@ -36,26 +36,59 @@ function spaDir() {
   return path.join(REPO_ROOT, "web", "dist");
 }
 
+const RECENT_LIMIT = 10;
+
 function lastRootFile() {
   return path.join(app.getPath("userData"), "last-root.json");
 }
 
-function readLastRoot() {
+function existingDir(dir) {
+  try {
+    return Boolean(dir && typeof dir === "string" && fs.existsSync(dir) && fs.statSync(dir).isDirectory());
+  } catch {
+    return false;
+  }
+}
+
+/** @returns {{ path: string, recent: string[] }} */
+function readRootState() {
   try {
     const raw = JSON.parse(fs.readFileSync(lastRootFile(), "utf8"));
-    if (raw && typeof raw.path === "string" && fs.existsSync(raw.path)) {
-      return raw.path;
+    const recent = [];
+    const seen = new Set();
+    const push = (p) => {
+      if (!existingDir(p)) return;
+      const abs = path.resolve(p);
+      if (seen.has(abs)) return;
+      seen.add(abs);
+      recent.push(abs);
+    };
+    if (typeof raw?.path === "string") push(raw.path);
+    if (Array.isArray(raw?.recent)) {
+      for (const item of raw.recent) push(item);
     }
+    return { path: recent[0] || "", recent: recent.slice(0, RECENT_LIMIT) };
   } catch {
-    /* ignore */
+    return { path: "", recent: [] };
   }
-  return "";
+}
+
+function readLastRoot() {
+  return readRootState().path;
+}
+
+function readRecentRoots() {
+  return readRootState().recent;
 }
 
 function writeLastRoot(dir) {
-  if (IS_DEV) return;
+  if (!existingDir(dir)) return;
+  const abs = path.resolve(dir);
+  if (abs === path.resolve(emptyRoot())) return;
+  const prev = readRootState().recent.filter((item) => path.resolve(item) !== abs);
+  const recent = [abs, ...prev].slice(0, RECENT_LIMIT);
   fs.mkdirSync(app.getPath("userData"), { recursive: true });
-  fs.writeFileSync(lastRootFile(), JSON.stringify({ path: dir }));
+  fs.writeFileSync(lastRootFile(), JSON.stringify({ path: abs, recent }));
 }
 
 function emptyRoot() {
@@ -65,10 +98,12 @@ function emptyRoot() {
 }
 
 function defaultRoot() {
+  const last = readLastRoot();
+  if (last) return last;
   if (IS_DEV) {
     return process.env.BIT_TABLES_ROOT || path.join(REPO_ROOT, "demo", "tables");
   }
-  return readLastRoot();
+  return "";
 }
 
 function waitHealth(tries = 80) {
@@ -197,9 +232,29 @@ function createWindow() {
   win.loadURL(uiURL());
 }
 
+async function switchApiRoot(dir) {
+  const res = await fetch(`http://${ADDR}/api/root`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: dir }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`切换配表根失败: ${res.status} ${text}`);
+  }
+}
+
 async function boot() {
   if (EXTERNAL_API) {
     await waitHealth();
+    const last = readLastRoot();
+    if (last) {
+      try {
+        await switchApiRoot(last);
+      } catch (err) {
+        console.error(err);
+      }
+    }
   } else {
     const root = defaultRoot();
     if (root) {
@@ -232,6 +287,8 @@ ipcMain.handle("dialog:openDirectory", async () => {
 });
 
 ipcMain.handle("root:remember", async (_ev, dir) => rememberRoot(dir));
+
+ipcMain.handle("root:listRecent", async () => readRecentRoots());
 
 ipcMain.on("window:minimize", () => {
   win?.minimize();

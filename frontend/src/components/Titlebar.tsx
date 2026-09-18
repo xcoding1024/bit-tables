@@ -24,6 +24,8 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
 export default function Titlebar({
   onOpen,
   onCreateSample,
+  recentRoots = [],
+  onOpenRecent,
   onEnums,
   onDeps,
   onTemplates,
@@ -35,6 +37,8 @@ export default function Titlebar({
 }: {
   onOpen?: () => void;
   onCreateSample?: () => void;
+  recentRoots?: string[];
+  onOpenRecent?: (dir: string) => void;
   onEnums?: () => void;
   onDeps?: () => void;
   onTemplates?: () => void;
@@ -108,6 +112,21 @@ export default function Titlebar({
           >
             <MenuItem label="打开…" disabled={!onOpen} onClick={() => run(onOpen)} />
             <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
+            <MenuSep />
+            <MenuSection label="最近打开" />
+            {recentRoots.length === 0 ? (
+              <MenuItem label="无" disabled onClick={() => undefined} />
+            ) : (
+              recentRoots.map((dir) => (
+                <MenuItem
+                  key={dir}
+                  label={recentLabel(dir)}
+                  title={dir}
+                  disabled={!onOpenRecent}
+                  onClick={() => run(() => onOpenRecent?.(dir))}
+                />
+              ))
+            )}
           </Menu>
           <Menu id="edit" label="编辑" open={openMenu === "edit"} active={openMenu} onOpen={setOpenMenu}>
             <MenuItem
@@ -262,6 +281,20 @@ export default function Titlebar({
   );
 }
 
+function recentLabel(dir: string) {
+  const parts = dir.split(/[/\\]/).filter(Boolean);
+  if (parts.length <= 2) return parts.join("/") || dir;
+  return parts.slice(-2).join("/");
+}
+
+function MenuSep() {
+  return <div className="my-1 border-t border-line" role="separator" />;
+}
+
+function MenuSection({ label }: { label: string }) {
+  return <div className="px-3 py-1 text-[11px] text-muted">{label}</div>;
+}
+
 function Menu({
   id,
   label,
@@ -296,7 +329,7 @@ function Menu({
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-0 min-w-[188px] rounded border border-line bg-elevated py-1 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-0 min-w-[220px] max-w-[360px] rounded border border-line bg-elevated py-1 shadow-lg"
         >
           {children}
         </div>
@@ -311,24 +344,27 @@ function MenuItem({
   disabled,
   testId,
   shortcut,
+  title,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   testId?: string;
   shortcut?: string;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       role="menuitem"
+      title={title}
       data-testid={testId}
       disabled={disabled}
       className="flex h-7 w-full items-center justify-between gap-6 px-3 text-left text-ink disabled:cursor-default disabled:text-muted hover:enabled:bg-hover"
       onClick={onClick}
     >
-      <span>{label}</span>
-      {shortcut ? <span className="font-mono text-[11px] text-muted">{shortcut}</span> : null}
+      <span className="min-w-0 truncate">{label}</span>
+      {shortcut ? <span className="shrink-0 font-mono text-[11px] text-muted">{shortcut}</span> : null}
     </button>
   );
 }
