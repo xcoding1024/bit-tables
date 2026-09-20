@@ -4,10 +4,12 @@ Set-StrictMode -Version Latest
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
-if (-not $env:GOPROXY) { $env:GOPROXY = "https://goproxy.cn,https://goproxy.io,direct" }
-if (-not $env:ELECTRON_MIRROR) { $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/" }
-if (-not $env:ELECTRON_BUILDER_BINARIES_MIRROR) {
-  $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+if (-not $env:CI) {
+  if (-not $env:GOPROXY) { $env:GOPROXY = "https://goproxy.cn,https://goproxy.io,direct" }
+  if (-not $env:ELECTRON_MIRROR) { $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/" }
+  if (-not $env:ELECTRON_BUILDER_BINARIES_MIRROR) {
+    $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+  }
 }
 
 if (-not (Test-Path (Join-Path $root "node_modules"))) {

@@ -13,10 +13,12 @@ if (target !== "linux" && target !== "mac") {
 }
 
 process.chdir(ROOT);
-process.env.GOPROXY = process.env.GOPROXY || "https://goproxy.cn,https://goproxy.io,direct";
-process.env.ELECTRON_MIRROR = process.env.ELECTRON_MIRROR || "https://npmmirror.com/mirrors/electron/";
-process.env.ELECTRON_BUILDER_BINARIES_MIRROR =
-  process.env.ELECTRON_BUILDER_BINARIES_MIRROR || "https://npmmirror.com/mirrors/electron-builder-binaries/";
+if (!process.env.CI) {
+  process.env.GOPROXY = process.env.GOPROXY || "https://goproxy.cn,https://goproxy.io,direct";
+  process.env.ELECTRON_MIRROR = process.env.ELECTRON_MIRROR || "https://npmmirror.com/mirrors/electron/";
+  process.env.ELECTRON_BUILDER_BINARIES_MIRROR =
+    process.env.ELECTRON_BUILDER_BINARIES_MIRROR || "https://npmmirror.com/mirrors/electron-builder-binaries/";
+}
 
 function run(cmd, args, opts = {}) {
   const res = spawnSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32", ...opts });

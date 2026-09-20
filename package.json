@@ -20,7 +20,7 @@
     "appId": "wang.bitserver.bit-tables",
     "productName": "bit-tables",
     "executableName": "bit-tables",
-    "artifactName": "bit-tables-${version}-${os}.${ext}",
+    "artifactName": "bit-tables-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "dist/desktop"
     },
