@@ -33,7 +33,7 @@ go build -trimpath -ldflags="-s -w" -o (Join-Path $runtime "bit-tables.exe") ./c
 if ($LASTEXITCODE -ne 0) { throw "go build failed" }
 Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED -ErrorAction SilentlyContinue
 
-npx electron-builder --win zip --x64
+npx electron-builder --win zip --x64 --publish never
 if ($LASTEXITCODE -ne 0) { throw "electron-builder failed" }
 
 Write-Host "Windows package under dist/desktop/"

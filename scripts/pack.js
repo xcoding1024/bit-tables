@@ -61,9 +61,9 @@ if (target === "mac") {
   if (process.platform !== "darwin") {
     console.warn("macOS zip 建议在 Mac 上打包；当前将尝试 electron-builder，可能失败。");
   }
-  run("npx", ["electron-builder", "--mac", "zip", "--x64", "--arm64"]);
+  run("npx", ["electron-builder", "--mac", "zip", "--x64", "--arm64", "--publish", "never"]);
 } else {
-  run("npx", ["electron-builder", "--linux", "zip", "--x64"]);
+  run("npx", ["electron-builder", "--linux", "zip", "--x64", "--publish", "never"]);
 }
 
 console.log("package under dist/desktop/");

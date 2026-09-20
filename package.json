@@ -39,7 +39,7 @@
       }
     ],
     "win": {
-      "icon": "desktop/icon.ico",
+      "icon": "desktop/icon.png",
       "target": [
         {
           "target": "zip",
