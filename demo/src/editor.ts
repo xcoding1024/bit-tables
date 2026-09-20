@@ -772,9 +772,9 @@ export class BitTableEditorBase {
       ? "position:sticky;top:0;z-index:2;"
       : "";
     let html = this.enableTableScroll
-      ? `<div style="flex:1;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px">`
+      ? `<div style="flex:1;min-width:0;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px">`
       : `<div data-testid="${wrapTest}" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto">`;
-    html += `<table style="${this.enableTableScroll ? "width:max-content;min-width:100%;" : "width:100%;"}border-collapse:collapse">`;
+    html += `<table style="width:max-content;min-width:100%;border-collapse:collapse">`;
     html += "<thead><tr>";
     html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
     this.fields.forEach((field) => {
