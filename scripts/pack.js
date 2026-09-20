@@ -32,10 +32,30 @@ run("npm", ["run", "build"], { cwd: path.join(ROOT, "frontend") });
 const runtime = path.join(ROOT, "dist", "runtime");
 fs.mkdirSync(runtime, { recursive: true });
 const goos = target === "mac" ? "darwin" : "linux";
-const goarch = process.arch === "arm64" ? "arm64" : "amd64";
-run("go", ["build", "-trimpath", "-ldflags=-s -w", "-o", path.join(runtime, "bit-tables"), "./cmd/bit-tables"], {
-  env: { ...process.env, CGO_ENABLED: "0", GOOS: goos, GOARCH: goarch },
-});
+const outBin = path.join(runtime, "bit-tables");
+if (target === "mac") {
+  const amd = path.join(runtime, "bit-tables-amd64");
+  const arm = path.join(runtime, "bit-tables-arm64");
+  run("go", ["build", "-trimpath", "-ldflags=-s -w", "-o", amd, "./cmd/bit-tables"], {
+    env: { ...process.env, CGO_ENABLED: "0", GOOS: "darwin", GOARCH: "amd64" },
+  });
+  run("go", ["build", "-trimpath", "-ldflags=-s -w", "-o", arm, "./cmd/bit-tables"], {
+    env: { ...process.env, CGO_ENABLED: "0", GOOS: "darwin", GOARCH: "arm64" },
+  });
+  if (process.platform === "darwin") {
+    run("lipo", ["-create", "-output", outBin, amd, arm]);
+    fs.rmSync(amd, { force: true });
+    fs.rmSync(arm, { force: true });
+  } else {
+    fs.renameSync(process.arch === "arm64" ? arm : amd, outBin);
+    fs.rmSync(amd, { force: true });
+    fs.rmSync(arm, { force: true });
+  }
+} else {
+  run("go", ["build", "-trimpath", "-ldflags=-s -w", "-o", outBin, "./cmd/bit-tables"], {
+    env: { ...process.env, CGO_ENABLED: "0", GOOS: goos, GOARCH: "amd64" },
+  });
+}
 
 if (target === "mac") {
   if (process.platform !== "darwin") {
