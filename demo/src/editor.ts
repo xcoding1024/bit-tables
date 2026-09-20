@@ -1,5 +1,7 @@
 import type { EditorAPI, EnumEntry, FieldDef, ParamField, Row } from "./types";
 import { asRecord, escapeAttr, escapeHtml, joinMulti, num, splitMulti, truthy } from "./dom";
+import { BitSearchSelect } from "./search_select";
+export { BitSearchSelect } from "./search_select";
 
 type RowIndex = number | "batch";
 type CellPos = { ri: number; ci: number };
@@ -50,6 +52,7 @@ export class BitTableEditorBase {
   private escapeBound = false;
   private selectBound = false;
   private clipboardBound = false;
+  private liveSearchSelects: BitSearchSelect[] = [];
 
   mount(el: HTMLElement, api: EditorAPI): void {
     this.el = el;
@@ -109,6 +112,10 @@ export class BitTableEditorBase {
       this.openFilterKey = null;
       this.removeFilterMenu();
       this.render();
+      return;
+    }
+    if (this.closeSearchSelects() && !this.editingCell && !this.openMultiKey) {
+      ev.preventDefault();
       return;
     }
     if (this.editingCell || this.openMultiKey) {
@@ -335,7 +342,7 @@ export class BitTableEditorBase {
     if (this.isTypingTarget(target)) return true;
     return Boolean(
       target.closest(
-        "button, [data-role=pick], [data-role=col-filter-btn], [data-role=col-filter-menu], [data-role=multi-menu], [data-role=params-dialog]",
+        "button, [data-role=pick], [data-role=col-filter-btn], [data-role=col-filter-menu], [data-role=multi-menu], [data-role=ss-menu], [data-role=search-select], [data-role=params-dialog]",
       ),
     );
   }
@@ -636,11 +643,17 @@ export class BitTableEditorBase {
       return `<button type="button" data-role="params-open" ${test} style="${input};min-width:${compact ? "140px" : "100%"};display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;${summary === "未设置" ? "color:#737373" : "color:#f5f5f5"}">${escapeHtml(summary)}</span><span style="color:#a3a3a3;flex-shrink:0">编辑</span></button>`;
     }
     if (widget === "select") {
-      let html = `<select ${test} style="${input}">`;
-      this.enumOptions(field).forEach((opt) => {
-        html += `<option value="${escapeAttr(opt.id)}"${String(val) === opt.id ? " selected" : ""}>${escapeHtml(opt.name)}</option>`;
+      const opts = this.enumOptions(field);
+      const current = String(val ?? "");
+      const hit = opts.find((opt) => opt.id === current);
+      const label = hit?.name || current || "请选择…";
+      return BitSearchSelect.wrapHtml({
+        id: `${key}-${ri}`,
+        label,
+        empty: !current,
+        testId: `${this.testPrefix}-${key}-${ri}`,
+        inputStyle: input,
       });
-      return html + "</select>";
     }
     if (widget === "radio") {
       let radios = '<div style="display:flex;flex-wrap:wrap;gap:8px 12px;padding-top:4px">';
@@ -855,6 +868,7 @@ export class BitTableEditorBase {
     this.editingCell = null;
     this.openMultiKey = null;
     this.removeMultiMenu();
+    this.destroySearchSelects();
     this.render();
   }
 
@@ -869,6 +883,11 @@ export class BitTableEditorBase {
   protected focusEditingControl(): void {
     if (!this.editingCell) return;
     const { ri, key } = this.editingCell;
+    const ss = this.liveSearchSelects.find((item) => item.hostId === `${key}-${ri}`);
+    if (ss) {
+      ss.open();
+      return;
+    }
     const el = this.el.querySelector(`[data-testid="${this.testPrefix}-${key}-${ri}"]`) as HTMLElement | null;
     if (!el) return;
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
@@ -1180,11 +1199,14 @@ export class BitTableEditorBase {
     if (field.type === "bool") {
       inputHtml = `<select data-role="col-filter-input" style="${inputStyle}"><option value="">全部</option><option value="true"${cur === "true" ? " selected" : ""}>开启</option><option value="false"${cur === "false" ? " selected" : ""}>关闭</option></select>`;
     } else if ((field.enum || field.type === "enum") && field.widget !== "multiselect" && field.widget !== "tags") {
-      inputHtml = `<select data-role="col-filter-input" style="${inputStyle}"><option value="">全部</option>`;
-      this.enumOptions(field).forEach((opt) => {
-        inputHtml += `<option value="${escapeAttr(opt.id)}"${cur === String(opt.id) ? " selected" : ""}>${escapeHtml(opt.name)}</option>`;
+      const opts = this.enumOptions(field);
+      const hit = opts.find((opt) => opt.id === cur);
+      inputHtml = BitSearchSelect.wrapHtml({
+        id: `filter-${field.key}`,
+        label: hit?.name || (cur ? cur : "全部"),
+        empty: !cur,
+        inputStyle,
       });
-      inputHtml += "</select>";
     } else {
       inputHtml = `<input data-role="col-filter-input" type="text" value="${escapeAttr(cur)}" placeholder="包含文字…" style="${inputStyle}" />`;
     }
@@ -1198,6 +1220,7 @@ export class BitTableEditorBase {
     this.el.appendChild(menu);
     menu.addEventListener("click", (ev) => ev.stopPropagation());
     const input = menu.querySelector('[data-role="col-filter-input"]') as HTMLInputElement | HTMLSelectElement | null;
+    let filterValue = cur;
     const applyAndClose = (next: string) => {
       this.colFilters[field.key] = next ?? "";
       this.openFilterKey = null;
@@ -1208,8 +1231,18 @@ export class BitTableEditorBase {
       this.render();
     };
     menu.querySelector('[data-role="col-filter-clear"]')?.addEventListener("click", () => applyAndClose(""));
-    menu.querySelector('[data-role="col-filter-ok"]')?.addEventListener("click", () => applyAndClose(input ? input.value : ""));
-    if (input) {
+    menu.querySelector('[data-role="col-filter-ok"]')?.addEventListener("click", () => applyAndClose(input ? input.value : filterValue));
+    const ssWrap = menu.querySelector<HTMLElement>('[data-role="search-select"]');
+    if (ssWrap) {
+      const ss = new BitSearchSelect(ssWrap, {
+        items: this.enumOptions(field),
+        value: cur,
+        emptyLabel: "全部",
+        root: this.el,
+        onChange: (id) => applyAndClose(id),
+      }).bind();
+      this.liveSearchSelects.push(ss);
+    } else if (input) {
       if (input.tagName === "SELECT") {
         input.addEventListener("change", () => applyAndClose(input.value));
       } else {
@@ -1228,6 +1261,45 @@ export class BitTableEditorBase {
         });
       }
     }
+  }
+
+  protected destroySearchSelects(): void {
+    this.liveSearchSelects.forEach((item) => item.destroy());
+    this.liveSearchSelects = [];
+  }
+
+  protected closeSearchSelects(): boolean {
+    let any = false;
+    this.liveSearchSelects.forEach((item) => {
+      if (item.isOpen) {
+        item.close();
+        any = true;
+      }
+    });
+    return any;
+  }
+
+  protected bindSearchSelect(wrap: HTMLElement, field: FieldDef, ri: RowIndex): void {
+    const inTableEdit = typeof ri === "number" && this.view === "table" && this.isEditingCell(ri, field.key);
+    const current = String(this.currentMultiValue(ri, field.key) ?? "");
+    const ss = new BitSearchSelect(wrap, {
+      items: this.enumOptions(field),
+      value: current,
+      root: this.el,
+      onChange: (id) => {
+        if (field.type === "int") this.setRow(ri, field.key, String(parseInt(id, 10) || 0));
+        else if (field.type === "float") this.setRow(ri, field.key, String(Number(id) || 0));
+        else this.setRow(ri, field.key, id);
+        if (typeof ri === "number" && field.key === "kind" && this.paramsSchema(this.data.rows[ri] || {}).length) {
+          const row = this.data.rows[ri] || {};
+          row.params = this.normalizeParams(row.params, { ...row, kind: id });
+          this.api.setData(this.data);
+        }
+        if (inTableEdit) this.endEditCell();
+        else if (typeof ri === "number" && field.key === "kind") this.render();
+      },
+    }).bind();
+    this.liveSearchSelects.push(ss);
   }
 
   protected removeMultiMenu(): void {
@@ -1392,6 +1464,13 @@ export class BitTableEditorBase {
       if (this.openMultiKey === mid) this.placeMultiMenu(field, ri);
       return;
     }
+    const ssWrap = root.querySelector<HTMLElement>(
+      `[data-role="search-select"][data-ss-id="${field.key}-${ri}"]`,
+    );
+    if (ssWrap) {
+      this.bindSearchSelect(ssWrap, field, ri);
+      return;
+    }
     const nodes = root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
       `[data-testid="${this.testPrefix}-${field.key}-${ri}"]`,
     );
@@ -1498,6 +1577,7 @@ export class BitTableEditorBase {
   }
 
   protected render(): void {
+    this.destroySearchSelects();
     const prevTable = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
     const savedScrollLeft = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollLeft : 0;
     const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
