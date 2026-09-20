@@ -431,26 +431,43 @@ export class BitTableEditorBase {
     return this.coerce(field, text);
   }
 
+  protected tsvCell(grid: string[][], r: number, c: number): string {
+    const row = grid[r];
+    if (!row || c < 0 || c >= row.length) return "";
+    return row[c] ?? "";
+  }
+
   protected applyPasteTsv(text: string): void {
     const grid = this.parseTsv(text);
     const range = this.selectionRange();
     if (!grid.length || !range) return;
+    const srcRows = grid.length;
+    let srcCols = 0;
+    grid.forEach((row) => {
+      if (row.length > srcCols) srcCols = row.length;
+    });
+    if (!srcRows || !srcCols) return;
+    const destRows = range.r1 - range.r0 + 1;
+    const destCols = range.c1 - range.c0 + 1;
+    const tile = destRows > 1 || destCols > 1;
+    const writeRows = tile ? destRows : srcRows;
+    const writeCols = tile ? destCols : srcCols;
     let maxRi = range.r0;
     let maxCi = range.c0;
     let changed = false;
-    for (let r = 0; r < grid.length; r++) {
+    for (let r = 0; r < writeRows; r++) {
       const ri = range.r0 + r;
       if (ri < 0 || ri >= this.data.rows.length) break;
       if (!this.data.rows[ri]) this.data.rows[ri] = {};
       const row = this.data.rows[ri];
-      const cols = grid[r];
-      for (let c = 0; c < cols.length; c++) {
+      for (let c = 0; c < writeCols; c++) {
         const ci = range.c0 + c;
         if (ci < 0 || ci >= this.fields.length) break;
         const field = this.fields[ci];
         if (!field || !this.cellEditable(field, row)) continue;
         if (field.widget === "params" || field.type === "object") continue;
-        row[field.key] = this.coercePaste(field, cols[c]);
+        const raw = this.tsvCell(grid, r % srcRows, c % srcCols);
+        row[field.key] = this.coercePaste(field, raw);
         changed = true;
         if (ri > maxRi) maxRi = ri;
         if (ci > maxCi) maxCi = ci;
