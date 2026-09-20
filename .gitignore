@@ -10,3 +10,6 @@ frontend/node_modules
 .DS_Store
 demo/build/
 demo/node_modules/
+scripts/.record-tools/
+docs/assets/.record-tmp/
+docs/assets/.frames/
