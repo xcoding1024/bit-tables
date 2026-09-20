@@ -56,9 +56,8 @@ export function StatusLogBar({
       {expanded ? (
         <div
           ref={listRef}
-          className="min-h-0 flex-1 cursor-pointer overflow-auto px-3 py-1"
+          className="min-h-0 flex-1 overflow-auto px-3 py-1"
           data-testid="tables-status-log"
-          onClick={onToggle}
         >
           {logs.length === 0 ? (
             <div className="text-muted">就绪</div>
