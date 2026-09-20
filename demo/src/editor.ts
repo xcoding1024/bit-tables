@@ -2,11 +2,13 @@ import type { EditorAPI, EnumEntry, FieldDef, ParamField, Row } from "./types";
 import { asRecord, escapeAttr, escapeHtml, joinMulti, num, splitMulti, truthy } from "./dom";
 
 type RowIndex = number | "batch";
+type CellPos = { ri: number; ci: number };
+type CellRange = { r0: number; r1: number; c0: number; c1: number };
 
 export class BitTableEditorBase {
   testPrefix = "demo";
   rootTestId = "table-editor";
-  toolbarHint = "双击单元格编辑 · 勾选后可批量修改或删除";
+  toolbarHint = "单击或拖拽框选单元格，Ctrl+C / Ctrl+V 复制粘贴 · 双击编辑 · 勾选后可批量修改或删除";
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
@@ -37,6 +39,8 @@ export class BitTableEditorBase {
   protected pageIndex = 0;
   protected revealTarget: { ri: number; key: string; query: string } | null = null;
   protected editingCell: { ri: number; key: string } | null = null;
+  protected selection: { anchor: CellPos; focus: CellPos } | null = null;
+  private selecting = false;
   private editBlurTimer = 0;
   private resetTableScroll = false;
   private filterCloseBound = false;
@@ -44,6 +48,8 @@ export class BitTableEditorBase {
   private multiScrollBound = false;
   private resizeBound = false;
   private escapeBound = false;
+  private selectBound = false;
+  private clipboardBound = false;
 
   mount(el: HTMLElement, api: EditorAPI): void {
     this.el = el;
@@ -110,9 +116,14 @@ export class BitTableEditorBase {
       this.endEditCell();
       return;
     }
-    if (!this.revealTarget) return;
+    if (this.revealTarget) {
+      ev.preventDefault();
+      this.clearReveal();
+      return;
+    }
+    if (!this.selection) return;
     ev.preventDefault();
-    this.clearReveal();
+    this.clearCellSelection();
   }
 
   protected isRevealCell(ri: number, key: string): boolean {
@@ -247,6 +258,255 @@ export class BitTableEditorBase {
       .map(Number)
       .filter((i) => this.picked[i] && this.data.rows[i])
       .sort((a, b) => a - b);
+  }
+
+  protected clearCellSelection(): void {
+    if (!this.selection && !this.selecting) return;
+    this.selection = null;
+    this.setSelecting(false);
+    this.paintSelection();
+  }
+
+  protected selectionRange(): CellRange | null {
+    if (!this.selection) return null;
+    const { anchor, focus } = this.selection;
+    return {
+      r0: Math.min(anchor.ri, focus.ri),
+      r1: Math.max(anchor.ri, focus.ri),
+      c0: Math.min(anchor.ci, focus.ci),
+      c1: Math.max(anchor.ci, focus.ci),
+    };
+  }
+
+  protected isCellSelected(ri: number, ci: number): boolean {
+    const range = this.selectionRange();
+    if (!range) return false;
+    return ri >= range.r0 && ri <= range.r1 && ci >= range.c0 && ci <= range.c1;
+  }
+
+  protected isActiveCell(ri: number, ci: number): boolean {
+    return this.selection?.focus.ri === ri && this.selection?.focus.ci === ci;
+  }
+
+  protected cellSelAttrs(ri: number, ci: number): string {
+    const sel = this.isCellSelected(ri, ci) ? ' data-sel="1"' : "";
+    const active = this.isActiveCell(ri, ci) ? ' data-active="1"' : "";
+    return ` data-col="${ci}"${sel}${active}`;
+  }
+
+  protected setSelecting(on: boolean): void {
+    this.selecting = on;
+    const wrap = this.el?.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
+    if (!wrap) return;
+    if (on) wrap.setAttribute("data-selecting", "1");
+    else wrap.removeAttribute("data-selecting");
+  }
+
+  protected paintSelection(): void {
+    if (!this.el) return;
+    this.el.querySelectorAll("td[data-role=cell], td[data-role=cell-edit]").forEach((node) => {
+      const td = node as HTMLElement;
+      const ri = Number(td.getAttribute("data-index"));
+      const ci = Number(td.getAttribute("data-col"));
+      if (this.isCellSelected(ri, ci)) td.setAttribute("data-sel", "1");
+      else td.removeAttribute("data-sel");
+      if (this.isActiveCell(ri, ci)) td.setAttribute("data-active", "1");
+      else td.removeAttribute("data-active");
+    });
+  }
+
+  protected focusSelectionHost(): void {
+    if (this.editingCell || this.view !== "table" || !this.selection) return;
+    const wrap = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
+    wrap?.focus({ preventScroll: true });
+  }
+
+  protected isTypingTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el) return false;
+    const tag = String(el.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (el.isContentEditable) return true;
+    return Boolean(el.closest?.("input, textarea, select, [contenteditable='true']"));
+  }
+
+  protected shouldIgnoreSelectStart(target: HTMLElement | null): boolean {
+    if (!target) return true;
+    if (this.isTypingTarget(target)) return true;
+    return Boolean(
+      target.closest(
+        "button, [data-role=pick], [data-role=col-filter-btn], [data-role=col-filter-menu], [data-role=multi-menu], [data-role=params-dialog]",
+      ),
+    );
+  }
+
+  protected tableCellFromEl(el: HTMLElement | null): CellPos | null {
+    if (!el || !this.el?.contains(el)) return null;
+    const td = el.closest("td[data-role=cell], td[data-role=cell-edit]") as HTMLElement | null;
+    if (!td || !this.el.contains(td)) return null;
+    const ri = Number(td.getAttribute("data-index"));
+    const ci = Number(td.getAttribute("data-col"));
+    if (!Number.isFinite(ri) || !Number.isFinite(ci) || ci < 0 || ci >= this.fields.length) return null;
+    return { ri, ci };
+  }
+
+  protected tableCellFromPoint(x: number, y: number): CellPos | null {
+    return this.tableCellFromEl(document.elementFromPoint(x, y) as HTMLElement | null);
+  }
+
+  protected setCellSelection(anchor: CellPos, focus: CellPos): void {
+    this.selection = { anchor, focus };
+    this.paintSelection();
+  }
+
+  protected remapSelectionAfterDelete(removed: number): void {
+    if (!this.selection) return;
+    const map = (p: CellPos): CellPos | null => {
+      if (p.ri === removed) return null;
+      return { ri: p.ri > removed ? p.ri - 1 : p.ri, ci: p.ci };
+    };
+    const anchor = map(this.selection.anchor);
+    const focus = map(this.selection.focus);
+    this.selection = anchor && focus ? { anchor, focus } : null;
+  }
+
+  protected cellCopyText(field: FieldDef, row: Row): string {
+    if (!field?.key) return "";
+    if (field.widget === "icon" || field.type === "icon") return "";
+    if (field.widget === "params" || field.type === "object") return "";
+    if (field.widget === "checkbox" || field.type === "bool") return truthy(row[field.key]) ? "true" : "false";
+    const val = row[field.key];
+    return val == null ? "" : String(val);
+  }
+
+  protected selectionTsv(): string {
+    const range = this.selectionRange();
+    if (!range) return "";
+    const lines: string[] = [];
+    for (let ri = range.r0; ri <= range.r1; ri++) {
+      const row = this.data.rows[ri] || {};
+      const cols: string[] = [];
+      for (let ci = range.c0; ci <= range.c1; ci++) {
+        const field = this.fields[ci];
+        cols.push(field ? this.cellCopyText(field, row) : "");
+      }
+      lines.push(cols.join("\t"));
+    }
+    return lines.join("\n");
+  }
+
+  protected parseTsv(text: string): string[][] {
+    const normalized = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (!normalized) return [];
+    const lines = normalized.split("\n");
+    if (lines.length && lines[lines.length - 1] === "") lines.pop();
+    return lines.map((line) => line.split("\t"));
+  }
+
+  protected coercePaste(field: FieldDef, raw: string): unknown {
+    const text = String(raw ?? "");
+    if (field.widget === "checkbox" || field.type === "bool") {
+      const t = text.trim().toLowerCase();
+      const on = t === "true" || t === "1" || t === "开启" || t === "yes" || t === "on";
+      return this.coerce(field, on ? "true" : "false");
+    }
+    if (field.enum || field.type === "enum") {
+      const opts = this.enumOptions(field);
+      if (field.widget === "multiselect" || field.widget === "tags") {
+        const ids = splitMulti(text).map((part) => {
+          const byId = opts.find((opt) => opt.id === part);
+          if (byId) return part;
+          const byName = opts.find((opt) => opt.name === part);
+          return byName ? byName.id : part;
+        });
+        return joinMulti(ids);
+      }
+      const trimmed = text.trim();
+      const byId = opts.find((opt) => opt.id === trimmed);
+      if (byId) return byId.id;
+      const byName = opts.find((opt) => opt.name === trimmed);
+      if (byName) return byName.id;
+      return trimmed;
+    }
+    return this.coerce(field, text);
+  }
+
+  protected applyPasteTsv(text: string): void {
+    const grid = this.parseTsv(text);
+    const range = this.selectionRange();
+    if (!grid.length || !range) return;
+    let maxRi = range.r0;
+    let maxCi = range.c0;
+    let changed = false;
+    for (let r = 0; r < grid.length; r++) {
+      const ri = range.r0 + r;
+      if (ri < 0 || ri >= this.data.rows.length) break;
+      if (!this.data.rows[ri]) this.data.rows[ri] = {};
+      const row = this.data.rows[ri];
+      const cols = grid[r];
+      for (let c = 0; c < cols.length; c++) {
+        const ci = range.c0 + c;
+        if (ci < 0 || ci >= this.fields.length) break;
+        const field = this.fields[ci];
+        if (!field || !this.cellEditable(field, row)) continue;
+        if (field.widget === "params" || field.type === "object") continue;
+        row[field.key] = this.coercePaste(field, cols[c]);
+        changed = true;
+        if (ri > maxRi) maxRi = ri;
+        if (ci > maxCi) maxCi = ci;
+      }
+    }
+    if (!changed) return;
+    this.selection = {
+      anchor: { ri: range.r0, ci: range.c0 },
+      focus: { ri: maxRi, ci: maxCi },
+    };
+    this.api.setData(this.data);
+    this.syncHistoryButtons();
+    this.afterDataChange();
+    this.render();
+  }
+
+  protected onCopy(ev: ClipboardEvent): void {
+    if (this.isTypingTarget(ev.target) || this.view !== "table" || !this.selection) return;
+    const tsv = this.selectionTsv();
+    ev.preventDefault();
+    ev.clipboardData?.setData("text/plain", tsv);
+  }
+
+  protected onPaste(ev: ClipboardEvent): void {
+    if (this.isTypingTarget(ev.target) || this.view !== "table" || !this.selection) return;
+    const text = ev.clipboardData?.getData("text/plain") ?? "";
+    if (!text) return;
+    ev.preventDefault();
+    this.applyPasteTsv(text);
+  }
+
+  protected onSelectMouseDown(ev: MouseEvent): void {
+    if (this.view !== "table" || ev.button !== 0) return;
+    const target = ev.target as HTMLElement | null;
+    if (this.shouldIgnoreSelectStart(target)) return;
+    const pos = this.tableCellFromEl(target);
+    if (!pos) return;
+    ev.preventDefault();
+    const anchor = ev.shiftKey && this.selection ? this.selection.anchor : pos;
+    this.setCellSelection(anchor, pos);
+    this.setSelecting(true);
+    this.focusSelectionHost();
+  }
+
+  protected onSelectMouseMove(ev: MouseEvent): void {
+    if (!this.selecting || this.view !== "table" || !this.selection) return;
+    const pos = this.tableCellFromPoint(ev.clientX, ev.clientY);
+    if (!pos) return;
+    if (pos.ri === this.selection.focus.ri && pos.ci === this.selection.focus.ci) return;
+    this.setCellSelection(this.selection.anchor, pos);
+  }
+
+  protected onSelectMouseUp(): void {
+    if (!this.selecting) return;
+    this.setSelecting(false);
+    this.focusSelectionHost();
   }
 
   protected paramsSchema(_row: Row): ParamField[] {
@@ -509,6 +769,8 @@ export class BitTableEditorBase {
     this.editingCell = null;
     this.openFilterKey = null;
     this.openMultiKey = null;
+    this.selection = null;
+    this.setSelecting(false);
     this.removeFilterMenu();
     this.removeMultiMenu();
     this.resetTableScroll = true;
@@ -772,8 +1034,8 @@ export class BitTableEditorBase {
       ? "position:sticky;top:0;z-index:2;"
       : "";
     let html = this.enableTableScroll
-      ? `<div style="flex:1;min-width:0;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px">`
-      : `<div data-testid="${wrapTest}" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto">`;
+      ? `<div style="flex:1;min-width:0;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" tabindex="-1" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px;outline:none">`
+      : `<div data-testid="${wrapTest}" tabindex="-1" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto;outline:none">`;
     html += `<table style="width:max-content;min-width:100%;border-collapse:collapse">`;
     html += "<thead><tr>";
     html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
@@ -788,8 +1050,8 @@ export class BitTableEditorBase {
       const row = this.data.rows[ri] || {};
       html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
       html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
-      this.fields.forEach((field) => {
-        html += this.renderTableCell(field, row, ri);
+      this.fields.forEach((field, ci) => {
+        html += this.renderTableCell(field, row, ri, ci);
       });
       html += "</tr>";
     });
@@ -798,18 +1060,19 @@ export class BitTableEditorBase {
     return html;
   }
 
-  protected renderTableCell(field: FieldDef, row: Row, ri: number): string {
+  protected renderTableCell(field: FieldDef, row: Row, ri: number, ci: number): string {
     const td = `padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle;${this.revealCellStyle(ri, field.key)}`;
     const reveal = this.revealAttr(ri, field.key);
+    const sel = this.cellSelAttrs(ri, ci);
     if (field.widget === "icon" || field.type === "icon") {
-      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     if (this.isEditingCell(ri, field.key)) {
-      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     const canEdit = this.cellEditable(field, row);
     const text = this.cellDisplayText(field, row);
-    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal} title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
   }
 
   protected renderCards(): string {
@@ -1214,6 +1477,7 @@ export class BitTableEditorBase {
       next[i > removed ? i - 1 : i] = true;
     });
     this.picked = next;
+    this.remapSelectionAfterDelete(removed);
   }
 
   protected render(): void {
@@ -1221,7 +1485,9 @@ export class BitTableEditorBase {
     const savedScrollLeft = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollLeft : 0;
     const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
     this.resetTableScroll = false;
-    let html = this.renderToolbar();
+    let html =
+      "<style>td[data-role=cell],td[data-role=cell-edit]{user-select:none;-webkit-user-select:none}td[data-sel='1']{background:rgba(55,148,255,.18)}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}</style>";
+    html += this.renderToolbar();
     html += this.renderExtra();
     html += this.view === "card" ? this.renderCards() : this.renderTable();
     html += this.renderPager();
@@ -1297,6 +1563,19 @@ export class BitTableEditorBase {
       this.escapeBound = true;
       document.addEventListener("keydown", (raw) => this.onEscape(raw as KeyboardEvent));
     }
+    if (!this.selectBound) {
+      this.selectBound = true;
+      document.addEventListener("mousedown", (ev) => this.onSelectMouseDown(ev));
+      document.addEventListener("mousemove", (ev) => this.onSelectMouseMove(ev));
+      document.addEventListener("mouseup", () => this.onSelectMouseUp());
+    }
+    if (!this.clipboardBound) {
+      this.clipboardBound = true;
+      document.addEventListener("copy", (ev) => this.onCopy(ev));
+      document.addEventListener("paste", (ev) => this.onPaste(ev));
+    }
+    if (this.selecting) this.setSelecting(true);
+    this.focusSelectionHost();
     if (!this.multiCloseBound) {
       this.multiCloseBound = true;
       document.addEventListener("click", (ev) => {
@@ -1339,6 +1618,8 @@ export class BitTableEditorBase {
     });
     this.el.querySelector(`[data-testid="${this.tid("view-card")}"]`)?.addEventListener("click", () => {
       this.view = "card";
+      this.selection = null;
+      this.setSelecting(false);
       this.render();
     });
     this.el.querySelector(`[data-testid="${this.tid("add")}"]`)?.addEventListener("click", () => {
@@ -1373,6 +1654,8 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("batch-edit")}"]`)?.addEventListener("click", () => {
       if (!this.selectedIndexes().length) return;
       this.batchOpen = true;
+      this.selection = null;
+      this.setSelecting(false);
       this.render();
     });
     this.el.querySelector(`[data-testid="${this.tid("batch-delete")}"]`)?.addEventListener("click", () => {
@@ -1385,6 +1668,8 @@ export class BitTableEditorBase {
         .forEach((i) => this.data.rows.splice(i, 1));
       this.picked = {};
       this.batchOpen = false;
+      this.selection = null;
+      this.setSelecting(false);
       this.api.setData(this.data);
       this.render();
     });

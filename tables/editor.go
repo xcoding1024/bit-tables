@@ -20,6 +20,10 @@ func EditorHTML(editorJS string) string {
   [data-reveal="1"]{outline:2px solid #3794ff;outline-offset:-2px;box-shadow:inset 0 0 0 999px rgba(55,148,255,.22);animation:bit-reveal-flash .7s ease-out}
   @keyframes bit-reveal-flash{0%{box-shadow:inset 0 0 0 999px rgba(55,148,255,.45)}100%{box-shadow:inset 0 0 0 999px rgba(55,148,255,.22)}}
   mark[data-reveal-mark]{background:#e2b340;color:#1a1a1a;padding:0 2px;border-radius:2px}
+  td[data-role="cell"],td[data-role="cell-edit"]{user-select:none;-webkit-user-select:none}
+  td[data-sel="1"]{background:rgba(55,148,255,.18)}
+  td[data-active="1"]:not([data-reveal="1"]){outline:2px solid #3794ff;outline-offset:-2px}
+  [data-selecting="1"]{user-select:none;-webkit-user-select:none}
 </style>
 </head>
 <body>
