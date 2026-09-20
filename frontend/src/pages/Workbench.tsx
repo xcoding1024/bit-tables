@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import { PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
 import { QuickSearch } from "../components/QuickSearch";
+import { StatusLogBar, type StatusLogEntry, type StatusLogKind } from "../components/StatusLogBar";
 import { TableHistoryPanel } from "../components/TableHistory";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
@@ -79,6 +80,12 @@ function writeTableParam(id: string) {
   history.replaceState(null, "", next);
 }
 
+const LOG_LIMIT = 200;
+
+function formatCheckErrors(errors: TableCheckError[]) {
+  return errors.map((item) => `${item.path ? `${item.path}：` : ""}${item.message}`).join(" · ");
+}
+
 export default function Workbench({
   enumsCatalog = [],
   tablePacks = [],
@@ -109,7 +116,10 @@ export default function Workbench({
   const [fileQuery, setFileQuery] = useState("");
   const [findQuery, setFindQuery] = useState("");
   const [findScope, setFindScope] = useState<"sheet" | "all">("all");
+  const [logs, setLogs] = useState<StatusLogEntry[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
+  const logSeq = useRef(0);
   const frameReadyRef = useRef<Record<string, boolean>>({});
   const pendingRevealRef = useRef<({ tableId: string } & RevealTarget) | null>(null);
   const filesRef = useRef(filesById);
@@ -129,8 +139,19 @@ export default function Workbench({
   packsRef.current = tablePacks;
 
   const files = activeId ? filesById[activeId] || null : null;
-  const check = activeId ? checks[activeId] : undefined;
   const docBody = rightTab === "history" || !files ? "" : docsSection(files.docs || "", rightTab);
+
+  const appendLog = useCallback((text: string, kind: StatusLogKind) => {
+    const entry: StatusLogEntry = { id: ++logSeq.current, at: Date.now(), kind, text };
+    setLogs((prev) => {
+      const next = [...prev, entry];
+      return next.length > LOG_LIMIT ? next.slice(next.length - LOG_LIMIT) : next;
+    });
+  }, []);
+
+  const toggleLog = useCallback(() => {
+    setLogOpen((open) => !open);
+  }, []);
   const activeStruct = files ? parseDoc(files.struct) : {};
   const activeSheets: SheetInfo[] = files ? listSheets(activeStruct) : [];
   const activeSheetId = files ? resolveSheetId(activeStruct, sheetById[activeId]) : "";
@@ -345,6 +366,11 @@ export default function Workbench({
         postEditorCmd("clearReveal");
         return;
       }
+      if (ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === "`" || ev.code === "Backquote")) {
+        ev.preventDefault();
+        toggleLog();
+        return;
+      }
       if (!mod || ev.altKey) return;
       if (key === "p") {
         ev.preventDefault();
@@ -381,7 +407,7 @@ export default function Workbench({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [postEditorCmd]);
+  }, [postEditorCmd, toggleLog]);
 
   useEffect(() => {
     for (const id of tabsRef.current) {
@@ -399,7 +425,7 @@ export default function Workbench({
     [fullDataOf, rememberDraft, sheetOf, structOf],
   );
 
-  const runCheck = useCallback(async (id: string, next: TableFiles, data?: unknown) => {
+  const runCheck = useCallback(async (id: string, next: TableFiles, data?: unknown, silent?: boolean) => {
     const parsed = data ?? parseDoc(next.data);
     const struct = next.struct ? parseDoc(next.struct) : {};
     const enums = buildEnumsPayload(struct, next.id, enumsRef.current);
@@ -413,7 +439,13 @@ export default function Workbench({
         editorKey: prev[id]?.editorKey || 1,
       },
     }));
-  }, []);
+    if (silent) return;
+    if (result.ok) {
+      appendLog(`${id} 检查通过`, "ok");
+    } else {
+      appendLog(formatCheckErrors(result.errors) || `${id} 检查失败`, "err");
+    }
+  }, [appendLog]);
 
   const loadList = useCallback(async () => {
     const next = await tablesApi.list();
@@ -465,18 +497,20 @@ export default function Workbench({
   const handleOpenTable = useCallback(
     (id: string, remount: boolean, sheetId?: string) => {
       void openTable(id, remount, sheetId).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "加载失败";
+        appendLog(message, "err");
         setChecks((prev) => ({
           ...prev,
           [id]: {
             ok: false,
             errors: [],
-            error: err instanceof Error ? err.message : "加载失败",
+            error: message,
             editorKey: prev[id]?.editorKey || 1,
           },
         }));
       });
     },
-    [openTable],
+    [appendLog, openTable],
   );
 
   const handleOpenHit = useCallback(
@@ -571,11 +605,13 @@ export default function Workbench({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
+          const message = err instanceof Error ? err.message : "加载失败";
+          appendLog(message, "err");
           const id = readTableParam();
           if (id) {
             setChecks((prev) => ({
               ...prev,
-              [id]: { ok: false, errors: [], error: err instanceof Error ? err.message : "加载失败", editorKey: 1 },
+              [id]: { ok: false, errors: [], error: message, editorKey: 1 },
             }));
           }
         }
@@ -583,7 +619,7 @@ export default function Workbench({
     return () => {
       cancelled = true;
     };
-  }, [loadList, openTable]);
+  }, [appendLog, loadList, openTable]);
 
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
@@ -608,16 +644,19 @@ export default function Workbench({
             savedAtRef.current[id] = Date.now();
             rememberFiles(id, next);
             rememberDraft(id, parseDoc(next.data));
+            appendLog(`${id} 已保存`, "ok");
             return runCheck(id, next, parseDoc(next.data));
           })
           .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : "保存失败";
+            appendLog(message, "err");
             setChecks((prev) => ({
               ...prev,
               [id]: {
                 ...prev[id],
                 ok: false,
                 errors: prev[id]?.errors || [],
-                error: err instanceof Error ? err.message : "保存失败",
+                error: message,
                 editorKey: prev[id]?.editorKey || 1,
               },
             }));
@@ -632,18 +671,22 @@ export default function Workbench({
           setQuickOpen(false);
           setFindOpen(true);
           setFindQuery("");
+        } else if (key === "`") {
+          toggleLog();
         }
       } else if (msg.type === "askAI") {
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(msg, "*");
         } else {
+          const message = "请用 Cursor / Codex 直接改表目录中的文件";
+          appendLog(message, "err");
           setChecks((prev) => ({
             ...prev,
             [id]: {
               ...prev[id],
               ok: false,
               errors: prev[id]?.errors || [],
-              error: "请用 Cursor / Codex 直接改表目录中的文件",
+              error: message,
               editorKey: prev[id]?.editorKey || 1,
             },
           }));
@@ -652,7 +695,7 @@ export default function Workbench({
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [applyPartial, postSlice, rememberDraft, rememberFiles, runCheck, tryInitFrame]);
+  }, [appendLog, applyPartial, postSlice, rememberDraft, rememberFiles, runCheck, toggleLog, tryInitFrame]);
 
   useEffect(() => {
     if (!window.EventSource) return;
@@ -682,10 +725,10 @@ export default function Workbench({
               [id]: { ...cur[id], ok: cur[id]?.ok || false, errors: cur[id]?.errors || [], error: "", editorKey: (cur[id]?.editorKey || 0) + 1 },
             }));
           } else if (Date.now() - (savedAtRef.current[id] || 0) < 2500) {
-            await runCheck(id, next, parseDoc(next.data));
+            await runCheck(id, next, parseDoc(next.data), true);
           } else {
             postSlice(id, "replaceData");
-            await runCheck(id, next, parseDoc(next.data));
+            await runCheck(id, next, parseDoc(next.data), true);
           }
         }
       })().catch(() => undefined);
@@ -703,28 +746,19 @@ export default function Workbench({
       await loadList();
       await openTable(created.id, true);
     } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "创建失败";
+      appendLog(message, "err");
       setChecks((prev) => ({
         ...prev,
         [id]: {
           ok: false,
           errors: [],
-          error: err instanceof Error ? err.message : "创建失败",
+          error: message,
           editorKey: prev[id]?.editorKey || 1,
         },
       }));
     }
   }
-
-  const statusText = !activeId
-    ? "未打开配置表"
-    : check?.error
-      ? check.error
-      : check?.errors.length
-        ? check.errors.map((item) => `${item.path ? `${item.path}：` : ""}${item.message}`).join(" · ")
-        : check?.ok
-          ? "检查通过"
-          : "就绪";
-  const statusKind = check?.error || (check?.errors.length ?? 0) > 0 ? "err" : check?.ok ? "ok" : "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -923,19 +957,7 @@ export default function Workbench({
         </aside>
       </div>
 
-      <footer
-        className="flex h-6 shrink-0 items-center gap-3 overflow-hidden border-t border-line bg-titlebar px-3 text-[12px]"
-        data-testid="tables-statusbar"
-      >
-        <span className="shrink-0 text-muted">{activeId || "—"}</span>
-        <span
-          className={`min-w-0 truncate ${statusKind === "ok" ? "text-success" : statusKind === "err" ? "text-danger" : "text-muted"}`}
-          data-testid={statusKind === "ok" ? "tables-check-ok" : statusKind === "err" ? "tables-check-errors" : "tables-status"}
-          title={statusText}
-        >
-          {statusText}
-        </span>
-      </footer>
+      <StatusLogBar logs={logs} expanded={logOpen} onToggle={toggleLog} />
 
       <QuickSearch<FileHit>
         open={quickOpen}

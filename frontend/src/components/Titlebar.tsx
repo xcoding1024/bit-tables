@@ -20,6 +20,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
     { action: "重做", keys: `${mod}+Y` },
     { action: "重做", keys: `${mod}+${shift}+Z` },
     { action: "关闭菜单 / 取消单元格高亮", keys: "Esc" },
+    { action: "展开 / 收起日志", keys: "Ctrl+`" },
   ];
 }
 

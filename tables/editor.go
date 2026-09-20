@@ -244,6 +244,9 @@ func EditorHTML(editorJS string) string {
     } else if (key === "p" || key === "f") {
       ev.preventDefault();
       parent.postMessage({ type: "shortcut", key: key }, "*");
+    } else if (ev.code === "Backquote" && ev.ctrlKey && !ev.metaKey) {
+      ev.preventDefault();
+      parent.postMessage({ type: "shortcut", key: String.fromCharCode(96) }, "*");
     } else if (key === "z" && ev.shiftKey) {
       ev.preventDefault();
       redo();

@@ -27,6 +27,8 @@ func TestEditorHTMLIncludesUndoRedo(t *testing.T) {
 		`msg.type === "clearReveal"`,
 		`ev.key === "Escape"`,
 		`key === "s"`,
+		`ev.code === "Backquote"`,
+		`type: "shortcut"`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("EditorHTML missing %q", needle)
