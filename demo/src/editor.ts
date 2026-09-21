@@ -6,11 +6,13 @@ export { BitSearchSelect } from "./search_select";
 type RowIndex = number | "batch";
 type CellPos = { ri: number; ci: number };
 type CellRange = { r0: number; r1: number; c0: number; c1: number };
+type SelMode = "cell" | "row" | "col";
+type CellSel = { anchor: CellPos; focus: CellPos; mode: SelMode };
 
 export class BitTableEditorBase {
   testPrefix = "demo";
   rootTestId = "table-editor";
-  toolbarHint = "单击或拖拽框选单元格，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除";
+  toolbarHint = "单击或拖拽框选单元格，单击表头选列、单击行首选行，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除";
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
@@ -42,7 +44,7 @@ export class BitTableEditorBase {
   protected pageIndex = 0;
   protected revealTarget: { ri: number; key: string; query: string } | null = null;
   protected editingCell: { ri: number; key: string } | null = null;
-  protected selection: { anchor: CellPos; focus: CellPos } | null = null;
+  protected selection: CellSel | null = null;
   private selecting = false;
   private editBlurTimer = 0;
   private resetTableScroll = false;
@@ -321,6 +323,30 @@ export class BitTableEditorBase {
     btn.style.cursor = canRef ? "pointer" : "default";
   }
 
+  protected selectionCoversAllRows(): boolean {
+    const range = this.selectionRange();
+    const last = this.data.rows.length - 1;
+    return Boolean(range && last >= 0 && range.r0 === 0 && range.r1 === last);
+  }
+
+  protected selectionCoversAllCols(): boolean {
+    const range = this.selectionRange();
+    const last = this.fields.length - 1;
+    return Boolean(range && last >= 0 && range.c0 === 0 && range.c1 === last);
+  }
+
+  protected isColHeadSelected(ci: number): boolean {
+    const range = this.selectionRange();
+    if (!range || ci < range.c0 || ci > range.c1) return false;
+    return this.selection?.mode === "col" || this.selectionCoversAllRows();
+  }
+
+  protected isRowHeadSelected(ri: number): boolean {
+    const range = this.selectionRange();
+    if (!range || ri < range.r0 || ri > range.r1) return false;
+    return this.selection?.mode === "row" || this.selectionCoversAllCols();
+  }
+
   protected paintSelection(): void {
     if (!this.el) return;
     this.syncCopyRefButton();
@@ -332,6 +358,18 @@ export class BitTableEditorBase {
       else td.removeAttribute("data-sel");
       if (this.isActiveCell(ri, ci)) td.setAttribute("data-active", "1");
       else td.removeAttribute("data-active");
+    });
+    this.el.querySelectorAll("th[data-role=col-head]").forEach((node) => {
+      const th = node as HTMLElement;
+      const ci = Number(th.getAttribute("data-col"));
+      if (this.isColHeadSelected(ci)) th.setAttribute("data-sel", "1");
+      else th.removeAttribute("data-sel");
+    });
+    this.el.querySelectorAll("td[data-role=row-head]").forEach((node) => {
+      const td = node as HTMLElement;
+      const ri = Number(td.getAttribute("data-index"));
+      if (this.isRowHeadSelected(ri)) td.setAttribute("data-sel", "1");
+      else td.removeAttribute("data-sel");
     });
   }
 
@@ -374,20 +412,73 @@ export class BitTableEditorBase {
     return this.tableCellFromEl(document.elementFromPoint(x, y) as HTMLElement | null);
   }
 
-  protected setCellSelection(anchor: CellPos, focus: CellPos): void {
-    this.selection = { anchor, focus };
+  protected colHeadFromEl(el: HTMLElement | null): number | null {
+    if (!el || !this.el?.contains(el)) return null;
+    if (el.closest("[data-role=col-filter-btn]")) return null;
+    const th = el.closest("th[data-role=col-head]") as HTMLElement | null;
+    if (!th || !this.el.contains(th)) return null;
+    const ci = Number(th.getAttribute("data-col"));
+    if (!Number.isFinite(ci) || ci < 0 || ci >= this.fields.length) return null;
+    return ci;
+  }
+
+  protected rowHeadFromEl(el: HTMLElement | null): number | null {
+    if (!el || !this.el?.contains(el)) return null;
+    if (el.closest("[data-role=pick]")) return null;
+    const td = el.closest("td[data-role=row-head]") as HTMLElement | null;
+    if (!td || !this.el.contains(td)) return null;
+    const ri = Number(td.getAttribute("data-index"));
+    if (!Number.isFinite(ri) || ri < 0 || ri >= this.data.rows.length) return null;
+    return ri;
+  }
+
+  protected colIndexFromEl(el: HTMLElement | null): number | null {
+    const head = this.colHeadFromEl(el);
+    if (head != null) return head;
+    const cell = this.tableCellFromEl(el);
+    return cell ? cell.ci : null;
+  }
+
+  protected rowIndexFromEl(el: HTMLElement | null): number | null {
+    const head = this.rowHeadFromEl(el);
+    if (head != null) return head;
+    const cell = this.tableCellFromEl(el);
+    if (cell) return cell.ri;
+    if (!el || !this.el?.contains(el)) return null;
+    const rowHead = el.closest("td[data-role=row-head]") as HTMLElement | null;
+    if (!rowHead) return null;
+    const ri = Number(rowHead.getAttribute("data-index"));
+    if (!Number.isFinite(ri) || ri < 0 || ri >= this.data.rows.length) return null;
+    return ri;
+  }
+
+  protected normalizeSelection(anchor: CellPos, focus: CellPos, mode: SelMode): CellSel {
+    const lastRi = Math.max(0, this.data.rows.length - 1);
+    const lastCi = Math.max(0, this.fields.length - 1);
+    if (mode === "col") {
+      return { mode, anchor: { ri: 0, ci: anchor.ci }, focus: { ri: lastRi, ci: focus.ci } };
+    }
+    if (mode === "row") {
+      return { mode, anchor: { ri: anchor.ri, ci: 0 }, focus: { ri: focus.ri, ci: lastCi } };
+    }
+    return { mode: "cell", anchor, focus };
+  }
+
+  protected setCellSelection(anchor: CellPos, focus: CellPos, mode: SelMode = "cell"): void {
+    this.selection = this.normalizeSelection(anchor, focus, mode);
     this.paintSelection();
   }
 
   protected remapSelectionAfterDelete(removed: number): void {
     if (!this.selection) return;
+    const mode = this.selection.mode;
     const map = (p: CellPos): CellPos | null => {
       if (p.ri === removed) return null;
       return { ri: p.ri > removed ? p.ri - 1 : p.ri, ci: p.ci };
     };
     const anchor = map(this.selection.anchor);
     const focus = map(this.selection.focus);
-    this.selection = anchor && focus ? { anchor, focus } : null;
+    this.selection = anchor && focus ? this.normalizeSelection(anchor, focus, mode) : null;
   }
 
   protected cellCopyText(field: FieldDef, row: Row): string {
@@ -459,9 +550,26 @@ export class BitTableEditorBase {
     const rowPart = range.r0 === range.r1 ? id0 : `${id0}:${id1}`;
     const path0 = this.cellCheckPath(sheet, range.r0, key0);
     const path1 = this.cellCheckPath(sheet, range.r1, key1);
-    const pathPart = range.r0 === range.r1 && range.c0 === range.c1 ? path0 : `${path0}:${path1}`;
+    const wholeRows = this.selectionCoversAllRows();
+    const wholeCols = this.selectionCoversAllCols();
+    let ref = `${table}.${sheet}!${fieldPart}[${rowPart}]`;
+    let pathPart = range.r0 === range.r1 && range.c0 === range.c1 ? path0 : `${path0}:${path1}`;
+    if (wholeRows && wholeCols) {
+      ref = `${table}.${sheet}`;
+      pathPart = `sheets.${sheet}`;
+    } else if (wholeRows) {
+      ref = `${table}.${sheet}!${fieldPart}`;
+      pathPart = range.c0 === range.c1
+        ? `sheets.${sheet}.rows.*.${key0}`
+        : `sheets.${sheet}.rows.*.${key0}:sheets.${sheet}.rows.*.${key1}`;
+    } else if (wholeCols) {
+      ref = `${table}.${sheet}![${rowPart}]`;
+      pathPart = range.r0 === range.r1
+        ? `sheets.${sheet}.rows.${range.r0}`
+        : `sheets.${sheet}.rows.${range.r0}:sheets.${sheet}.rows.${range.r1}`;
+    }
     const lines = [
-      `ref: ${table}.${sheet}!${fieldPart}[${rowPart}]`,
+      `ref: ${ref}`,
       `path: ${pathPart}`,
       "id\tfield\tpath\tvalue",
     ];
@@ -604,6 +712,7 @@ export class BitTableEditorBase {
     }
     if (!changed) return;
     this.selection = {
+      mode: this.selection?.mode || "cell",
       anchor: { ri: range.r0, ci: range.c0 },
       focus: { ri: maxRi, ci: maxCi },
     };
@@ -632,21 +741,58 @@ export class BitTableEditorBase {
     if (this.view !== "table" || ev.button !== 0) return;
     const target = ev.target as HTMLElement | null;
     if (this.shouldIgnoreSelectStart(target)) return;
+    const col = this.colHeadFromEl(target);
+    if (col != null) {
+      if (!this.data.rows.length || !this.fields.length) return;
+      ev.preventDefault();
+      const keep = ev.shiftKey && this.selection?.mode === "col";
+      const anchor = keep && this.selection ? this.selection.anchor : { ri: 0, ci: col };
+      this.setCellSelection(anchor, { ri: 0, ci: col }, "col");
+      this.setSelecting(true);
+      this.focusSelectionHost();
+      return;
+    }
+    const row = this.rowHeadFromEl(target);
+    if (row != null) {
+      if (!this.data.rows.length || !this.fields.length) return;
+      ev.preventDefault();
+      const keep = ev.shiftKey && this.selection?.mode === "row";
+      const anchor = keep && this.selection ? this.selection.anchor : { ri: row, ci: 0 };
+      this.setCellSelection(anchor, { ri: row, ci: 0 }, "row");
+      this.setSelecting(true);
+      this.focusSelectionHost();
+      return;
+    }
     const pos = this.tableCellFromEl(target);
     if (!pos) return;
     ev.preventDefault();
-    const anchor = ev.shiftKey && this.selection ? this.selection.anchor : pos;
-    this.setCellSelection(anchor, pos);
+    const keep = ev.shiftKey && this.selection?.mode === "cell";
+    const anchor = keep && this.selection ? this.selection.anchor : pos;
+    this.setCellSelection(anchor, pos, "cell");
     this.setSelecting(true);
     this.focusSelectionHost();
   }
 
   protected onSelectMouseMove(ev: MouseEvent): void {
     if (!this.selecting || this.view !== "table" || !this.selection) return;
-    const pos = this.tableCellFromPoint(ev.clientX, ev.clientY);
+    const mode = this.selection.mode || "cell";
+    const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+    if (mode === "col") {
+      const ci = this.colIndexFromEl(el);
+      if (ci == null || ci === this.selection.focus.ci) return;
+      this.setCellSelection(this.selection.anchor, { ri: this.selection.focus.ri, ci }, "col");
+      return;
+    }
+    if (mode === "row") {
+      const ri = this.rowIndexFromEl(el);
+      if (ri == null || ri === this.selection.focus.ri) return;
+      this.setCellSelection(this.selection.anchor, { ri, ci: this.selection.focus.ci }, "row");
+      return;
+    }
+    const pos = this.tableCellFromEl(el) || this.tableCellFromPoint(ev.clientX, ev.clientY);
     if (!pos) return;
     if (pos.ri === this.selection.focus.ri && pos.ci === this.selection.focus.ci) return;
-    this.setCellSelection(this.selection.anchor, pos);
+    this.setCellSelection(this.selection.anchor, pos, "cell");
   }
 
   protected onSelectMouseUp(): void {
@@ -1200,8 +1346,9 @@ export class BitTableEditorBase {
     html += `<table style="width:max-content;min-width:100%;border-collapse:collapse">`;
     html += "<thead><tr>";
     html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
-    this.fields.forEach((field) => {
-      html += `<th style="${sticky}background:#1a1a1a;text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:2px">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span></th>`;
+    this.fields.forEach((field, ci) => {
+      const colOn = this.isColHeadSelected(ci);
+      html += `<th data-role="col-head" data-col="${ci}" title="单击选中列" style="${sticky}background:${colOn ? "#243044" : "#1a1a1a"};text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap;cursor:pointer${colOn ? ";box-shadow:inset 0 -2px 0 #3794ff" : ""}"><span style="display:inline-flex;align-items:center;gap:2px">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span></th>`;
     });
     html += "</tr></thead><tbody>";
     if (!idxs.length) {
@@ -1210,7 +1357,8 @@ export class BitTableEditorBase {
     idxs.forEach((ri, vis) => {
       const row = this.data.rows[ri] || {};
       html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
-      html += `<td style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
+      const rowOn = this.isRowHeadSelected(ri);
+      html += `<td data-role="row-head" data-index="${ri}" title="单击选中行" style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center;cursor:pointer${rowOn ? ";background:rgba(55,148,255,.18)" : ""}"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
       this.fields.forEach((field, ci) => {
         html += this.renderTableCell(field, row, ri, ci);
       });
@@ -1708,7 +1856,7 @@ export class BitTableEditorBase {
     const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
     this.resetTableScroll = false;
     let html =
-      "<style>td[data-role=cell],td[data-role=cell-edit]{user-select:none;-webkit-user-select:none}td[data-sel='1']{background:rgba(55,148,255,.18)}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}</style>";
+      "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}</style>";
     html += this.renderToolbar();
     html += this.renderExtra();
     html += this.view === "card" ? this.renderCards() : this.renderTable();

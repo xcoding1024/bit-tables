@@ -7,7 +7,8 @@
 - `default_sheet: items`
 - sheet 用 `view: table` / `view: card` 指定展示形态
 - 可选择每页行数，默认 100；超过当前每页行数时分页
-- sheet `items`（道具，`view: table`）：200 条；表格默认只读展示，单击或拖拽框选单元格，Ctrl+C / Ctrl+V 复制粘贴，Ctrl+Shift+C 复制引用，双击进入编辑；表头漏斗筛选；分组基础信息 / 数值与开关 / 展示与扩展
+- sheet `items`（道具，`view: table`）：200 条；表格默认只读展示，单击或拖拽框选单元格，单击表头选列、单击行首选行，Ctrl+C / Ctrl+V 复制粘贴，Ctrl+Shift+C 复制引用，双击进入编辑；表头漏斗筛选；分组基础信息 / 数值与开关 / 展示与扩展
+- 复制引用文本：单元格 `表.sheet!字段[行id]`，整列 `表.sheet!字段`，整行 `表.sheet![行id]`，整表 `表.sheet`；另附 `path` 与逐格 TSV（id / field / path / value）
 - `items` 字段：
   - id：英文标识，必填，创建后不建议改
   - name：名称，必填
