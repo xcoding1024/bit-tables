@@ -14,6 +14,7 @@ export class BitTableEditorBase {
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
+  tableMinHeight = 240;
   pageSize = 100;
   pageSizeOptions = [20, 50, 100, 200];
   idReadonly = true;
@@ -992,7 +993,7 @@ export class BitTableEditorBase {
     const disabled = n === 0 ? "opacity:.45;cursor:default" : "";
     const flexHost = this.enableTableScroll || this.view === "card";
     const layout = flexHost
-      ? "padding:16px 20px;box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0"
+      ? "padding:16px 20px;box-sizing:border-box;height:100%;overflow:auto;display:flex;flex-direction:column"
       : "padding:12px;box-sizing:border-box;height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px";
     let html = `<div data-testid="${escapeAttr(this.rootTestId)}" style="${layout}">`;
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;flex-shrink:0">';
@@ -1070,7 +1071,7 @@ export class BitTableEditorBase {
       ? "position:sticky;top:0;z-index:2;"
       : "";
     let html = this.enableTableScroll
-      ? `<div style="flex:1;min-width:0;min-height:0;overflow:hidden"><div data-testid="${wrapTest}" tabindex="-1" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px;outline:none">`
+      ? `<div style="flex:1;min-width:0;min-height:${this.tableMinHeight}px;overflow:hidden"><div data-testid="${wrapTest}" tabindex="-1" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px;outline:none">`
       : `<div data-testid="${wrapTest}" tabindex="-1" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto;outline:none">`;
     html += `<table style="width:max-content;min-width:100%;border-collapse:collapse">`;
     html += "<thead><tr>";
@@ -1549,7 +1550,7 @@ export class BitTableEditorBase {
     wrap.style.maxHeight = "";
     wrap.style.overflowX = "auto";
     wrap.style.overflowY = "hidden";
-    const maxH = holder.clientHeight;
+    const maxH = Math.max(holder.clientHeight, this.tableMinHeight);
     if (maxH <= 0) return;
     const tableH = table.offsetHeight;
     let hBar = wrap.scrollWidth > wrap.clientWidth ? wrap.offsetHeight - wrap.clientHeight : 0;
