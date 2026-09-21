@@ -163,3 +163,9 @@ powershell -File scripts/build-all.ps1
 ```bash
 go test ./...
 ```
+
+# To Do
+
+- 支持类似Excel的公式
+- 右面板添加插件功能，可以通过插件编辑数据
+- 表格支持选中复制引用到粘贴板，可供agent去访问
