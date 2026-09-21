@@ -12,6 +12,8 @@ export type EditorAPI = {
   canUndo?(): boolean;
   canRedo?(): boolean;
   assetURL?(rel: string): string;
+  getTableId?(): string;
+  getSheetId?(): string;
 };
 
 export type FieldDef = {

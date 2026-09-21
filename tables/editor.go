@@ -36,6 +36,7 @@ func EditorHTML(editorJS string) string {
   var root = document.getElementById("root");
   var struct = null;
   var data = null;
+  var tableId = "";
   var sheetId = "";
   var enums = {};
   var histories = {};
@@ -116,9 +117,14 @@ func EditorHTML(editorJS string) string {
     redo: redo,
     canUndo: canUndo,
     canRedo: canRedo,
-    assetURL: function (rel) {
+    getTableId: function () {
+      if (tableId) return tableId;
       var m = String(location.pathname || "").match(/\/api\/tables\/([^/]+)\/editor/);
-      var id = m ? decodeURIComponent(m[1]) : "";
+      return m ? decodeURIComponent(m[1]) : "";
+    },
+    getSheetId: function () { return sheetId || "main"; },
+    assetURL: function (rel) {
+      var id = api.getTableId();
       if (!id || rel == null || rel === "") return "";
       return "/api/tables/" + encodeURIComponent(id) + "/asset?path=" + encodeURIComponent(String(rel));
     }
@@ -199,6 +205,7 @@ func EditorHTML(editorJS string) string {
     if (msg.type === "init" || msg.type === "setSheet") {
       var prevSheet = sheetId;
       if (msg.struct != null) struct = msg.struct;
+      if (msg.tableId != null) tableId = msg.tableId;
       if (msg.sheetId != null) sheetId = msg.sheetId;
       if (msg.enums != null) enums = msg.enums;
       var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
@@ -213,6 +220,7 @@ func EditorHTML(editorJS string) string {
       if (msg.reveal) scheduleReveal(msg.reveal);
     } else if (msg.type === "replaceData") {
       if (msg.struct != null) struct = msg.struct;
+      if (msg.tableId != null) tableId = msg.tableId;
       if (msg.sheetId != null) sheetId = msg.sheetId;
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;

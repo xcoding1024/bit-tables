@@ -10,7 +10,7 @@ type CellRange = { r0: number; r1: number; c0: number; c1: number };
 export class BitTableEditorBase {
   testPrefix = "demo";
   rootTestId = "table-editor";
-  toolbarHint = "单击或拖拽框选单元格，Ctrl+C / Ctrl+V 复制粘贴 · 双击编辑 · 勾选后可批量修改或删除";
+  toolbarHint = "单击或拖拽框选单元格，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除";
   enableCardView = false;
   enableColFilters = false;
   enableTableScroll = false;
@@ -53,6 +53,8 @@ export class BitTableEditorBase {
   private escapeBound = false;
   private selectBound = false;
   private clipboardBound = false;
+  private copyRefKeyBound = false;
+  private copyRefFlashTimer = 0;
   private liveSearchSelects: BitSearchSelect[] = [];
 
   mount(el: HTMLElement, api: EditorAPI): void {
@@ -310,8 +312,18 @@ export class BitTableEditorBase {
     else wrap.removeAttribute("data-selecting");
   }
 
+  protected syncCopyRefButton(): void {
+    const btn = this.el?.querySelector(`[data-testid="${this.tid("copy-ref")}"]`) as HTMLButtonElement | null;
+    if (!btn) return;
+    const canRef = this.view === "table" && Boolean(this.selection);
+    btn.disabled = !canRef;
+    btn.style.opacity = canRef ? "" : ".45";
+    btn.style.cursor = canRef ? "pointer" : "default";
+  }
+
   protected paintSelection(): void {
     if (!this.el) return;
+    this.syncCopyRefButton();
     this.el.querySelectorAll("td[data-role=cell], td[data-role=cell-edit]").forEach((node) => {
       const td = node as HTMLElement;
       const ri = Number(td.getAttribute("data-index"));
@@ -401,6 +413,115 @@ export class BitTableEditorBase {
       lines.push(cols.join("\t"));
     }
     return lines.join("\n");
+  }
+
+  protected currentTableId(): string {
+    const fromApi = this.api.getTableId?.();
+    if (fromApi) return String(fromApi).trim();
+    const fromStruct = String(this.struct.id || "").trim();
+    return fromStruct || "table";
+  }
+
+  protected currentSheetId(): string {
+    const fromApi = String(this.api.getSheetId?.() || "").trim();
+    if (fromApi) return fromApi;
+    const fromStruct = String(this.struct.default_sheet || "").trim();
+    return fromStruct || "main";
+  }
+
+  protected rowRefId(row: Row, ri: number): string {
+    const id = String(row?.id ?? "").trim();
+    return id || `#${ri}`;
+  }
+
+  protected cellCheckPath(sheet: string, ri: number, field: string): string {
+    return `sheets.${sheet}.rows.${ri}.${field}`;
+  }
+
+  protected refTsvCell(text: string): string {
+    return String(text ?? "").replace(/\r\n/g, "\n").replace(/\t/g, " ").replace(/\n/g, " ");
+  }
+
+  protected selectionRefText(): string {
+    const range = this.selectionRange();
+    if (!range) return "";
+    const table = this.currentTableId();
+    const sheet = this.currentSheetId();
+    const field0 = this.fields[range.c0];
+    const field1 = this.fields[range.c1];
+    const key0 = field0?.key || `c${range.c0}`;
+    const key1 = field1?.key || `c${range.c1}`;
+    const row0 = this.data.rows[range.r0] || {};
+    const row1 = this.data.rows[range.r1] || {};
+    const id0 = this.rowRefId(row0, range.r0);
+    const id1 = this.rowRefId(row1, range.r1);
+    const fieldPart = range.c0 === range.c1 ? key0 : `${key0}:${key1}`;
+    const rowPart = range.r0 === range.r1 ? id0 : `${id0}:${id1}`;
+    const path0 = this.cellCheckPath(sheet, range.r0, key0);
+    const path1 = this.cellCheckPath(sheet, range.r1, key1);
+    const pathPart = range.r0 === range.r1 && range.c0 === range.c1 ? path0 : `${path0}:${path1}`;
+    const lines = [
+      `ref: ${table}.${sheet}!${fieldPart}[${rowPart}]`,
+      `path: ${pathPart}`,
+      "id\tfield\tpath\tvalue",
+    ];
+    for (let ri = range.r0; ri <= range.r1; ri++) {
+      const row = this.data.rows[ri] || {};
+      const rid = this.rowRefId(row, ri);
+      for (let ci = range.c0; ci <= range.c1; ci++) {
+        const field = this.fields[ci];
+        const key = field?.key || `c${ci}`;
+        const value = field ? this.cellCopyText(field, row) : "";
+        lines.push(`${this.refTsvCell(rid)}\t${this.refTsvCell(key)}\t${this.cellCheckPath(sheet, ri, key)}\t${this.refTsvCell(value)}`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  protected copyPlainText(text: string): void {
+    if (!text) return;
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;left:-9999px;top:0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    if (!ok) parent.postMessage({ type: "copyText", text }, "*");
+  }
+
+  protected flashCopyRefLabel(): void {
+    const btn = this.el.querySelector(`[data-testid="${this.tid("copy-ref")}"]`) as HTMLButtonElement | null;
+    if (!btn) return;
+    window.clearTimeout(this.copyRefFlashTimer);
+    btn.textContent = "已复制";
+    this.copyRefFlashTimer = window.setTimeout(() => {
+      if (btn.isConnected) btn.textContent = "复制引用";
+    }, 1200);
+  }
+
+  protected copySelectionRef(): void {
+    if (this.view !== "table" || !this.selection) return;
+    const text = this.selectionRefText();
+    if (!text) return;
+    this.copyPlainText(text);
+    this.flashCopyRefLabel();
+  }
+
+  protected onCopyRefKey(ev: KeyboardEvent): void {
+    if (!ev.shiftKey || !(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+    if (String(ev.key || "").toLowerCase() !== "c") return;
+    if (this.isTypingTarget(ev.target)) return;
+    if (this.view !== "table" || !this.selection) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    this.copySelectionRef();
   }
 
   protected parseTsv(text: string): string[][] {
@@ -1011,6 +1132,9 @@ export class BitTableEditorBase {
     html += `<button type="button" data-testid="${this.tid("batch-edit")}" ${n ? "" : "disabled "}style="${this.btn("ghost", disabled)}">批量修改</button>`;
     html += `<button type="button" data-testid="${this.tid("batch-delete")}" ${n ? "" : "disabled "}style="${this.btn("danger", disabled)}">批量删除</button>`;
     html += `<button type="button" data-testid="${this.tid("add")}" style="${this.btn("ghost")}">新增一行</button>`;
+    const canRef = this.view === "table" && Boolean(this.selection);
+    const refOff = canRef ? "" : "opacity:.45;cursor:default";
+    html += `<button type="button" data-testid="${this.tid("copy-ref")}" ${canRef ? "" : "disabled "}style="${this.btn("ghost", refOff)}" title="Ctrl+Shift+C">复制引用</button>`;
     const canUndo = Boolean(this.api.canUndo?.());
     const canRedo = Boolean(this.api.canRedo?.());
     const undoOff = canUndo ? "" : "opacity:.45;cursor:default";
@@ -1672,6 +1796,10 @@ export class BitTableEditorBase {
       document.addEventListener("copy", (ev) => this.onCopy(ev));
       document.addEventListener("paste", (ev) => this.onPaste(ev));
     }
+    if (!this.copyRefKeyBound) {
+      this.copyRefKeyBound = true;
+      document.addEventListener("keydown", (raw) => this.onCopyRefKey(raw as KeyboardEvent));
+    }
     if (this.selecting) this.setSelecting(true);
     this.focusSelectionHost();
     if (!this.multiCloseBound) {
@@ -1719,6 +1847,11 @@ export class BitTableEditorBase {
       this.selection = null;
       this.setSelecting(false);
       this.render();
+    });
+    this.el.querySelector(`[data-testid="${this.tid("copy-ref")}"]`)?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.copySelectionRef();
     });
     this.el.querySelector(`[data-testid="${this.tid("add")}"]`)?.addEventListener("click", () => {
       this.data.rows.push(this.emptyRow());

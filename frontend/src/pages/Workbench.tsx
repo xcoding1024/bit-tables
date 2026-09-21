@@ -626,7 +626,7 @@ export default function Workbench({
       const id = Object.keys(iframeRefs.current).find((key) => iframeRefs.current[key]?.contentWindow === ev.source);
       if (!id || !ev.data || typeof ev.data !== "object") return;
       const frame = iframeRefs.current[id];
-      const msg = ev.data as { type?: string; data?: unknown; key?: string };
+      const msg = ev.data as { type?: string; data?: unknown; key?: string; text?: string };
       const cur = filesRef.current[id];
       if (msg.type === "ready" && frame) {
         frameReadyRef.current[id] = true;
@@ -674,6 +674,12 @@ export default function Workbench({
         } else if (key === "`") {
           toggleLog();
         }
+      } else if (msg.type === "copyText") {
+        const text = String(msg.text || "");
+        if (!text) return;
+        void navigator.clipboard.writeText(text).catch(() => {
+          appendLog("复制引用失败", "err");
+        });
       } else if (msg.type === "askAI") {
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(msg, "*");

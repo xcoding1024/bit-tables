@@ -4,9 +4,9 @@ import type { Row } from "bit-tables.types";
 
 const COLORS = ["#3794ff", "#3ecf8e", "#f5a524", "#eb5757", "#56b6c2", "#c678dd", "#e5c07b", "#98c379"];
 const CHART_META: Record<string, { title: string; hint: string }> = {
-  line: { title: "折线图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · 双击编辑 · 勾选后可批量修改或删除" },
-  bar: { title: "柱状图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · 双击编辑 · 勾选后可批量修改或删除" },
-  pie: { title: "饼图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · 双击编辑 · 勾选后可批量修改或删除" },
+  line: { title: "折线图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除" },
+  bar: { title: "柱状图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除" },
+  pie: { title: "饼图", hint: "单击或拖拽框选，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除" },
 };
 
 type ChartKind = "line" | "bar" | "pie";
