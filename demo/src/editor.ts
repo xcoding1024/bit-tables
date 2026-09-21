@@ -58,6 +58,7 @@ export class BitTableEditorBase {
   private copyRefKeyBound = false;
   private copyRefFlashTimer = 0;
   private liveSearchSelects: BitSearchSelect[] = [];
+  protected pluginBound = new Set<string>();
 
   mount(el: HTMLElement, api: EditorAPI): void {
     this.el = el;
@@ -65,6 +66,9 @@ export class BitTableEditorBase {
     this.struct = asRecord(api.getStruct()) || {};
     this.data = this.normalizeData(api.getData());
     this.enumsBag = (api.getEnums && api.getEnums()) || {};
+    this.pluginBound = new Set(
+      (api.getPluginCells?.() || []).map((item) => `${String(item.row || "").trim()}\t${String(item.field || "").trim()}`),
+    );
     this.fields = this.parseFields(this.struct);
     this.title = String(this.struct.name || this.title || "配置表");
     this.view = String(this.struct.view || "").trim() === "card" ? "card" : "table";
@@ -277,6 +281,7 @@ export class BitTableEditorBase {
     this.selection = null;
     this.setSelecting(false);
     this.paintSelection();
+    this.reportSelection();
   }
 
   protected selectionRange(): CellRange | null {
@@ -467,6 +472,30 @@ export class BitTableEditorBase {
   protected setCellSelection(anchor: CellPos, focus: CellPos, mode: SelMode = "cell"): void {
     this.selection = this.normalizeSelection(anchor, focus, mode);
     this.paintSelection();
+    this.reportSelection();
+  }
+
+  protected reportSelection(): void {
+    const tableId = this.currentTableId();
+    const sheet = this.currentSheetId();
+    const cells: { id: string; field: string; type?: string; widget?: string }[] = [];
+    const range = this.selectionRange();
+    if (range && this.view === "table") {
+      const push = (ri: number, ci: number) => {
+        const row = this.data.rows[ri] || {};
+        const field = this.fields[ci];
+        if (!field?.key) return;
+        cells.push({
+          id: this.rowRefId(row, ri),
+          field: field.key,
+          type: field.type || "",
+          widget: field.widget || "",
+        });
+      };
+      push(range.r0, range.c0);
+      if (range.r0 !== range.r1 || range.c0 !== range.c1) push(range.r1, range.c1);
+    }
+    parent.postMessage({ type: "selection", tableId, sheet, cells }, "*");
   }
 
   protected remapSelectionAfterDelete(removed: number): void {
@@ -1061,8 +1090,16 @@ export class BitTableEditorBase {
     return typeof ri === "number" && this.editingCell?.ri === ri && this.editingCell.key === key;
   }
 
+  protected isPluginBound(row: Row, field: string): boolean {
+    const id = String(row?.id ?? "").trim();
+    if (id && this.pluginBound.has(`${id}\t${field}`)) return true;
+    const ri = this.data.rows.indexOf(row);
+    return ri >= 0 && this.pluginBound.has(`#${ri}\t${field}`);
+  }
+
   protected cellEditable(field: FieldDef | undefined, row: Row): boolean {
     if (!field?.key) return false;
+    if (this.isPluginBound(row, field.key)) return false;
     if (field.widget === "icon" || field.type === "icon") return false;
     if (this.idReadonly && field.key === "id" && row.id) return false;
     return true;
@@ -1362,8 +1399,9 @@ export class BitTableEditorBase {
       return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     const canEdit = this.cellEditable(field, row);
+    const pluginOn = this.isPluginBound(row, field.key);
     const text = this.cellDisplayText(field, row);
-    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} title="${canEdit ? "双击编辑" : ""}" style="${td}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${pluginOn ? " data-plugin=1" : ""}${reveal}${sel} title="${pluginOn ? "插件计算" : canEdit ? "双击编辑" : ""}" style="${td}${pluginOn ? ";box-shadow:inset 2px 0 0 #3ecf8e" : ""}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
   }
 
   protected renderCards(): string {

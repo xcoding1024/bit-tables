@@ -38,6 +38,7 @@ func EditorHTML(editorJS string) string {
   var data = null;
   var tableId = "";
   var sheetId = "";
+  var pluginCells = [];
   var enums = {};
   var histories = {};
   var applying = false;
@@ -123,6 +124,7 @@ func EditorHTML(editorJS string) string {
       return m ? decodeURIComponent(m[1]) : "";
     },
     getSheetId: function () { return sheetId || "main"; },
+    getPluginCells: function () { return pluginCells || []; },
     assetURL: function (rel) {
       var id = api.getTableId();
       if (!id || rel == null || rel === "") return "";
@@ -208,6 +210,7 @@ func EditorHTML(editorJS string) string {
       if (msg.tableId != null) tableId = msg.tableId;
       if (msg.sheetId != null) sheetId = msg.sheetId;
       if (msg.enums != null) enums = msg.enums;
+      if (msg.pluginCells != null) pluginCells = msg.pluginCells;
       var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
       if (!sameSheet) {
         if (msg.data != null) data = msg.data;
@@ -224,6 +227,7 @@ func EditorHTML(editorJS string) string {
       if (msg.sheetId != null) sheetId = msg.sheetId;
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
+      if (msg.pluginCells != null) pluginCells = msg.pluginCells;
       alignHistory();
       mount();
       if (msg.reveal) scheduleReveal(msg.reveal);

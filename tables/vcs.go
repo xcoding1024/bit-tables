@@ -55,7 +55,7 @@ func historyKindOfFile(tableID, name string) string {
 		return ModeCheck
 	case FileName(tableID, "export.js"), FileName(tableID, "export.ts"):
 		return ModeExport
-	case FileName(tableID, "data.yaml"):
+	case FileName(tableID, "data.yaml"), FileName(tableID, "plugins.yaml"):
 		return ModeData
 	default:
 		return ""

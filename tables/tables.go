@@ -55,6 +55,8 @@ type Files struct {
 	Checker string `json:"checker"`
 	Export  string `json:"export"`
 	Docs    string `json:"docs"`
+	Plugins string `json:"plugins"`
+	Plugin  string `json:"plugin"`
 }
 
 type Root struct {
@@ -458,6 +460,8 @@ func (r *Root) Files(id string) (Files, error) {
 	checker, hasChecker := r.compiledScript(dir, tableID, "checker")
 	exportText, hasExport := r.compiledScript(dir, tableID, "export")
 	docs, hasDocs := ReadDocs(dir, tableID)
+	pluginsText, _ := readFile(dir, tableID, "plugins.yaml")
+	pluginJS := r.TablePluginJS(dir, tableID)
 	return Files{
 		Info: Info{
 			ID:         tableID,
@@ -476,6 +480,8 @@ func (r *Root) Files(id string) (Files, error) {
 		Checker: checker,
 		Export:  exportText,
 		Docs:    docs,
+		Plugins: pluginsText,
+		Plugin:  pluginJS,
 	}, nil
 }
 
@@ -488,6 +494,26 @@ func (r *Root) PutData(id, data string) error {
 		return err
 	}
 	return WriteText(dir, TableID(id), "data.yaml", data)
+}
+
+func (r *Root) PutPlugins(id, text string) error {
+	dir, err := r.Dir(id)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(dir); err != nil {
+		return err
+	}
+	tableID := TableID(id)
+	path := filepath.Join(dir, FileName(tableID, "plugins.yaml"))
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || trimmed == "bindings: []" {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	return WriteText(dir, tableID, "plugins.yaml", text)
 }
 
 func (r *Root) EditorJS(id string) (string, error) {

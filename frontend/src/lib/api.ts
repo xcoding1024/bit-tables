@@ -26,6 +26,8 @@ export type TableFiles = TableInfo & {
   checker: string;
   export: string;
   docs: string;
+  plugins?: string;
+  plugin?: string;
 };
 
 export type HistoryKind = "struct" | "check" | "export" | "data";
@@ -102,6 +104,12 @@ export const tablesApi = {
       method: "PUT",
       body: JSON.stringify({ data }),
     }),
+  putPlugins: (id: string, plugins: string) =>
+    api<{ id: string; plugins: string }>(`/api/tables/${encodeURIComponent(id)}/plugins`, {
+      method: "PUT",
+      body: JSON.stringify({ plugins }),
+    }),
+  plugins: () => api<{ script: string }>("/api/plugins"),
   editorURL: (id: string, key: number) => `/api/tables/${encodeURIComponent(id)}/editor?t=${key}`,
   exportInfo: () => api<ExportInfo>("/api/export"),
   writeExport: (payload: { client: ExportWriteFile[]; server: ExportWriteFile[] }) =>

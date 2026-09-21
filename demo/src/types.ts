@@ -14,6 +14,7 @@ export type EditorAPI = {
   assetURL?(rel: string): string;
   getTableId?(): string;
   getSheetId?(): string;
+  getPluginCells?(): { row: string; field: string }[];
 };
 
 export type FieldDef = {

@@ -14,6 +14,8 @@ func TestEditorHTMLIncludesUndoRedo(t *testing.T) {
 		"canRedo",
 		"getTableId",
 		"getSheetId",
+		"getPluginCells",
+		"pluginCells",
 		"COALESCE_MS",
 		"keydown",
 		"alignHistory()",

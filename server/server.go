@@ -94,6 +94,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/tables/{id}/files", s.getFiles)
 	mux.HandleFunc("GET /api/tables/{id}/history", s.getHistory)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
+	mux.HandleFunc("PUT /api/tables/{id}/plugins", s.putPlugins)
+	mux.HandleFunc("GET /api/plugins", s.getPlugins)
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
 	mux.HandleFunc("GET /api/tables/{id}/asset", s.getAsset)
 	mux.HandleFunc("GET /api/events", s.events)
@@ -262,6 +264,32 @@ func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]any{"id": id, "data": files.Data})
+}
+
+func (s *Server) putPlugins(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Plugins string `json:"plugins"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
+		return
+	}
+	id := r.PathValue("id")
+	root := s.current()
+	if err := root.PutPlugins(id, req.Plugins); err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	files, err := root.Files(id)
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"id": id, "plugins": files.Plugins})
+}
+
+func (s *Server) getPlugins(w http.ResponseWriter, r *http.Request) {
+	writeOK(w, map[string]any{"script": s.current().GenericPluginsJS()})
 }
 
 func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {

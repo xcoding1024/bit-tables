@@ -146,6 +146,25 @@ func TestListCreateTraversalAndData(t *testing.T) {
 	}
 
 	res = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/tables/item/plugins", strings.NewReader(`{"plugins":"bindings:\n  - sheet: main\n    row: sword\n    field: name\n    plugin: scale\n"}`))
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(res, req)
+	if res.Code != 200 {
+		t.Fatalf("put plugins %d %s", res.Code, res.Body.String())
+	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/files", nil))
+	decodeOK(t, res, &files)
+	if !strings.Contains(files.Plugins, "scale") {
+		t.Fatalf("plugins %s", files.Plugins)
+	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/plugins", nil))
+	if res.Code != 200 || !strings.Contains(res.Body.String(), "BitTablePlugins") {
+		t.Fatalf("generic plugins %d %s", res.Code, res.Body.String())
+	}
+
+	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/item/editor", nil))
 	if res.Code != 200 || !strings.Contains(res.Body.String(), "BitTableEditor") {
 		t.Fatalf("editor %d %s", res.Code, res.Body.String())

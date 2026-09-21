@@ -9,6 +9,7 @@
 - 可选择每页行数，默认 100；超过当前每页行数时分页
 - sheet `items`（道具，`view: table`）：200 条；表格默认只读展示，单击或拖拽框选单元格，单击表头选列、单击行首选行，Ctrl+C / Ctrl+V 复制粘贴，Ctrl+Shift+C 复制引用，双击进入编辑；表头漏斗筛选；分组基础信息 / 数值与开关 / 展示与扩展
 - 复制引用文本：单元格 `表.sheet!字段[行id]`，区域左上到右下 `表.sheet!字段A[行A]:字段B[行B]`，整列 `表.sheet!字段`，整行 `表.sheet![行id]`，整表 `表.sheet`；另附 `path`
+- 右面板「插件」按选中格显示可用插件。通用插件在 `src/plugins/`（如 `scale` 匹配 `type: int`）；专属插件 `sheet_demo_plugin.ts` 的「强度推算」匹配 `items.power`。引用参数点「点选」后在表格单击来源，可换表或 sheet。绑定写 `sheet_demo_plugins.yaml`，算值写回 data
 - `items` 字段：
   - id：英文标识，必填，创建后不建议改
   - name：名称，必填

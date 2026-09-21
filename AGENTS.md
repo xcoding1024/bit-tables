@@ -57,6 +57,14 @@ window.BitTableExporter = { export(data, struct) { return { client: [{ name, con
 
 只改 `{id}_data.yaml`，不要改结构、编辑器、检查器或导出脚本。仍须核对并更新 `{id}_docs.md` 三节。
 
+## 插件
+
+- 通用插件：配表根上一级 `src/plugins/*.ts`，`export default { id, name, kind: "generic", match, params, compute }`
+- 专属插件：表目录 `{id}_plugin.ts`，`kind: "exclusive"`，`match.table` 为本表 id，并可限制 sheet / field / type / widget
+- `match` 可写 `table` / `sheet` / `field` / `type` / `widget`；右面板「插件」只显示当前选中格命中的插件
+- 引用参数在表格里点选来源，可切换表或 sheet；格式 `表.sheet!字段[行id]`
+- 绑定写 `{id}_plugins.yaml`（不计入 complete）；算出的普通值写回 `{id}_data.yaml`
+
 ## 禁止
 
 - 不要假设全项目统一 schema
