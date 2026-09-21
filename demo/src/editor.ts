@@ -529,61 +529,43 @@ export class BitTableEditorBase {
     return `sheets.${sheet}.rows.${ri}.${field}`;
   }
 
-  protected refTsvCell(text: string): string {
-    return String(text ?? "").replace(/\r\n/g, "\n").replace(/\t/g, " ").replace(/\n/g, " ");
-  }
-
   protected selectionRefText(): string {
     const range = this.selectionRange();
     if (!range) return "";
     const table = this.currentTableId();
     const sheet = this.currentSheetId();
-    const field0 = this.fields[range.c0];
-    const field1 = this.fields[range.c1];
-    const key0 = field0?.key || `c${range.c0}`;
-    const key1 = field1?.key || `c${range.c1}`;
-    const row0 = this.data.rows[range.r0] || {};
-    const row1 = this.data.rows[range.r1] || {};
-    const id0 = this.rowRefId(row0, range.r0);
-    const id1 = this.rowRefId(row1, range.r1);
-    const fieldPart = range.c0 === range.c1 ? key0 : `${key0}:${key1}`;
-    const rowPart = range.r0 === range.r1 ? id0 : `${id0}:${id1}`;
+    const prefix = `${table}.${sheet}`;
+    const key0 = this.fields[range.c0]?.key || `c${range.c0}`;
+    const key1 = this.fields[range.c1]?.key || `c${range.c1}`;
+    const id0 = this.rowRefId(this.data.rows[range.r0] || {}, range.r0);
+    const id1 = this.rowRefId(this.data.rows[range.r1] || {}, range.r1);
     const path0 = this.cellCheckPath(sheet, range.r0, key0);
     const path1 = this.cellCheckPath(sheet, range.r1, key1);
     const wholeRows = this.selectionCoversAllRows();
     const wholeCols = this.selectionCoversAllCols();
-    let ref = `${table}.${sheet}!${fieldPart}[${rowPart}]`;
-    let pathPart = range.r0 === range.r1 && range.c0 === range.c1 ? path0 : `${path0}:${path1}`;
+    let ref = prefix;
+    let pathPart = `sheets.${sheet}`;
     if (wholeRows && wholeCols) {
-      ref = `${table}.${sheet}`;
+      ref = prefix;
       pathPart = `sheets.${sheet}`;
     } else if (wholeRows) {
-      ref = `${table}.${sheet}!${fieldPart}`;
+      ref = range.c0 === range.c1 ? `${prefix}!${key0}` : `${prefix}!${key0}:${key1}`;
       pathPart = range.c0 === range.c1
         ? `sheets.${sheet}.rows.*.${key0}`
         : `sheets.${sheet}.rows.*.${key0}:sheets.${sheet}.rows.*.${key1}`;
     } else if (wholeCols) {
-      ref = `${table}.${sheet}![${rowPart}]`;
+      ref = range.r0 === range.r1 ? `${prefix}![${id0}]` : `${prefix}![${id0}:${id1}]`;
       pathPart = range.r0 === range.r1
         ? `sheets.${sheet}.rows.${range.r0}`
         : `sheets.${sheet}.rows.${range.r0}:sheets.${sheet}.rows.${range.r1}`;
+    } else if (range.r0 === range.r1 && range.c0 === range.c1) {
+      ref = `${prefix}!${key0}[${id0}]`;
+      pathPart = path0;
+    } else {
+      ref = `${prefix}!${key0}[${id0}]:${key1}[${id1}]`;
+      pathPart = `${path0}:${path1}`;
     }
-    const lines = [
-      `ref: ${ref}`,
-      `path: ${pathPart}`,
-      "id\tfield\tpath\tvalue",
-    ];
-    for (let ri = range.r0; ri <= range.r1; ri++) {
-      const row = this.data.rows[ri] || {};
-      const rid = this.rowRefId(row, ri);
-      for (let ci = range.c0; ci <= range.c1; ci++) {
-        const field = this.fields[ci];
-        const key = field?.key || `c${ci}`;
-        const value = field ? this.cellCopyText(field, row) : "";
-        lines.push(`${this.refTsvCell(rid)}\t${this.refTsvCell(key)}\t${this.cellCheckPath(sheet, ri, key)}\t${this.refTsvCell(value)}`);
-      }
-    }
-    return lines.join("\n");
+    return `ref: ${ref}\npath: ${pathPart}`;
   }
 
   protected copyPlainText(text: string): void {
