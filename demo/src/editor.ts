@@ -60,6 +60,8 @@ export class BitTableEditorBase {
   private copyRefFlashTimer = 0;
   private liveSearchSelects: BitSearchSelect[] = [];
   protected pluginBound = new Set<string>();
+  protected cellErrors = new Map<string, string>();
+  protected checkErrorTotal = 0;
 
   mount(el: HTMLElement, api: EditorAPI): void {
     this.el = el;
@@ -70,6 +72,7 @@ export class BitTableEditorBase {
     this.pluginBound = new Set(
       (api.getPluginCells?.() || []).map((item) => `${String(item.row || "").trim()}\t${String(item.field || "").trim()}`),
     );
+    this.readCheckErrors(api.getCheckErrors?.() || [], api.getCheckErrorTotal?.());
     this.fields = this.parseFields(this.struct);
     this.title = String(this.struct.name || this.title || "配置表");
     this.view = String(this.struct.view || "").trim() === "card" ? "card" : "table";
@@ -82,8 +85,9 @@ export class BitTableEditorBase {
       this.selectByRefBound = true;
       window.addEventListener("message", (ev) => {
         const msg = ev.data;
-        if (!msg || typeof msg !== "object" || msg.type !== "selectByRef") return;
-        this.selectByRef(msg);
+        if (!msg || typeof msg !== "object") return;
+        if (msg.type === "selectByRef") this.selectByRef(msg);
+        if (msg.type === "checkErrors") this.setCheckErrors(msg.errors || [], msg.total);
       });
     }
     this.render();
@@ -159,6 +163,60 @@ export class BitTableEditorBase {
 
   protected revealAttr(ri: number, key: string): string {
     return this.isRevealCell(ri, key) ? ' data-reveal="1"' : "";
+  }
+
+  protected cellErrorKey(ri: number, key: string): string {
+    return `${ri}\t${key}`;
+  }
+
+  protected cellErrorMessage(ri: number, key: string): string {
+    return this.cellErrors.get(this.cellErrorKey(ri, key)) || "";
+  }
+
+  protected readCheckErrors(errors: { rowIndex: number; field: string; message?: string }[], total?: number): void {
+    this.cellErrors = new Map();
+    for (const item of errors || []) {
+      const field = String(item?.field || "").trim();
+      const ri = Number(item?.rowIndex);
+      if (!field || !Number.isFinite(ri) || ri < 0) continue;
+      this.cellErrors.set(this.cellErrorKey(ri, field), String(item?.message || "检查未通过"));
+    }
+    this.checkErrorTotal = typeof total === "number" ? total : this.cellErrors.size;
+  }
+
+  setCheckErrors(errors: { rowIndex: number; field: string; message?: string }[], total?: number): void {
+    this.readCheckErrors(errors, total);
+    this.render();
+  }
+
+  protected applyErrorMarks(): void {
+    if (this.view === "card") this.markCardErrors();
+    else this.markTableErrors();
+  }
+
+  protected markTableErrors(): void {
+    this.paintErrorMarks('td[data-role="cell"],td[data-role="cell-edit"]');
+  }
+
+  protected markCardErrors(): void {
+    this.paintErrorMarks('label[data-role="cell"]');
+  }
+
+  protected paintErrorMarks(selector: string): void {
+    if (!this.el) return;
+    this.el.querySelectorAll(selector).forEach((node) => {
+      const el = node as HTMLElement;
+      const ri = Number(el.getAttribute("data-index"));
+      const key = el.getAttribute("data-key") || "";
+      const message = this.cellErrorMessage(ri, key);
+      if (message) {
+        el.setAttribute("data-error", "1");
+        el.title = message;
+        return;
+      }
+      el.removeAttribute("data-error");
+      el.title = el.getAttribute("data-base-title") || "";
+    });
   }
 
   protected revealCellStyle(ri: number, key: string): string {
@@ -1347,6 +1405,8 @@ export class BitTableEditorBase {
     const redoOff = canRedo ? "" : "opacity:.45;cursor:default";
     html += `<button type="button" data-testid="${this.tid("undo")}" ${canUndo ? "" : "disabled "}style="${this.btn("ghost", undoOff)}" title="Ctrl+Z">撤销</button>`;
     html += `<button type="button" data-testid="${this.tid("redo")}" ${canRedo ? "" : "disabled "}style="${this.btn("ghost", redoOff)}" title="Ctrl+Y">重做</button>`;
+    const errOff = this.checkErrorTotal > 0 ? "" : "opacity:.45;cursor:default";
+    html += `<button type="button" data-testid="${this.tid("next-error")}" ${this.checkErrorTotal > 0 ? "" : "disabled "}style="${this.btn("ghost", errOff)}" title="跳到下一处检查错误">下一个错误</button>`;
     html += `<button type="button" data-testid="${this.tid("save")}" style="${this.btn("primary")}" title="Ctrl+S">保存</button></div></div>`;
     if (this.batchOpen) html += this.renderBatchPanel();
     return html;
@@ -1434,15 +1494,16 @@ export class BitTableEditorBase {
     const reveal = this.revealAttr(ri, field.key);
     const sel = this.cellSelAttrs(ri, ci);
     if (field.widget === "icon" || field.type === "icon") {
-      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     if (this.isEditingCell(ri, field.key)) {
-      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}"${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     const canEdit = this.cellEditable(field, row);
     const pluginOn = this.isPluginBound(row, field.key);
     const text = this.cellDisplayText(field, row);
-    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${pluginOn ? " data-plugin=1" : ""}${reveal}${sel} title="${pluginOn ? "插件计算" : canEdit ? "双击编辑" : ""}" style="${td}${pluginOn ? ";box-shadow:inset 2px 0 0 #3ecf8e" : ""}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
+    const title = pluginOn ? "插件计算" : canEdit ? "双击编辑" : "";
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title="${escapeAttr(title)}"${pluginOn ? " data-plugin=1" : ""}${reveal}${sel} title="${escapeAttr(title)}" style="${td}${pluginOn ? ";box-shadow:inset 2px 0 0 #3ecf8e" : ""}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
   }
 
   protected renderCards(): string {
@@ -1471,7 +1532,7 @@ export class BitTableEditorBase {
             field.widget === "tags" ||
             field.widget === "params" ||
             field.type === "object";
-          html += `<label data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}"${this.revealAttr(ri, field.key)} style="display:block${wide ? ";grid-column:1/-1" : ""};${this.revealCellStyle(ri, field.key)}"><div style="margin-bottom:4px;color:#a3a3a3">${escapeHtml(field.label || field.key)}${field.required === true || field.required === "true" ? " *" : ""}</div>`;
+          html += `<label data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${this.revealAttr(ri, field.key)} style="display:block${wide ? ";grid-column:1/-1" : ""};${this.revealCellStyle(ri, field.key)}"><div style="margin-bottom:4px;color:#a3a3a3">${escapeHtml(field.label || field.key)}${field.required === true || field.required === "true" ? " *" : ""}</div>`;
           html += this.fieldControl(field, row, ri, false);
           if (field.hint) html += `<div style="margin-top:4px;color:#737373;font-size:11px">${escapeHtml(field.hint)}</div>`;
           html += "</label>";
@@ -1917,7 +1978,7 @@ export class BitTableEditorBase {
     const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
     this.resetTableScroll = false;
     let html =
-      "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}</style>";
+      "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}[data-error='1']{background:rgba(235,87,87,.28);box-shadow:inset 0 0 0 1px #eb5757}</style>";
     html += this.renderToolbar();
     html += this.renderExtra();
     html += this.view === "card" ? this.renderCards() : this.renderTable();
@@ -2074,6 +2135,9 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("undo")}"]`)?.addEventListener("click", () => this.api.undo?.());
     this.el.querySelector(`[data-testid="${this.tid("redo")}"]`)?.addEventListener("click", () => this.api.redo?.());
     this.el.querySelector(`[data-testid="${this.tid("save")}"]`)?.addEventListener("click", () => this.api.save());
+    this.el.querySelector(`[data-testid="${this.tid("next-error")}"]`)?.addEventListener("click", () => {
+      parent.postMessage({ type: "nextError" }, "*");
+    });
     this.el.querySelectorAll("[data-role=pick]").forEach((box) => {
       box.addEventListener("change", () => {
         const i = Number(box.getAttribute("data-index"));
@@ -2153,5 +2217,6 @@ export class BitTableEditorBase {
       this.gotoPage(this.pageIndex + 1);
     });
     this.bindExtra();
+    this.applyErrorMarks();
   }
 }

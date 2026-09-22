@@ -207,6 +207,8 @@ export default function App() {
         onUndo={workbenchReady ? () => editorCommandsRef.current?.undo() : undefined}
         onRedo={workbenchReady ? () => editorCommandsRef.current?.redo() : undefined}
         onSave={workbenchReady ? () => editorCommandsRef.current?.save() : undefined}
+        onCheckCurrent={workbenchReady && activeTableId ? () => void editorCommandsRef.current?.checkCurrent() : undefined}
+        onCheckAll={workbenchReady ? () => void editorCommandsRef.current?.checkAll() : undefined}
         onExportCurrent={workbenchReady && activeTableId ? () => void handleExport("current") : undefined}
         onExportAll={workbenchReady ? () => void handleExport("all") : undefined}
       />

@@ -5,7 +5,7 @@ import { Btn, Dialog } from "./ui";
 
 const APP_VERSION = "0.1.0";
 
-type MenuId = "project" | "edit" | "view" | "export" | "help" | null;
+type MenuId = "project" | "edit" | "view" | "check" | "export" | "help" | null;
 
 type ShortcutRow = { action: string; keys: string };
 
@@ -38,6 +38,8 @@ export default function Titlebar({
   onSave,
   onExportCurrent,
   onExportAll,
+  onCheckCurrent,
+  onCheckAll,
 }: {
   rootPath?: string;
   onOpen?: () => void;
@@ -52,6 +54,8 @@ export default function Titlebar({
   onSave?: () => void;
   onExportCurrent?: () => void;
   onExportAll?: () => void;
+  onCheckCurrent?: () => void;
+  onCheckAll?: () => void;
 }) {
   const sh = shell();
   const ctl = sh?.window;
@@ -188,6 +192,26 @@ export default function Titlebar({
                 setOpenMenu(null);
                 setShortcutsOpen(true);
               }}
+            />
+          </Menu>
+          <Menu
+            id="check"
+            label="检查"
+            open={openMenu === "check"}
+            active={openMenu}
+            onOpen={setOpenMenu}
+          >
+            <MenuItem
+              label="检查当前配置表"
+              disabled={!onCheckCurrent}
+              testId="titlebar-check-current"
+              onClick={() => run(onCheckCurrent)}
+            />
+            <MenuItem
+              label="检查所有配置表"
+              disabled={!onCheckAll}
+              testId="titlebar-check-all"
+              onClick={() => run(onCheckAll)}
             />
           </Menu>
           <Menu

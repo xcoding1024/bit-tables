@@ -30,8 +30,10 @@ import {
   parseTableDoc,
   runTableChecker,
   runTableExporter,
+  parseCheckCell,
   sliceForSheet,
   stringifyTableDoc,
+  type CheckCell,
   type DocsKind,
   type EnumCatalogItem,
   type SheetInfo,
@@ -75,6 +77,8 @@ export type EditorCommands = {
   save: () => void;
   exportCurrent: () => Promise<ExportReport>;
   exportAll: () => Promise<ExportReport>;
+  checkCurrent: () => Promise<void>;
+  checkAll: () => Promise<void>;
 };
 
 type TabCheck = {
@@ -160,10 +164,14 @@ export default function Workbench({
   const recomputeTimer = useRef(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
   const pluginTargetRef = useRef<PluginSelection | null>(null);
+  const checksRef = useRef(checks);
+  const errorCursorRef = useRef<Record<string, number>>({});
+  const errorSigRef = useRef<Record<string, string>>({});
   bindingsRef.current = bindingsById;
   genericPluginJsRef.current = genericPluginJs;
   pluginPickRef.current = pluginPick;
   pluginTargetRef.current = pluginTarget;
+  checksRef.current = checks;
   filesRef.current = filesById;
   draftRef.current = draftById;
   sheetRef.current = sheetById;
@@ -175,6 +183,15 @@ export default function Workbench({
   const files = activeId ? filesById[activeId] || null : null;
   const docBody = rightTab === "history" || rightTab === "plugin" || !files ? "" : docsSection(files.docs || "", rightTab);
   const pluginList = useMemo(() => [...exclusivePlugins, ...genericPlugins], [exclusivePlugins, genericPlugins]);
+  const errorCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [id, check] of Object.entries(checks)) {
+      if (!check || check.ok) continue;
+      const count = check.errors.length || (check.error ? 1 : 0);
+      if (count) out[id] = count;
+    }
+    return out;
+  }, [checks]);
   const pluginTableId = pluginTarget?.tableId || activeId;
   const pluginBindings = pluginTableId ? bindingsById[pluginTableId] || [] : [];
 
@@ -282,6 +299,18 @@ export default function Workbench({
     return { field: pending.field, rowId: pending.rowId };
   }, []);
 
+  const checkMarksFor = (id: string, sheetId: string) => {
+    const parsed = (checksRef.current[id]?.errors || [])
+      .map((item) => parseCheckCell(item))
+      .filter((item): item is CheckCell => Boolean(item));
+    return {
+      errors: parsed
+        .filter((item) => item.sheet === sheetId)
+        .map((item) => ({ rowIndex: item.rowIndex, field: item.field, message: item.message })),
+      total: parsed.length,
+    };
+  };
+
   const postSlice = useCallback(
     (id: string, type: "init" | "setSheet" | "replaceData", extra?: { reveal?: RevealTarget | null; selectByRef?: { field: string; rowId: string } | null }) => {
       const frame = iframeRefs.current[id];
@@ -296,15 +325,16 @@ export default function Workbench({
       const pluginCells = (bindingsRef.current[id] || parseBindings(cur.plugins || ""))
         .filter((item) => item.sheet === sheetId)
         .map((item) => ({ row: item.row, field: item.field }));
+      const marks = checkMarksFor(id, sheetId);
       if (type === "replaceData") {
         frame.contentWindow.postMessage(
-          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal, selectByRef },
+          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
           "*",
         );
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal, selectByRef },
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
         "*",
       );
     },
@@ -388,29 +418,6 @@ export default function Workbench({
     if (!id) return;
     iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
   }, []);
-
-  useEffect(() => {
-    if (!editorCommandsRef) return;
-    editorCommandsRef.current = {
-      undo: () => postEditorCmd("undo"),
-      redo: () => postEditorCmd("redo"),
-      save: () => postEditorCmd("save"),
-      exportCurrent: () => {
-        const id = activeRef.current;
-        if (!id) {
-          return Promise.resolve(emptyExportReport({ errors: [{ tableId: "", message: "未打开配置表" }] }));
-        }
-        return runExport(exportSet(buildDepGraph(packsRef.current), id));
-      },
-      exportAll: async () => {
-        const listed = await tablesApi.list();
-        return runExport((listed.tables || []).map((item) => item.id));
-      },
-    };
-    return () => {
-      editorCommandsRef.current = null;
-    };
-  }, [editorCommandsRef, postEditorCmd, runExport]);
 
   useEffect(() => {
     onActiveIdChange?.(activeId);
@@ -506,13 +513,70 @@ export default function Workbench({
         editorKey: prev[id]?.editorKey || 1,
       },
     }));
-    if (silent) return;
-    if (result.ok) {
-      appendLog(`${id} 检查通过`, "ok");
-    } else {
-      appendLog(formatCheckErrors(result.errors) || `${id} 检查失败`, "err");
+    if (!silent) {
+      if (result.ok) appendLog(`${id} 检查通过`, "ok");
+      else appendLog(formatCheckErrors(result.errors) || `${id} 检查失败`, "err");
     }
+    return result.ok;
   }, [appendLog]);
+
+  useEffect(() => {
+    if (!editorCommandsRef) return;
+    editorCommandsRef.current = {
+      undo: () => postEditorCmd("undo"),
+      redo: () => postEditorCmd("redo"),
+      save: () => postEditorCmd("save"),
+      exportCurrent: () => {
+        const id = activeRef.current;
+        if (!id) {
+          return Promise.resolve(emptyExportReport({ errors: [{ tableId: "", message: "未打开配置表" }] }));
+        }
+        return runExport(exportSet(buildDepGraph(packsRef.current), id));
+      },
+      exportAll: async () => {
+        const listed = await tablesApi.list();
+        return runExport((listed.tables || []).map((item) => item.id));
+      },
+      checkCurrent: async () => {
+        const id = activeRef.current;
+        if (!id) return;
+        let files = filesRef.current[id];
+        if (!files) {
+          files = await tablesApi.files(id);
+          rememberFiles(id, files);
+        }
+        await runCheck(id, files, fullDataOf(id));
+      },
+      checkAll: async () => {
+        const listed = await tablesApi.list();
+        const ids = (listed.tables || []).map((item) => String(item.id || "").trim()).filter(Boolean);
+        let failed = 0;
+        for (const id of ids) {
+          try {
+            let files = filesRef.current[id];
+            if (!files) {
+              files = await tablesApi.files(id);
+              rememberFiles(id, files);
+            }
+            const data = Object.prototype.hasOwnProperty.call(draftRef.current, id) ? draftRef.current[id] : parseDoc(files.data);
+            const ok = await runCheck(id, files, data, true);
+            if (!ok) failed += 1;
+          } catch (err: unknown) {
+            failed += 1;
+            const message = err instanceof Error ? err.message : "检查失败";
+            setChecks((prev) => ({
+              ...prev,
+              [id]: { ok: false, errors: [], error: message, editorKey: prev[id]?.editorKey || 1 },
+            }));
+          }
+        }
+        appendLog(failed ? `检查完成：${failed} 张表未通过` : "检查完成：全部通过", failed ? "err" : "ok");
+      },
+    };
+    return () => {
+      editorCommandsRef.current = null;
+    };
+  }, [appendLog, editorCommandsRef, fullDataOf, postEditorCmd, rememberFiles, runCheck, runExport]);
 
   const loadTablePack = useCallback(async (id: string) => {
     if (filesRef.current[id] || Object.prototype.hasOwnProperty.call(draftRef.current, id)) {
@@ -730,6 +794,36 @@ export default function Workbench({
     [handleOpenTable, postSlice],
   );
 
+  const jumpNextError = useCallback(
+    (id: string) => {
+      const parsed = (checksRef.current[id]?.errors || [])
+        .map((item) => parseCheckCell(item))
+        .filter((item): item is CheckCell => Boolean(item));
+      if (!parsed.length) return;
+      const sig = parsed.map((item) => `${item.sheet}.${item.rowIndex}.${item.field}`).join("|");
+      if (errorSigRef.current[id] !== sig) {
+        errorSigRef.current[id] = sig;
+        errorCursorRef.current[id] = -1;
+      }
+      const idx = ((errorCursorRef.current[id] ?? -1) + 1) % parsed.length;
+      errorCursorRef.current[id] = idx;
+      const hit = parsed[idx];
+      const reveal: RevealTarget = { rowIndex: hit.rowIndex, field: hit.field };
+      const cur = filesRef.current[id];
+      if (!cur) return;
+      const nextSheet = resolveSheetId(parseDoc(cur.struct), hit.sheet);
+      const sheetChanged = sheetRef.current[id] !== nextSheet;
+      if (sheetChanged) {
+        sheetRef.current = { ...sheetRef.current, [id]: nextSheet };
+        setSheetById((prev) => ({ ...prev, [id]: nextSheet }));
+        postSlice(id, "setSheet", { reveal });
+        return;
+      }
+      postReveal(id, reveal);
+    },
+    [postReveal, postSlice],
+  );
+
   const closeTab = useCallback(
     (id: string) => {
       const nextTabs = tabsRef.current.filter((item) => item !== id);
@@ -857,6 +951,8 @@ export default function Workbench({
         } else if (key === "`") {
           toggleLog();
         }
+      } else if (msg.type === "nextError") {
+        jumpNextError(id);
       } else if (msg.type === "selection") {
         const raw = ev.data as { sheet?: string; tableId?: string; mode?: PluginSelection["mode"]; cells?: PluginSelection["cells"] };
         const mode: PluginSelection["mode"] = raw.mode === "col" || raw.mode === "row" ? raw.mode : "cell";
@@ -903,7 +999,17 @@ export default function Workbench({
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [appendLog, applyPartial, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
+  }, [appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
+
+  useEffect(() => {
+    for (const id of tabs) {
+      const frame = iframeRefs.current[id];
+      if (!frame?.contentWindow) continue;
+      const sheetId = sheetRef.current[id] || "";
+      const marks = checkMarksFor(id, sheetId);
+      frame.contentWindow.postMessage({ type: "checkErrors", errors: marks.errors, total: marks.total }, "*");
+    }
+  }, [checks, sheetById, tabs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1086,6 +1192,7 @@ export default function Workbench({
                   tree={tree}
                   activeId={activeId}
                   openIds={tabs}
+                  errorCounts={errorCounts}
                   onOpen={(id) => handleOpenTable(id, !filesById[id])}
                 />
               </div>

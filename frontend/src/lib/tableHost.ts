@@ -2,6 +2,21 @@ import { dump, load } from "js-yaml";
 
 export type TableCheckError = { path: string; message: string };
 
+export type CheckCell = { sheet: string; rowIndex: number; field: string; message: string };
+
+export function parseCheckCell(error: TableCheckError): CheckCell | null {
+  const path = String(error?.path || "").trim();
+  const message = String(error?.message || "").trim();
+  const matched = path.match(/^(?:sheets\.([a-z][a-z0-9_]{0,31})\.)?rows\.(\d+)\.([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (!matched) return null;
+  return {
+    sheet: matched[1] || "main",
+    rowIndex: Number(matched[2]),
+    field: matched[3],
+    message,
+  };
+}
+
 export type TableCheckResult = {
   ok: boolean;
   errors: TableCheckError[];

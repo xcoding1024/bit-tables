@@ -39,6 +39,8 @@ func EditorHTML(editorJS string) string {
   var tableId = "";
   var sheetId = "";
   var pluginCells = [];
+  var checkErrors = [];
+  var errorTotal = 0;
   var enums = {};
   var histories = {};
   var applying = false;
@@ -125,6 +127,8 @@ func EditorHTML(editorJS string) string {
     },
     getSheetId: function () { return sheetId || "main"; },
     getPluginCells: function () { return pluginCells || []; },
+    getCheckErrors: function () { return checkErrors || []; },
+    getCheckErrorTotal: function () { return errorTotal || 0; },
     assetURL: function (rel) {
       var id = api.getTableId();
       if (!id || rel == null || rel === "") return "";
@@ -214,6 +218,13 @@ func EditorHTML(editorJS string) string {
       if (byRef && typeof byRef.selectByRef === "function") byRef.selectByRef(msg);
       return;
     }
+    if (msg.type === "checkErrors") {
+      checkErrors = msg.errors || [];
+      errorTotal = msg.total != null ? msg.total : checkErrors.length;
+      var checker = window.BitTableEditor;
+      if (checker && typeof checker.setCheckErrors === "function") checker.setCheckErrors(checkErrors, errorTotal);
+      return;
+    }
     if (msg.type === "clearReveal") {
       clearReveal();
       return;
@@ -225,6 +236,8 @@ func EditorHTML(editorJS string) string {
       if (msg.sheetId != null) sheetId = msg.sheetId;
       if (msg.enums != null) enums = msg.enums;
       if (msg.pluginCells != null) pluginCells = msg.pluginCells;
+      if (msg.checkErrors != null) checkErrors = msg.checkErrors;
+      if (msg.errorTotal != null) errorTotal = msg.errorTotal;
       var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
       if (!sameSheet) {
         if (msg.data != null) data = msg.data;
@@ -243,6 +256,8 @@ func EditorHTML(editorJS string) string {
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
       if (msg.pluginCells != null) pluginCells = msg.pluginCells;
+      if (msg.checkErrors != null) checkErrors = msg.checkErrors;
+      if (msg.errorTotal != null) errorTotal = msg.errorTotal;
       alignHistory();
       mount();
       if (msg.reveal) scheduleReveal(msg.reveal);

@@ -95,7 +95,9 @@ iframe → 父页：`ready` / `dirty` / `save` / `askAI` / `toast`。工作台�
 
 宿主拦截 `setData` 为当前 sheet 维护表数据撤销栈（深拷贝快照，400ms 内连续改合同一条，上限 100）。`api.undo` / `api.redo` / `api.canUndo` / `api.canRedo` 可选；快捷键 Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z 重做。`init` / 切 sheet / `replaceData` 在数据与已提交快照一致时保留该 sheet 的栈，否则重置。同一 sheet 的 `setSheet`（如枚举刷新）若已有撤销/重做记录则保留当前数据与栈。保存本身不清栈；工作台在刚保存后忽略 SSE `replaceData`。
 
-Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。Checker 可收到宿主注入的 `enums`。
+Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 `sheets.items.rows.0.id`。Checker 可收到宿主注入的 `enums`。`check` 必须走完所有 sheet、行和字段规则，一次返回全部 `{ path, message }`；单条失败不得从 `check` / `checkSheet` 提前返回。
+
+编辑器 `setCheckErrors` 保存 `{ rowIndex, field, message }`。`render` 结束后按当前视图调用 `markTableErrors` 或 `markCardErrors`，给对应单元格标红。标题栏「检查」可检查当前表或全部表；有错误的表在文件列表标出。
 
 独立页上 `askAI` 提示用 Cursor / Codex 改文件；嵌入宿主时把消息交给父页。
 

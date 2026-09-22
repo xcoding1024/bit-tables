@@ -15,6 +15,8 @@ export type EditorAPI = {
   getTableId?(): string;
   getSheetId?(): string;
   getPluginCells?(): { row: string; field: string }[];
+  getCheckErrors?(): { rowIndex: number; field: string; message?: string }[];
+  getCheckErrorTotal?(): number;
 };
 
 export type FieldDef = {
@@ -45,6 +47,7 @@ declare global {
       mount(el: HTMLElement, api: EditorAPI): void;
       reveal?(target: { rowIndex: number; field?: string; query?: string }): void;
       selectByRef?(target: { field?: string; rowId?: string }): void;
+      setCheckErrors?(errors: { rowIndex: number; field: string; message?: string }[], total?: number): void;
       clearReveal?(): void;
     };
     BitTableChecker?: { check(data: unknown, struct: unknown, enums?: unknown): CheckResult };

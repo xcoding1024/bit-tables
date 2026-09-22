@@ -43,6 +43,10 @@ window.BitTableEditor = { mount(el, api) { /* api: getStruct/getData/getEnums/se
 window.BitTableChecker = { check(data, struct, enums) { return { ok: true, errors: [{ path, message }] }; } };
 ```
 
+`check` 走完所有 sheet、行和字段规则后一次返回全部错误。单条失败不得从 `check` / `checkSheet` 提前返回。`path` 形如 `sheets.{sheet}.rows.{index}.{field}`。
+
+编辑器 `setCheckErrors` 只保存标记。`render` 结束后 `applyErrorMarks` 按当前视图调用 `markTableErrors` 或 `markCardErrors`，由表格或卡片给单元格标红。
+
 `export.ts` 必须定义：
 
 ```ts

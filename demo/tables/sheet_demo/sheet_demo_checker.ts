@@ -31,23 +31,25 @@ class SheetDemoChecker extends BitTableCheckerBase {
     if (row.bonus != null && row.bonus !== "" && (Number.isNaN(bonus) || bonus < 0 || bonus > 100)) {
       this.errors.push({ path: `${prefix}.bonus`, message: "加赠比例须在 0–100" });
     }
-    if (row.params == null || row.params === "") return;
-    if (typeof row.params !== "object" || Array.isArray(row.params)) {
-      this.errors.push({ path: `${prefix}.params`, message: "自定义参数须为对象" });
-      return;
-    }
-    const kind = String(row.kind || "");
-    const schema = PARAM_RULES[kind];
-    if (!schema) return;
-    const params = row.params as Row;
-    Object.keys(schema).forEach((k) => {
-      if (params[k] == null || params[k] === "") return;
-      const n = Number(params[k]);
-      const rule = schema[k];
-      if (Number.isNaN(n) || (rule.min != null && n < rule.min) || (rule.max != null && n > rule.max)) {
-        this.errors.push({ path: `${prefix}.params.${k}`, message: `${k} 超出 ${kind} 参数范围` });
+    if (row.params != null && row.params !== "") {
+      if (typeof row.params !== "object" || Array.isArray(row.params)) {
+        this.errors.push({ path: `${prefix}.params`, message: "自定义参数须为对象" });
+      } else {
+        const kind = String(row.kind || "");
+        const schema = PARAM_RULES[kind];
+        const params = row.params as Row;
+        if (schema) {
+          Object.keys(schema).forEach((k) => {
+            if (params[k] == null || params[k] === "") return;
+            const n = Number(params[k]);
+            const rule = schema[k];
+            if (Number.isNaN(n) || (rule.min != null && n < rule.min) || (rule.max != null && n > rule.max)) {
+              this.errors.push({ path: `${prefix}.params.${k}`, message: `${k} 超出 ${kind} 参数范围` });
+            }
+          });
+        }
       }
-    });
+    }
   }
 }
 

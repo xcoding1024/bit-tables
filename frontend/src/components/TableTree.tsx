@@ -54,6 +54,7 @@ export function TableTree({
   tree,
   activeId,
   openIds,
+  errorCounts,
   expandAll,
   emptyText = "暂无配置表",
   onOpen,
@@ -61,6 +62,7 @@ export function TableTree({
   tree: TreeNode[];
   activeId: string;
   openIds: string[];
+  errorCounts?: Record<string, number>;
   expandAll?: boolean;
   emptyText?: string;
   onOpen: (id: string) => void;
@@ -110,7 +112,7 @@ export function TableTree({
         >
           <div className="flex items-start gap-1">
             <FileSpreadsheet size={13} className="mt-0.5 shrink-0 text-muted" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               {item.name?.trim() ? (
                 <>
                   <div className="truncate text-[13px]">{item.name.trim()}</div>
@@ -120,6 +122,13 @@ export function TableTree({
                 <div className="truncate text-[13px]">{item.id}</div>
               )}
             </div>
+            {errorCounts?.[item.id] ? (
+              <span
+                data-testid={`tables-error-${item.id}`}
+                title={`${errorCounts[item.id]} 个错误`}
+                className="mt-1 h-2 w-2 shrink-0 rounded-full bg-danger"
+              />
+            ) : null}
           </div>
           {item.complete ? null : <div className="pl-4 text-[11px] text-muted">五件套不完整</div>}
         </button>
