@@ -137,6 +137,15 @@ export default function Workbench({
   const [pluginBusy, setPluginBusy] = useState(false);
   const [historyReload, setHistoryReload] = useState(0);
   const [newOpen, setNewOpen] = useState(false);
+  const [checkProgress, setCheckProgress] = useState<{
+    open: boolean;
+    running: boolean;
+    done: number;
+    total: number;
+    current: string;
+    failed: number;
+  } | null>(null);
+  const checkAllRunning = useRef(false);
   const [newId, setNewId] = useState("");
   const [quickOpen, setQuickOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -548,29 +557,44 @@ export default function Workbench({
         await runCheck(id, files, fullDataOf(id));
       },
       checkAll: async () => {
-        const listed = await tablesApi.list();
-        const ids = (listed.tables || []).map((item) => String(item.id || "").trim()).filter(Boolean);
-        let failed = 0;
-        for (const id of ids) {
-          try {
-            let files = filesRef.current[id];
-            if (!files) {
-              files = await tablesApi.files(id);
-              rememberFiles(id, files);
+        if (checkAllRunning.current) return;
+        checkAllRunning.current = true;
+        try {
+          const listed = await tablesApi.list();
+          const ids = (listed.tables || []).map((item) => String(item.id || "").trim()).filter(Boolean);
+          let failed = 0;
+          setCheckProgress({ open: true, running: true, done: 0, total: ids.length, current: ids[0] || "", failed: 0 });
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+          for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            setCheckProgress({ open: true, running: true, done: i, total: ids.length, current: id, failed });
+            try {
+              let files = filesRef.current[id];
+              if (!files) {
+                files = await tablesApi.files(id);
+                rememberFiles(id, files);
+              }
+              const data = Object.prototype.hasOwnProperty.call(draftRef.current, id) ? draftRef.current[id] : parseDoc(files.data);
+              const ok = await runCheck(id, files, data, true);
+              if (!ok) failed += 1;
+            } catch (err: unknown) {
+              failed += 1;
+              const message = err instanceof Error ? err.message : "检查失败";
+              setChecks((prev) => ({
+                ...prev,
+                [id]: { ok: false, errors: [], error: message, editorKey: prev[id]?.editorKey || 1 },
+              }));
             }
-            const data = Object.prototype.hasOwnProperty.call(draftRef.current, id) ? draftRef.current[id] : parseDoc(files.data);
-            const ok = await runCheck(id, files, data, true);
-            if (!ok) failed += 1;
-          } catch (err: unknown) {
-            failed += 1;
-            const message = err instanceof Error ? err.message : "检查失败";
-            setChecks((prev) => ({
-              ...prev,
-              [id]: { ok: false, errors: [], error: message, editorKey: prev[id]?.editorKey || 1 },
-            }));
           }
+          setCheckProgress({ open: true, running: false, done: ids.length, total: ids.length, current: "", failed });
+          appendLog(failed ? `检查完成：${failed} 张表未通过` : "检查完成：全部通过", failed ? "err" : "ok");
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "检查失败";
+          setCheckProgress({ open: true, running: false, done: 0, total: 0, current: message, failed: 0 });
+          appendLog(message, "err");
+        } finally {
+          checkAllRunning.current = false;
         }
-        appendLog(failed ? `检查完成：${failed} 张表未通过` : "检查完成：全部通过", failed ? "err" : "ok");
       },
     };
     return () => {
@@ -1479,6 +1503,46 @@ export default function Workbench({
             }}
           />
         </Field>
+      </Dialog>
+      <Dialog
+        open={Boolean(checkProgress?.open)}
+        title={checkProgress?.running ? "正在检查" : checkProgress?.failed ? "检查完成（有错误）" : "检查完成"}
+        onClose={() => {
+          if (checkProgress?.running) return;
+          setCheckProgress(null);
+        }}
+        footer={
+          checkProgress?.running ? undefined : (
+            <Btn data-testid="tables-check-close" onClick={() => setCheckProgress(null)}>
+              关闭
+            </Btn>
+          )
+        }
+      >
+        {checkProgress ? (
+          <div data-testid="tables-check-progress" className="space-y-2 text-[13px]">
+            <div className="text-secondary">
+              已检查 {checkProgress.done} / {checkProgress.total}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-hover">
+              <div
+                className="h-full bg-accent"
+                style={{
+                  width: checkProgress.total ? `${Math.round((checkProgress.done / checkProgress.total) * 100)}%` : "0%",
+                }}
+              />
+            </div>
+            {checkProgress.running && checkProgress.current ? (
+              <div className="truncate font-mono text-[12px] text-muted">当前 {checkProgress.current}</div>
+            ) : checkProgress.failed ? (
+              <div className="text-danger">{checkProgress.failed} 张表未通过</div>
+            ) : checkProgress.current ? (
+              <div className="text-danger">{checkProgress.current}</div>
+            ) : (
+              <div className="text-secondary">全部通过</div>
+            )}
+          </div>
+        ) : null}
       </Dialog>
     </div>
   );
