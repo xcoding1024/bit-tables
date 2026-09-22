@@ -11,6 +11,12 @@ const IS_DEV = Boolean(process.env.BIT_TABLES_DEV || DEV_SERVER_URL);
 const EXTERNAL_API = process.env.BIT_TABLES_EXTERNAL_API === "1";
 const REPO_ROOT = path.join(__dirname, "..");
 
+// 开发窗口在本机 9223 提供调试端口，验收脚本用来截图。
+if (IS_DEV) {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch("remote-debugging-port", "9223");
+}
+
 /** @type {import('child_process').ChildProcess | null} */
 let goProc = null;
 let shuttingDown = false;

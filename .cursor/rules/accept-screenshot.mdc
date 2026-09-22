@@ -1,0 +1,18 @@
+---
+description: 界面验收先关掉旧开发进程，再 npm run dev 打开窗口并截图
+alwaysApply: true
+---
+
+# 界面验收
+
+改了工作台或编辑器界面后，用截图验收。运行：
+
+```powershell
+npm run accept
+```
+
+这条命令会关掉本仓库已有的开发进程（`scripts/dev.js`、本仓库 Electron 窗口，以及 5173 / 18780 / 9223 上的监听），再执行 `npm run dev` 打开桌面窗口。页面出现后把窗口截到 `scripts/.record-tools/accept.png`，然后命令结束，窗口保持打开。
+
+读这张图核对当前改动。截图前会等到标题栏或引导页；编辑器 iframe 里已有单元格时会等单元格出现再截。
+
+不要用 Cursor 自带浏览器打开 `http://127.0.0.1:5173/`。那个调用在页面打开后不会返回。
