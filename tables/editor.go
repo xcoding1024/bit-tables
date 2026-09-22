@@ -155,6 +155,15 @@ func EditorHTML(editorJS string) string {
       requestAnimationFrame(function () { applyReveal(target); });
     });
   }
+  function scheduleSelectByRef(target) {
+    if (!target) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var editor = window.BitTableEditor;
+        if (editor && typeof editor.selectByRef === "function") editor.selectByRef(target);
+      });
+    });
+  }
   function findRevealEl(target) {
     var ri = target.rowIndex;
     var key = String(target.field || "");
@@ -200,6 +209,11 @@ func EditorHTML(editorJS string) string {
       scheduleReveal(msg);
       return;
     }
+    if (msg.type === "selectByRef") {
+      var byRef = window.BitTableEditor;
+      if (byRef && typeof byRef.selectByRef === "function") byRef.selectByRef(msg);
+      return;
+    }
     if (msg.type === "clearReveal") {
       clearReveal();
       return;
@@ -221,6 +235,7 @@ func EditorHTML(editorJS string) string {
       }
       mount();
       if (msg.reveal) scheduleReveal(msg.reveal);
+      if (msg.selectByRef) scheduleSelectByRef(msg.selectByRef);
     } else if (msg.type === "replaceData") {
       if (msg.struct != null) struct = msg.struct;
       if (msg.tableId != null) tableId = msg.tableId;
@@ -231,6 +246,7 @@ func EditorHTML(editorJS string) string {
       alignHistory();
       mount();
       if (msg.reveal) scheduleReveal(msg.reveal);
+      if (msg.selectByRef) scheduleSelectByRef(msg.selectByRef);
     } else if (msg.type === "undo") {
       undo();
     } else if (msg.type === "redo") {

@@ -56,6 +56,7 @@ export class BitTableEditorBase {
   private selectBound = false;
   private clipboardBound = false;
   private copyRefKeyBound = false;
+  private selectByRefBound = false;
   private copyRefFlashTimer = 0;
   private liveSearchSelects: BitSearchSelect[] = [];
   protected pluginBound = new Set<string>();
@@ -77,6 +78,14 @@ export class BitTableEditorBase {
       this.batchKey = first ? first.key : "";
     }
     this.revealTarget = null;
+    if (!this.selectByRefBound) {
+      this.selectByRefBound = true;
+      window.addEventListener("message", (ev) => {
+        const msg = ev.data;
+        if (!msg || typeof msg !== "object" || msg.type !== "selectByRef") return;
+        this.selectByRef(msg);
+      });
+    }
     this.render();
   }
 
@@ -480,22 +489,53 @@ export class BitTableEditorBase {
     const sheet = this.currentSheetId();
     const cells: { id: string; field: string; type?: string; widget?: string }[] = [];
     const range = this.selectionRange();
+    let mode: SelMode = this.selection?.mode || "cell";
     if (range && this.view === "table") {
-      const push = (ri: number, ci: number) => {
+      const singleCol = range.c0 === range.c1;
+      const singleRow = range.r0 === range.r1;
+      if (this.selection?.mode === "col" || (this.selectionCoversAllRows() && singleCol)) mode = "col";
+      else if (this.selection?.mode === "row" || (this.selectionCoversAllCols() && singleRow)) mode = "row";
+      const push = (ri: number, ci: number, idOverride?: string) => {
         const row = this.data.rows[ri] || {};
         const field = this.fields[ci];
         if (!field?.key) return;
         cells.push({
-          id: this.rowRefId(row, ri),
+          id: idOverride ?? this.rowRefId(row, ri),
           field: field.key,
           type: field.type || "",
           widget: field.widget || "",
         });
       };
-      push(range.r0, range.c0);
-      if (range.r0 !== range.r1 || range.c0 !== range.c1) push(range.r1, range.c1);
+      if (mode === "col") {
+        push(range.r0, range.c0, "*");
+        if (range.c0 !== range.c1) push(range.r0, range.c1, "*");
+      } else {
+        push(range.r0, range.c0);
+        if (range.r0 !== range.r1 || range.c0 !== range.c1) push(range.r1, range.c1);
+      }
     }
-    parent.postMessage({ type: "selection", tableId, sheet, cells }, "*");
+    parent.postMessage({ type: "selection", tableId, sheet, mode, cells }, "*");
+  }
+
+  selectByRef(target: { field?: string; rowId?: string }): void {
+    if (this.view !== "table") return;
+    const field = String(target?.field || "").trim();
+    const ci = field ? this.fields.findIndex((item) => item.key === field) : -1;
+    if (ci < 0) return;
+    const rowId = String(target?.rowId || "").trim();
+    if (!rowId || rowId === "*") {
+      if (!this.data.rows.length) return;
+      this.setCellSelection({ ri: 0, ci }, { ri: 0, ci }, "col");
+      requestAnimationFrame(() => {
+        const th = this.el?.querySelector(`th[data-role="col-head"][data-col="${ci}"]`) as HTMLElement | null;
+        th?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+      return;
+    }
+    const ri = this.data.rows.findIndex((row, index) => this.rowRefId(row, index) === rowId);
+    if (ri < 0) return;
+    this.reveal({ rowIndex: ri, field });
+    this.setCellSelection({ ri, ci }, { ri, ci }, "cell");
   }
 
   protected remapSelectionAfterDelete(removed: number): void {
@@ -1091,6 +1131,7 @@ export class BitTableEditorBase {
   }
 
   protected isPluginBound(row: Row, field: string): boolean {
+    if (this.pluginBound.has(`*\t${field}`)) return true;
     const id = String(row?.id ?? "").trim();
     if (id && this.pluginBound.has(`${id}\t${field}`)) return true;
     const ri = this.data.rows.indexOf(row);

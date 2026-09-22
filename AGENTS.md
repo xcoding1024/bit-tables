@@ -61,8 +61,9 @@ window.BitTableExporter = { export(data, struct) { return { client: [{ name, con
 
 - 通用插件：配表根上一级 `src/plugins/*.ts`，`export default { id, name, kind: "generic", match, params, compute }`
 - 专属插件：表目录 `{id}_plugin.ts`，`kind: "exclusive"`，`match.table` 为本表 id，并可限制 sheet / field / type / widget
-- `match` 可写 `table` / `sheet` / `field` / `type` / `widget`；右面板「插件」只显示当前选中格命中的插件
-- 引用参数在表格里点选来源，可切换表或 sheet；格式 `表.sheet!字段[行id]`
+- `match` 可写 `table` / `sheet` / `field` / `type` / `widget`；右面板「插件」只显示当前选中单元格或列命中的插件
+- 来源和目标均可为单元格 `表.sheet!字段[行id]` 或整列 `表.sheet!字段`（绑定 `row: "*"`）；整列绑定时对该字段每一行计算，列来源按同行 id（或同行号）取值
+- 右面板显示来源 / 目标，可「选中」跳到对应单元格或列，「更改」后在表格里点选（可换表或 sheet）
 - 绑定写 `{id}_plugins.yaml`（不计入 complete）；算出的普通值写回 `{id}_data.yaml`
 
 ## 禁止

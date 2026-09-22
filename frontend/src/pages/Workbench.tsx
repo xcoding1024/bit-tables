@@ -41,7 +41,9 @@ import {
   listExclusiveMeta,
   listPluginMeta,
   parseBindings,
+  parseCellRef,
   recomputeBindings,
+  rowsOfSheet,
   selectionToRef,
   stringifyBindings,
   type PluginBinding,
@@ -143,6 +145,8 @@ export default function Workbench({
   const logSeq = useRef(0);
   const frameReadyRef = useRef<Record<string, boolean>>({});
   const pendingRevealRef = useRef<({ tableId: string } & RevealTarget) | null>(null);
+  const pendingSelectRef = useRef<{ tableId: string; field: string; rowId: string } | null>(null);
+  const locatingRef = useRef(false);
   const filesRef = useRef(filesById);
   const draftRef = useRef(draftById);
   const sheetRef = useRef(sheetById);
@@ -155,9 +159,11 @@ export default function Workbench({
   const genericPluginJsRef = useRef(genericPluginJs);
   const recomputeTimer = useRef(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
+  const pluginTargetRef = useRef<PluginSelection | null>(null);
   bindingsRef.current = bindingsById;
   genericPluginJsRef.current = genericPluginJs;
   pluginPickRef.current = pluginPick;
+  pluginTargetRef.current = pluginTarget;
   filesRef.current = filesById;
   draftRef.current = draftById;
   sheetRef.current = sheetById;
@@ -269,8 +275,15 @@ export default function Workbench({
     return { rowIndex: pending.rowIndex, field: pending.field, query: pending.query };
   }, []);
 
+  const takePendingSelect = useCallback((id: string): { field: string; rowId: string } | null => {
+    const pending = pendingSelectRef.current;
+    if (!pending || pending.tableId !== id) return null;
+    pendingSelectRef.current = null;
+    return { field: pending.field, rowId: pending.rowId };
+  }, []);
+
   const postSlice = useCallback(
-    (id: string, type: "init" | "setSheet" | "replaceData", extra?: { reveal?: RevealTarget | null }) => {
+    (id: string, type: "init" | "setSheet" | "replaceData", extra?: { reveal?: RevealTarget | null; selectByRef?: { field: string; rowId: string } | null }) => {
       const frame = iframeRefs.current[id];
       const cur = filesRef.current[id];
       if (!frame?.contentWindow || !cur) return;
@@ -279,18 +292,19 @@ export default function Workbench({
       const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
       const enums = buildEnumsPayload(struct, cur.id, enumsRef.current);
       const reveal = extra?.reveal || undefined;
+      const selectByRef = extra?.selectByRef || undefined;
       const pluginCells = (bindingsRef.current[id] || parseBindings(cur.plugins || ""))
         .filter((item) => item.sheet === sheetId)
         .map((item) => ({ row: item.row, field: item.field }));
       if (type === "replaceData") {
         frame.contentWindow.postMessage(
-          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal },
+          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal, selectByRef },
           "*",
         );
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal },
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal, selectByRef },
         "*",
       );
     },
@@ -303,9 +317,9 @@ export default function Workbench({
       if (!id || !frameReadyRef.current[id] || !filesRef.current[id] || !iframeRefs.current[id]?.contentWindow) {
         return;
       }
-      postSlice(id, "init", { reveal: takePendingReveal(id) });
+      postSlice(id, "init", { reveal: takePendingReveal(id), selectByRef: takePendingSelect(id) });
     },
-    [postSlice, takePendingReveal],
+    [postSlice, takePendingReveal, takePendingSelect],
   );
 
   const runExport = useCallback(async (tableIds: string[]): Promise<ExportReport> => {
@@ -587,11 +601,11 @@ export default function Workbench({
         },
       }));
       if (!remount) {
-        postSlice(id, "replaceData", { reveal: takePendingReveal(id) });
+        postSlice(id, "replaceData", { reveal: takePendingReveal(id), selectByRef: takePendingSelect(id) });
       }
       await runCheck(id, next, data);
     },
-    [postSlice, rememberDraft, rememberFiles, runCheck, takePendingReveal],
+    [postSlice, rememberDraft, rememberFiles, runCheck, takePendingReveal, takePendingSelect],
   );
 
   const handleOpenTable = useCallback(
@@ -648,6 +662,72 @@ export default function Workbench({
       });
     },
     [findQuery, handleOpenTable, postReveal, postSlice],
+  );
+
+  const locatePluginRef = useCallback(
+    (ref: string) => {
+      const parsed = parseCellRef(ref);
+      if (!parsed?.field) return;
+      const field = parsed.field;
+      locatingRef.current = true;
+      const rowId = parsed.row || "*";
+      const packData = Object.prototype.hasOwnProperty.call(draftRef.current, parsed.table)
+        ? draftRef.current[parsed.table]
+        : parseDoc(filesRef.current[parsed.table]?.data || "");
+      const rows = rowsOfSheet(packData, parsed.sheet);
+      let rowIndex = 0;
+      if (rowId !== "*") {
+        const idx = rows.findIndex((item) => String(item.id ?? "").trim() === rowId);
+        if (idx >= 0) rowIndex = idx;
+      }
+      const reveal: RevealTarget = { rowIndex, field };
+      pendingSelectRef.current = { tableId: parsed.table, field, rowId };
+      pendingRevealRef.current = { tableId: parsed.table, ...reveal };
+      const finish = () => {
+        window.setTimeout(() => {
+          locatingRef.current = false;
+        }, 400);
+      };
+      const cur = filesRef.current[parsed.table];
+      if (!cur) {
+        handleOpenTable(parsed.table, true, parsed.sheet);
+        finish();
+        return;
+      }
+      writeTableParam(parsed.table);
+      setActiveId(parsed.table);
+      if (!tabsRef.current.includes(parsed.table)) {
+        setTabs((prev) => (prev.includes(parsed.table) ? prev : [...prev, parsed.table]));
+      }
+      const nextSheet = resolveSheetId(parseDoc(cur.struct), parsed.sheet);
+      const sheetChanged = sheetRef.current[parsed.table] !== nextSheet;
+      if (sheetChanged) {
+        sheetRef.current = { ...sheetRef.current, [parsed.table]: nextSheet };
+        setSheetById((prev) => ({ ...prev, [parsed.table]: nextSheet }));
+      }
+      const send = () => {
+        if (!iframeRefs.current[parsed.table]?.contentWindow) return false;
+        pendingSelectRef.current = null;
+        pendingRevealRef.current = null;
+        if (sheetChanged) {
+          postSlice(parsed.table, "setSheet", { reveal, selectByRef: { field, rowId } });
+        } else {
+          iframeRefs.current[parsed.table]?.contentWindow?.postMessage(
+            { type: "selectByRef", field, rowId },
+            "*",
+          );
+        }
+        finish();
+        return true;
+      };
+      if (send()) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!send()) finish();
+        });
+      });
+    },
+    [handleOpenTable, postSlice],
   );
 
   const closeTab = useCallback(
@@ -778,16 +858,22 @@ export default function Workbench({
           toggleLog();
         }
       } else if (msg.type === "selection") {
-        const raw = ev.data as { sheet?: string; tableId?: string; cells?: PluginSelection["cells"] };
-        const cells = Array.isArray(raw.cells) ? raw.cells.filter((item) => item && item.field && item.id) : [];
-        const next = cells.length
-          ? { tableId: String(raw.tableId || id), sheet: String(raw.sheet || sheetRef.current[id] || ""), cells }
+        const raw = ev.data as { sheet?: string; tableId?: string; mode?: PluginSelection["mode"]; cells?: PluginSelection["cells"] };
+        const mode: PluginSelection["mode"] = raw.mode === "col" || raw.mode === "row" ? raw.mode : "cell";
+        const cells = Array.isArray(raw.cells)
+          ? raw.cells.filter((item) => item && item.field && (mode === "col" || item.id))
+          : [];
+        const next: PluginSelection | null = cells.length
+          ? { tableId: String(raw.tableId || id), sheet: String(raw.sheet || sheetRef.current[id] || ""), mode, cells }
           : null;
+        if (locatingRef.current) return;
         const pick = pluginPickRef.current;
-        if (pick && next) {
+        if (pick?.kind === "source" && next) {
           const ref = selectionToRef(next);
           if (ref) setPickedRef({ pluginId: pick.pluginId, key: pick.key, ref });
-        } else if (!pick) {
+        } else if (pick?.kind === "target" && next) {
+          setPluginTarget(next);
+        } else if (!pick && !pluginTargetRef.current) {
           setPluginTarget(next);
         }
       } else if (msg.type === "copyText") {
@@ -947,7 +1033,7 @@ export default function Workbench({
     if (!id) return;
     const prev = bindingsRef.current[id] || [];
     const next = [
-      ...prev.filter((item) => !(item.sheet === binding.sheet && item.row === binding.row && item.field === binding.field)),
+      ...prev.filter((item) => !(item.sheet === binding.sheet && item.field === binding.field)),
       binding,
     ];
     setPluginBusy(true);
@@ -1166,11 +1252,12 @@ export default function Workbench({
                     busy={pluginBusy}
                     picking={pluginPick}
                     pickedRef={pickedRef}
-                    onStartPick={(pluginId, key) => {
-                      setPluginPick({ pluginId, key });
+                    onStartPick={(pick) => {
+                      setPluginPick(pick);
                       setPickedRef(null);
                     }}
                     onCancelPick={() => setPluginPick(null)}
+                    onLocate={locatePluginRef}
                     onBind={handleBindPlugin}
                     onUnbind={handleUnbindPlugin}
                     onRecompute={() => {
