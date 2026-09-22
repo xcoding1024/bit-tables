@@ -676,24 +676,30 @@ export default function Workbench({
         return { ...prev, [id]: sheetId };
       });
       rememberFiles(id, next);
-      if (remount) {
-        frameReadyRef.current[id] = false;
-      }
-      setChecks((prev) => ({
-        ...prev,
-        [id]: {
-          ok: prev[id]?.ok || false,
-          errors: prev[id]?.errors || [],
-          error: "",
-          editorKey: remount ? (prev[id]?.editorKey || 0) + 1 : prev[id]?.editorKey || 1,
-        },
-      }));
+      setChecks((prev) => {
+        const prevKey = prev[id]?.editorKey || 0;
+        const nextKey = remount ? prevKey + 1 : prevKey || 1;
+        if (remount && prevKey >= 1) {
+          frameReadyRef.current[id] = false;
+        }
+        return {
+          ...prev,
+          [id]: {
+            ok: prev[id]?.ok || false,
+            errors: prev[id]?.errors || [],
+            error: "",
+            editorKey: nextKey,
+          },
+        };
+      });
       if (!remount) {
         postSlice(id, "replaceData", { reveal: takePendingReveal(id), selectByRef: takePendingSelect(id) });
+      } else {
+        tryInitFrame(id);
       }
       await runCheck(id, next, data);
     },
-    [postSlice, rememberDraft, rememberFiles, runCheck, takePendingReveal, takePendingSelect],
+    [postSlice, rememberDraft, rememberFiles, runCheck, takePendingReveal, takePendingSelect, tryInitFrame],
   );
 
   const handleOpenTable = useCallback(
