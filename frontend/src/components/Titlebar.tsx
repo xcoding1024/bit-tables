@@ -3,7 +3,7 @@ import { Copy, Minus, Square, X } from "lucide-react";
 import { shell } from "../lib/shell";
 import { Btn, Dialog } from "./ui";
 
-const APP_VERSION = "0.1.0";
+const APP_VERSION = "0.1.1";
 
 type MenuId = "project" | "edit" | "view" | "check" | "export" | "help" | null;
 

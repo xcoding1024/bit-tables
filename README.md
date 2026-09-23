@@ -89,12 +89,12 @@ npm run dev
 
 ## 下载
 
-[v0.1.0](https://github.com/xcoding1024/bit-tables/releases/tag/v0.1.0) 提供各平台桌面 zip：
+[v0.1.1](https://github.com/xcoding1024/bit-tables/releases/tag/v0.1.1) 提供各平台桌面 zip：
 
-- Windows x64：`bit-tables-0.1.0-win-x64.zip`
-- Linux x64：`bit-tables-0.1.0-linux-x64.zip`
-- macOS Intel：`bit-tables-0.1.0-mac-x64.zip`
-- macOS Apple Silicon：`bit-tables-0.1.0-mac-arm64.zip`
+- Windows x64：`bit-tables-0.1.1-win-x64.zip`
+- Linux x64：`bit-tables-0.1.1-linux-x64.zip`
+- macOS Intel：`bit-tables-0.1.1-mac-x64.zip`
+- macOS Apple Silicon：`bit-tables-0.1.1-mac-arm64.zip`
 
 解压后运行可执行文件。
 
