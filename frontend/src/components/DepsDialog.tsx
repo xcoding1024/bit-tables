@@ -21,6 +21,7 @@ export function DepsDialog({
   const graph = useMemo(() => buildDepGraph(tables), [tables]);
   const layout = useMemo(() => layoutDepGraph(graph), [graph]);
   const [activeId, setActiveId] = useState("");
+  const [sideTab, setSideTab] = useState<"refs" | "dependents">("refs");
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const listRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<HTMLDivElement>(null);
@@ -192,9 +193,31 @@ export function DepsDialog({
                 <div className="truncate font-mono text-[11px] text-muted">{selected.id}</div>
               </div>
             ) : null}
+            <div className="flex shrink-0 border-b border-line">
+              <button
+                type="button"
+                data-testid="deps-tab-refs"
+                className={`min-w-0 flex-1 px-2 py-1.5 text-[12px] ${sideTab === "refs" ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
+                onClick={() => setSideTab("refs")}
+              >
+                引用 {selected?.refs.length ?? 0}
+              </button>
+              <button
+                type="button"
+                data-testid="deps-tab-dependents"
+                className={`min-w-0 flex-1 border-l border-line px-2 py-1.5 text-[12px] ${sideTab === "dependents" ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
+                onClick={() => setSideTab("dependents")}
+              >
+                被引用 {selected?.dependents.length ?? 0}
+              </button>
+            </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <DepIdList title="引用" testId="deps-refs" ids={selected?.refs || []} graph={graph} onSelect={focusNode} />
-              <DepIdList title="被引用" testId="deps-dependents" ids={selected?.dependents || []} graph={graph} onSelect={focusNode} />
+              <DepIdList
+                testId={sideTab === "refs" ? "deps-refs" : "deps-dependents"}
+                ids={sideTab === "refs" ? selected?.refs || [] : selected?.dependents || []}
+                graph={graph}
+                onSelect={focusNode}
+              />
             </div>
           </div>
         </div>
@@ -204,13 +227,11 @@ export function DepsDialog({
 }
 
 function DepIdList({
-  title,
   testId,
   ids,
   graph,
   onSelect,
 }: {
-  title: string;
   testId: string;
   ids: string[];
   graph: DepGraph;
@@ -219,9 +240,6 @@ function DepIdList({
   const nameOf = new Map(graph.nodes.map((node) => [node.id, node.name]));
   return (
     <div data-testid={testId}>
-      <div className="sticky top-0 border-b border-line bg-elevated px-2 py-1 text-[12px] text-muted">
-        {title} {ids.length}
-      </div>
       {ids.length === 0 ? (
         <div className="px-2 py-2 text-[12px] text-muted">无</div>
       ) : (
