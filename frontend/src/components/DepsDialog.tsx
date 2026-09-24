@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Btn, Dialog } from "./ui";
 import {
   buildDepGraph,
@@ -23,6 +23,7 @@ export function DepsDialog({
   const [activeId, setActiveId] = useState("");
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const listRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const wasOpen = useRef(false);
@@ -38,10 +39,21 @@ export function DepsDialog({
   useEffect(() => {
     if (open && !wasOpen.current) {
       setActiveId(currentId && graph.nodes.some((item) => item.id === currentId) ? currentId : "");
-      setPan({ x: 0, y: 0 });
     }
     wasOpen.current = open;
   }, [open, currentId, graph]);
+
+  useLayoutEffect(() => {
+    if (!open || !selectedId || !hasEdges) return;
+    const node = layout.nodes.find((item) => item.id === selectedId);
+    const view = viewRef.current;
+    if (!node || !view || view.clientWidth === 0) return;
+    const pad = 8;
+    setPan({
+      x: view.clientWidth / 2 - (pad + node.x + node.w / 2),
+      y: view.clientHeight / 2 - (pad + node.y + node.h / 2),
+    });
+  }, [open, selectedId, layout, hasEdges]);
 
   useEffect(() => {
     if (!open || !selectedId || !listRef.current) return;
@@ -72,12 +84,24 @@ export function DepsDialog({
     dragRef.current = null;
   }
 
+  function focusNode(id: string) {
+    setActiveId(id);
+    const node = layout.nodes.find((item) => item.id === id);
+    const view = viewRef.current;
+    if (!node || !view || view.clientWidth === 0) return;
+    const pad = 8;
+    setPan({
+      x: view.clientWidth / 2 - (pad + node.x + node.w / 2),
+      y: view.clientHeight / 2 - (pad + node.y + node.h / 2),
+    });
+  }
+
   function selectNode(id: string) {
     if (suppressClick.current) {
       suppressClick.current = false;
       return;
     }
-    setActiveId(id);
+    focusNode(id);
   }
 
   return (
@@ -107,7 +131,7 @@ export function DepsDialog({
                   className={`block w-full border-b border-line px-2 py-2 text-left last:border-b-0 ${
                     active ? "bg-active text-ink" : "hover:bg-hover"
                   }`}
-                  onClick={() => setActiveId(item.id)}
+                  onClick={() => focusNode(item.id)}
                 >
                   <div className="truncate text-[13px]">{item.name}</div>
                   <div className="truncate font-mono text-[11px] text-muted">{item.id}</div>
@@ -127,6 +151,7 @@ export function DepsDialog({
             ) : (
               <div
                 className="relative min-h-0 flex-1 cursor-grab select-none overflow-hidden active:cursor-grabbing"
+                ref={viewRef}
                 data-testid="deps-graph-viewport"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -153,8 +178,8 @@ export function DepsDialog({
               </div>
             ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <DepIdList title="引用" testId="deps-refs" ids={selected?.refs || []} graph={graph} onSelect={setActiveId} />
-              <DepIdList title="被引用" testId="deps-dependents" ids={selected?.dependents || []} graph={graph} onSelect={setActiveId} />
+              <DepIdList title="引用" testId="deps-refs" ids={selected?.refs || []} graph={graph} onSelect={focusNode} />
+              <DepIdList title="被引用" testId="deps-dependents" ids={selected?.dependents || []} graph={graph} onSelect={focusNode} />
             </div>
           </div>
         </div>
