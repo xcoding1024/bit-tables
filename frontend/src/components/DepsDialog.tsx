@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Btn, Dialog } from "./ui";
 import {
   buildDepGraph,
@@ -21,6 +21,11 @@ export function DepsDialog({
   const graph = useMemo(() => buildDepGraph(tables), [tables]);
   const layout = useMemo(() => layoutDepGraph(graph), [graph]);
   const [activeId, setActiveId] = useState("");
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const listRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const wasOpen = useRef(false);
 
   const selected =
     graph.nodes.find((item) => item.id === activeId) ||
@@ -30,22 +35,68 @@ export function DepsDialog({
   const selectedId = selected?.id || "";
   const hasEdges = graph.edges.length > 0;
 
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setActiveId(currentId && graph.nodes.some((item) => item.id === currentId) ? currentId : "");
+      setPan({ x: 0, y: 0 });
+    }
+    wasOpen.current = open;
+  }, [open, currentId, graph]);
+
+  useEffect(() => {
+    if (!open || !selectedId || !listRef.current) return;
+    const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(selectedId) : selectedId;
+    listRef.current.querySelector(`[data-testid="deps-item-${escaped}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, selectedId]);
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, moved: false };
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    if (drag.moved) window.getSelection()?.removeAllRanges();
+    setPan({ x: drag.px + dx, y: drag.py + dy });
+  }
+
+  function onPointerUp() {
+    suppressClick.current = Boolean(dragRef.current?.moved);
+    dragRef.current = null;
+  }
+
+  function selectNode(id: string) {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    setActiveId(id);
+  }
+
   return (
     <Dialog
       open={open}
       title="依赖关系"
       onClose={onClose}
-      width="max-w-[920px]"
+      width="max-w-[1100px]"
+      bodyClassName="flex h-[70vh] flex-col overflow-hidden"
       footer={<Btn onClick={onClose}>关闭</Btn>}
     >
-      <div className="mb-3 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum、checker 里的表#分页，或结构上的 refs）。被多张表引用的节点会标出入度。</div>
+      <div className="mb-3 shrink-0 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum、checker 里的表#分页，或结构上的 refs）。被多张表引用的节点会标出入度。图超出视口时可拖拽查看。</div>
       {graph.nodes.length === 0 ? (
         <div className="py-8 text-center text-muted" data-testid="deps-empty">
           暂无配置表
         </div>
       ) : (
-        <div className="flex min-h-[360px] gap-3" data-testid="deps-browser">
-          <div className="w-[240px] shrink-0 overflow-auto rounded border border-line">
+        <div className="flex min-h-0 flex-1 gap-3" data-testid="deps-browser">
+          <div ref={listRef} className="w-[240px] shrink-0 overflow-y-auto rounded border border-line">
             {graph.nodes.map((item) => {
               const active = selectedId === item.id;
               return (
@@ -68,36 +119,85 @@ export function DepsDialog({
               );
             })}
           </div>
-          <div className="min-w-0 flex-1 overflow-auto rounded border border-line">
-            {selected ? (
-              <div className="border-b border-line px-3 py-2">
-                <div className="font-medium">{selected.name}</div>
-                <div className="font-mono text-[11px] text-muted">{selected.id}</div>
-                <div className="mt-1 text-[12px] text-secondary">
-                  引用：{selected.refs.length ? selected.refs.join("、") : "无"}
-                </div>
-                <div className="text-[12px] text-secondary">
-                  被引用：{selected.dependents.length ? selected.dependents.join("、") : "无"}
-                </div>
-              </div>
-            ) : null}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-line">
             {!hasEdges ? (
               <div className="px-3 py-8 text-center text-muted" data-testid="deps-graph-empty">
                 暂无跨表引用
               </div>
             ) : (
-              <DepGraphSvg
-                graph={graph}
-                layout={layout}
-                selectedId={selectedId}
-                currentId={currentId || ""}
-                onSelect={setActiveId}
-              />
+              <div
+                className="relative min-h-0 flex-1 cursor-grab select-none overflow-hidden active:cursor-grabbing"
+                data-testid="deps-graph-viewport"
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+              >
+                <div className="absolute left-0 top-0" style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
+                  <DepGraphSvg
+                    graph={graph}
+                    layout={layout}
+                    selectedId={selectedId}
+                    currentId={currentId || ""}
+                    onSelect={selectNode}
+                  />
+                </div>
+              </div>
             )}
+          </div>
+          <div className="flex w-[240px] shrink-0 flex-col overflow-hidden rounded border border-line" data-testid="deps-side">
+            {selected ? (
+              <div className="shrink-0 border-b border-line px-2 py-2">
+                <div className="truncate text-[13px] font-medium">{selected.name}</div>
+                <div className="truncate font-mono text-[11px] text-muted">{selected.id}</div>
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <DepIdList title="引用" testId="deps-refs" ids={selected?.refs || []} graph={graph} onSelect={setActiveId} />
+              <DepIdList title="被引用" testId="deps-dependents" ids={selected?.dependents || []} graph={graph} onSelect={setActiveId} />
+            </div>
           </div>
         </div>
       )}
     </Dialog>
+  );
+}
+
+function DepIdList({
+  title,
+  testId,
+  ids,
+  graph,
+  onSelect,
+}: {
+  title: string;
+  testId: string;
+  ids: string[];
+  graph: DepGraph;
+  onSelect: (id: string) => void;
+}) {
+  const nameOf = new Map(graph.nodes.map((node) => [node.id, node.name]));
+  return (
+    <div data-testid={testId}>
+      <div className="sticky top-0 border-b border-line bg-elevated px-2 py-1 text-[12px] text-muted">
+        {title} {ids.length}
+      </div>
+      {ids.length === 0 ? (
+        <div className="px-2 py-2 text-[12px] text-muted">无</div>
+      ) : (
+        ids.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className="block w-full border-b border-line px-2 py-1.5 text-left last:border-b-0 hover:bg-hover"
+            onClick={() => onSelect(id)}
+          >
+            <div className="truncate text-[13px]">{nameOf.get(id) || id}</div>
+            <div className="truncate font-mono text-[11px] text-muted">{id}</div>
+          </button>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -129,7 +229,10 @@ function DepGraphSvg({
         viewBox={`0 0 ${layout.width} ${layout.height}`}
         role="img"
         aria-label="表依赖关系图"
+        className="select-none"
+        style={{ userSelect: "none", WebkitUserSelect: "none" }}
       >
+        <style>{`text { user-select: none; -webkit-user-select: none; }`}</style>
         <defs>
           <marker id="deps-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
             <path d="M0,0 L8,4 L0,8 Z" fill="var(--border-strong)" />

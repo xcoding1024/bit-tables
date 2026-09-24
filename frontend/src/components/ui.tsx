@@ -52,6 +52,7 @@ export function Dialog({
   footer,
   onClose,
   width = "max-w-[480px]",
+  bodyClassName = "overflow-auto",
 }: {
   open: boolean;
   title: string;
@@ -59,6 +60,7 @@ export function Dialog({
   footer?: ReactNode;
   onClose: () => void;
   width?: string;
+  bodyClassName?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -75,7 +77,7 @@ export function Dialog({
       <button type="button" className="absolute inset-0" aria-label="关闭" onClick={onClose} />
       <div className={`relative w-full ${width} rounded border border-line bg-elevated`}>
         <div className="flex h-9 items-center border-b border-line px-3 font-medium">{title}</div>
-        <div className="max-h-[70vh] overflow-auto p-3">{children}</div>
+        <div className={`max-h-[70vh] p-3 ${bodyClassName}`}>{children}</div>
         {footer ? <div className="flex justify-end gap-2 border-t border-line px-3 py-2">{footer}</div> : null}
       </div>
     </div>
