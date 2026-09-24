@@ -23,6 +23,7 @@ export function DepsDialog({
   const [activeId, setActiveId] = useState("");
   const [sideTab, setSideTab] = useState<"refs" | "dependents">("refs");
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [query, setQuery] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
@@ -36,10 +37,16 @@ export function DepsDialog({
     null;
   const selectedId = selected?.id || "";
   const hasEdges = graph.edges.length > 0;
+  const listed = graph.nodes.filter((item) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return item.name.toLowerCase().includes(q) || item.id.toLowerCase().includes(q);
+  });
 
   useEffect(() => {
     if (open && !wasOpen.current) {
       setActiveId(currentId && graph.nodes.some((item) => item.id === currentId) ? currentId : "");
+      setQuery("");
     }
     wasOpen.current = open;
   }, [open, currentId, graph]);
@@ -136,8 +143,18 @@ export function DepsDialog({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-3" data-testid="deps-browser">
-          <div ref={listRef} className="w-[240px] shrink-0 overflow-y-auto rounded border border-line">
-            {graph.nodes.map((item) => {
+          <div className="flex w-[240px] shrink-0 flex-col overflow-hidden rounded border border-line">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索名称或 id"
+              data-testid="deps-search"
+              className="h-8 shrink-0 border-b border-line bg-transparent px-2 text-[12px] text-ink outline-none placeholder:text-muted"
+            />
+            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto">
+            {listed.length === 0 ? (
+              <div className="px-2 py-3 text-[12px] text-muted">无匹配</div>
+            ) : listed.map((item) => {
               const active = selectedId === item.id;
               return (
                 <button
@@ -158,6 +175,7 @@ export function DepsDialog({
                 </button>
               );
             })}
+            </div>
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-line">
             {!hasEdges ? (
