@@ -52,6 +52,41 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
+const CHECKER_TABLE = /([A-Za-z][A-Za-z0-9_./]*)#/g;
+
+function resolveTableId(token: string, ids: Set<string>): string {
+  const raw = String(token || "").trim();
+  if (!raw) return "";
+  if (ids.has(raw)) return raw;
+  const hits = [...ids].filter((id) => id.endsWith(`/${raw}`));
+  return hits.length === 1 ? hits[0] : "";
+}
+
+function collectCheckerTargets(struct: unknown): string[] {
+  const out = new Set<string>();
+  const rec = asRecord(struct);
+  if (Array.isArray(rec?.refs)) {
+    for (const item of rec.refs) {
+      const id = String(item || "").trim();
+      if (id) out.add(id);
+    }
+  }
+  const sheets = rec && Array.isArray(rec.sheets) ? rec.sheets : [];
+  for (const item of sheets) {
+    const sheet = asRecord(item);
+    const fields = sheet && Array.isArray(sheet.fields) ? sheet.fields : [];
+    for (const field of fields) {
+      const checker = String(asRecord(field)?.checker ?? "");
+      if (!checker || checker === "x") continue;
+      if (checker.includes("ItemArrayChecker")) out.add("item");
+      CHECKER_TABLE.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = CHECKER_TABLE.exec(checker))) out.add(match[1]);
+    }
+  }
+  return [...out];
+}
+
 export function tableDisplayName(struct: unknown, id: string): string {
   const rec = asRecord(struct);
   const name = String(rec?.name || "").trim();
@@ -81,21 +116,26 @@ export function buildDepGraph(tables: TableSnap[]): DepGraph {
   }
 
   const edgeMap = new Map<string, DepEdge>();
+  const addEdge = (from: string, to: string, ref: string) => {
+    if (!to || to === from || !ids.has(to)) return;
+    const key = `${from}\0${to}`;
+    const hit = edgeMap.get(key);
+    if (hit) {
+      if (!hit.refs.includes(ref)) hit.refs.push(ref);
+    } else {
+      edgeMap.set(key, { from, to, refs: [ref] });
+    }
+  };
   for (const table of tables) {
     const from = String(table.id || "").trim();
     if (!from || !ids.has(from)) continue;
     for (const ref of collectEnumRefs(table.struct)) {
       const parsed = parseEnumRef(ref, from);
       if (!parsed) continue;
-      const to = parsed.tableId;
-      if (to === from || !ids.has(to)) continue;
-      const key = `${from}\0${to}`;
-      const hit = edgeMap.get(key);
-      if (hit) {
-        if (!hit.refs.includes(ref)) hit.refs.push(ref);
-      } else {
-        edgeMap.set(key, { from, to, refs: [ref] });
-      }
+      addEdge(from, parsed.tableId, ref);
+    }
+    for (const target of collectCheckerTargets(table.struct)) {
+      addEdge(from, resolveTableId(target, ids), target);
     }
   }
 

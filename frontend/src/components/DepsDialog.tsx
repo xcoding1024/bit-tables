@@ -38,7 +38,7 @@ export function DepsDialog({
       width="max-w-[920px]"
       footer={<Btn onClick={onClose}>关闭</Btn>}
     >
-      <div className="mb-3 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum）。被多张表引用的节点会标出入度。</div>
+      <div className="mb-3 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum、checker 里的表#分页，或结构上的 refs）。被多张表引用的节点会标出入度。</div>
       {graph.nodes.length === 0 ? (
         <div className="py-8 text-center text-muted" data-testid="deps-empty">
           暂无配置表
@@ -83,7 +83,7 @@ export function DepsDialog({
             ) : null}
             {!hasEdges ? (
               <div className="px-3 py-8 text-center text-muted" data-testid="deps-graph-empty">
-                暂无跨表引用（字段 enum: table.sheet）
+                暂无跨表引用
               </div>
             ) : (
               <DepGraphSvg
