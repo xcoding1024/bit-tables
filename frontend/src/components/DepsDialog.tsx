@@ -63,9 +63,6 @@ export function DepsDialog({
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
-    event.preventDefault();
-    window.getSelection()?.removeAllRanges();
-    event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, moved: false };
   }
 
@@ -74,14 +71,32 @@ export function DepsDialog({
     if (!drag) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-    if (drag.moved) window.getSelection()?.removeAllRanges();
+    if (!drag.moved) {
+      if (Math.abs(dx) + Math.abs(dy) <= 3) return;
+      drag.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      window.getSelection()?.removeAllRanges();
+    }
     setPan({ x: drag.px + dx, y: drag.py + dy });
   }
 
-  function onPointerUp() {
-    suppressClick.current = Boolean(dragRef.current?.moved);
+  function onPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
     dragRef.current = null;
+    if (!drag || drag.moved) {
+      suppressClick.current = Boolean(drag?.moved);
+      return;
+    }
+    const view = viewRef.current;
+    if (!view) return;
+    const rect = view.getBoundingClientRect();
+    const pad = 8;
+    const x = event.clientX - rect.left - drag.px - pad;
+    const y = event.clientY - rect.top - drag.py - pad;
+    const hit = layout.nodes.find(
+      (node) => x >= node.x && x <= node.x + node.w && y >= node.y && y <= node.y + node.h,
+    );
+    if (hit) focusNode(hit.id);
   }
 
   function focusNode(id: string) {
