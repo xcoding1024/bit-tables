@@ -48,6 +48,13 @@ export type ExportReport = {
   errors: { tableId: string; message: string }[];
 };
 
+export type ExportProgress = {
+  done: number;
+  total: number;
+  running: string[];
+  writing: boolean;
+};
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

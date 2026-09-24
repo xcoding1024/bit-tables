@@ -8,7 +8,7 @@ import { PluginPanel } from "../components/PluginPanel";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
-import { buildDepGraph, emptyExportReport, exportSet, type ExportReport, type TableSnap } from "../lib/deps";
+import { buildDepGraph, emptyExportReport, exportSet, type ExportProgress, type ExportReport, type TableSnap } from "../lib/deps";
 import { filterFileHits, listFileHits, searchTableContent, type ContentHit, type FileHit } from "../lib/search";
 import {
   LEFT_COLLAPSE_AT,
@@ -29,6 +29,8 @@ import {
   mergeSheetData,
   parseTableDoc,
   runTableChecker,
+  exportParallelism,
+  mapLimit,
   runTableExporter,
   parseCheckCell,
   sliceForSheet,
@@ -110,12 +112,14 @@ export default function Workbench({
   tablePacks = [],
   editorCommandsRef,
   onActiveIdChange,
+  onExportProgress,
 }: {
   rootPath: string;
   enumsCatalog?: EnumCatalogItem[];
   tablePacks?: TableSnap[];
   editorCommandsRef?: MutableRefObject<EditorCommands | null>;
   onActiveIdChange?: (id: string) => void;
+  onExportProgress?: (progress: ExportProgress) => void;
 }) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1, LEFT_COLLAPSE_AT);
   const right = usePanel("right", RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX, -1, RIGHT_COLLAPSE_AT);
@@ -373,37 +377,63 @@ export default function Workbench({
     }
     const pendingClient: { tableId: string; name: string; content: string }[] = [];
     const pendingServer: { tableId: string; name: string; content: string }[] = [];
-    for (const id of ids) {
-      let files = filesRef.current[id];
-      if (!files) {
-        try {
-          files = await tablesApi.files(id);
-        } catch (err: unknown) {
-          report.errors.push({ tableId: id, message: err instanceof Error ? err.message : "读取表失败" });
-          continue;
+    let done = 0;
+    const running = new Set<string>();
+    const publish = (writing = false) => {
+      onExportProgress?.({ done, total: ids.length, running: [...running], writing });
+    };
+    publish();
+    const slots = await mapLimit(ids, exportParallelism(), async (id) => {
+      running.add(id);
+      publish();
+      try {
+        const cached = filesRef.current[id];
+        let exportJs = String(cached?.export || "");
+        let dataText = cached?.data || "";
+        let structText = cached?.struct || "";
+        let hasExport = Boolean(cached?.hasExport && exportJs.trim());
+        if (!cached) {
+          try {
+            const src = await tablesApi.exportSource(id);
+            exportJs = src.export || "";
+            dataText = src.data || "";
+            structText = src.struct || "";
+            hasExport = Boolean(src.hasExport && exportJs.trim());
+          } catch (err: unknown) {
+            return { id, error: err instanceof Error ? err.message : "读取表失败", client: [] as { name: string; content: string }[], server: [] as { name: string; content: string }[] };
+          }
         }
+        if (!hasExport) {
+          return { id, skipped: "无导出脚本", client: [] as { name: string; content: string }[], server: [] as { name: string; content: string }[] };
+        }
+        const result = await runTableExporter(exportJs, fullDataOf(id, dataText), parseDoc(structText));
+        if (!result.ok) {
+          return { id, error: result.error || "导出失败", client: [] as { name: string; content: string }[], server: [] as { name: string; content: string }[] };
+        }
+        if (!result.client.length && !result.server.length) {
+          return { id, skipped: "未产生文件", client: [] as { name: string; content: string }[], server: [] as { name: string; content: string }[] };
+        }
+        return { id, client: result.client, server: result.server };
+      } finally {
+        running.delete(id);
+        done += 1;
+        publish();
       }
-      if (!files.hasExport || !String(files.export || "").trim()) {
-        report.skipped.push({ tableId: id, reason: "无导出脚本" });
+    });
+    for (const slot of slots) {
+      if (slot.error) {
+        report.errors.push({ tableId: slot.id, message: slot.error });
         continue;
       }
-      const result = await runTableExporter(files.export, fullDataOf(id, files.data), parseDoc(files.struct));
-      if (!result.ok) {
-        report.errors.push({ tableId: id, message: result.error || "导出失败" });
+      if (slot.skipped) {
+        report.skipped.push({ tableId: slot.id, reason: slot.skipped });
         continue;
       }
-      if (!result.client.length && !result.server.length) {
-        report.skipped.push({ tableId: id, reason: "未产生文件" });
-        continue;
-      }
-      for (const file of result.client) {
-        pendingClient.push({ tableId: id, name: file.name, content: file.content });
-      }
-      for (const file of result.server) {
-        pendingServer.push({ tableId: id, name: file.name, content: file.content });
-      }
+      for (const file of slot.client) pendingClient.push({ tableId: slot.id, name: file.name, content: file.content });
+      for (const file of slot.server) pendingServer.push({ tableId: slot.id, name: file.name, content: file.content });
     }
     if (pendingClient.length || pendingServer.length) {
+      publish(true);
       try {
         const wrote = await tablesApi.writeExport({
           client: pendingClient.map((item) => ({ name: item.name, content: item.content })),
@@ -420,7 +450,7 @@ export default function Workbench({
       }
     }
     return report;
-  }, [fullDataOf]);
+  }, [fullDataOf, onExportProgress]);
 
   const postEditorCmd = useCallback((type: "undo" | "redo" | "save" | "clearReveal") => {
     const id = activeRef.current;

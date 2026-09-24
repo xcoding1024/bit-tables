@@ -1,18 +1,23 @@
 import { Btn, Dialog } from "./ui";
-import type { ExportReport } from "../lib/deps";
+import type { ExportProgress, ExportReport } from "../lib/deps";
 
 export function ExportDialog({
   open,
   busy,
+  progress,
   report,
   onClose,
 }: {
   open: boolean;
   busy: boolean;
+  progress?: ExportProgress | null;
   report: ExportReport | null;
   onClose: () => void;
 }) {
   const hasError = Boolean(report?.errors.length);
+  const total = progress?.total ?? 0;
+  const done = progress?.done ?? 0;
+  const running = progress?.running ?? [];
   return (
     <Dialog
       open={open}
@@ -22,7 +27,26 @@ export function ExportDialog({
       footer={busy ? undefined : <Btn onClick={onClose}>关闭</Btn>}
     >
       <div data-testid="export-dialog">
-        {busy && !report ? <div className="py-6 text-center text-muted">正在运行各表 export.ts…</div> : null}
+        {busy ? (
+          <div data-testid="export-progress" className="space-y-2 py-2 text-[13px]">
+            <div className="text-secondary">
+              已完成 {done} / {total}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-hover">
+              <div
+                className="h-full bg-accent"
+                style={{ width: total ? `${Math.round((done / total) * 100)}%` : "0%" }}
+              />
+            </div>
+            {progress?.writing ? (
+              <div className="text-muted">正在写入文件</div>
+            ) : running.length ? (
+              <div className="truncate font-mono text-[12px] text-muted">正在导出 {running.join("、")}</div>
+            ) : (
+              <div className="text-muted">正在准备…</div>
+            )}
+          </div>
+        ) : null}
         {report ? (
           <div className="space-y-3 text-[13px]">
             {report.clientPath || report.serverPath ? (

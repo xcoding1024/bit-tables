@@ -98,6 +98,10 @@ export const tablesApi = {
       body: JSON.stringify({ id }),
     }),
   files: (id: string) => api<TableFiles>(`/api/tables/${encodeURIComponent(id)}/files`),
+  exportSource: (id: string) =>
+    api<{ struct: string; data: string; export: string; hasExport: boolean }>(
+      `/api/tables/${encodeURIComponent(id)}/files?view=export`,
+    ),
   history: (id: string) => api<TableHistory>(`/api/tables/${encodeURIComponent(id)}/history`),
   putData: (id: string, data: string) =>
     api<{ id: string; data: string }>(`/api/tables/${encodeURIComponent(id)}/data`, {

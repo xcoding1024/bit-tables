@@ -372,6 +372,27 @@ export function parseExportSides(raw: unknown): { client: TableExportFile[]; ser
   return { client: [], server: [] };
 }
 
+export function exportParallelism(): number {
+  const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4;
+  return Math.max(1, Math.min(4, cores));
+}
+
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Math.max(1, Math.min(limit, items.length || 1));
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (cursor < items.length) {
+        const index = cursor;
+        cursor += 1;
+        out[index] = await fn(items[index]);
+      }
+    }),
+  );
+  return out;
+}
+
 export function runTableExporter(
   exportJs: string,
   data: unknown,
@@ -381,54 +402,32 @@ export function runTableExporter(
     return Promise.resolve({ ok: false, client: [], server: [], error: "无导出脚本" });
   }
   return new Promise((resolve) => {
-    const html = `<!doctype html><meta charset="utf-8"><script>${exportJs.replace(/<\/script/gi, "<\\/script")}</script><script>
-      window.addEventListener("message", function (ev) {
-        try {
-          var exporter = window.BitTableExporter;
-          var result = exporter && typeof exporter.export === "function"
-            ? exporter.export(ev.data.data, ev.data.struct)
-            : null;
-          parent.postMessage({ type: "result", result: result }, "*");
-        } catch (err) {
-          parent.postMessage({ type: "result", error: String(err) }, "*");
-        }
-      });
-      parent.postMessage({ type: "ready" }, "*");
-    </script>`;
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    const iframe = document.createElement("iframe");
-    iframe.sandbox.add("allow-scripts");
-    iframe.style.display = "none";
-    iframe.src = url;
+    const source = `self.window = self;\n${exportJs}\nself.onmessage = function (ev) {\n  try {\n    var exporter = self.BitTableExporter;\n    if (!exporter || typeof exporter.export !== "function") {\n      self.postMessage({ ok: false, error: "未定义 BitTableExporter.export" });\n      return;\n    }\n    self.postMessage({ ok: true, result: exporter.export(ev.data.data, ev.data.struct) });\n  } catch (err) {\n    self.postMessage({ ok: false, error: String(err && err.message || err) });\n  }\n};\n`;
+    const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+    const worker = new Worker(url);
     let settled = false;
     const finish = (result: TableExportResult) => {
       if (settled) return;
       settled = true;
-      window.removeEventListener("message", onMsg);
-      iframe.remove();
+      window.clearTimeout(timer);
+      worker.terminate();
       URL.revokeObjectURL(url);
       resolve(result);
     };
-    const onMsg = (ev: MessageEvent) => {
-      if (ev.source !== iframe.contentWindow || !ev.data || typeof ev.data !== "object") return;
-      if (ev.data.type === "ready") {
-        iframe.contentWindow?.postMessage({ data, struct }, "*");
-      } else if (ev.data.type === "result") {
-        if (ev.data.error) {
-          finish({ ok: false, client: [], server: [], error: String(ev.data.error) });
-          return;
-        }
-        if (!ev.data.result) {
-          finish({ ok: false, client: [], server: [], error: "未定义 BitTableExporter.export" });
-          return;
-        }
-        const sides = parseExportSides(ev.data.result);
-        finish({ ok: true, client: sides.client, server: sides.server });
+    const timer = window.setTimeout(() => finish({ ok: false, client: [], server: [], error: "导出超时" }), 120000);
+    worker.onmessage = (ev: MessageEvent) => {
+      const msg = ev.data;
+      if (!msg || msg.ok === false) {
+        finish({ ok: false, client: [], server: [], error: String(msg?.error || "导出失败") });
+        return;
       }
+      const sides = parseExportSides(msg.result);
+      finish({ ok: true, client: sides.client, server: sides.server });
     };
-    window.addEventListener("message", onMsg);
-    document.body.appendChild(iframe);
-    window.setTimeout(() => finish({ ok: false, client: [], server: [], error: "导出超时" }), 120000);
+    worker.onerror = (ev) => {
+      finish({ ok: false, client: [], server: [], error: ev.message || "导出失败" });
+    };
+    worker.postMessage({ data, struct });
   });
 }
 

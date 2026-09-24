@@ -5,7 +5,7 @@ import { ExportDialog } from "./components/ExportDialog";
 import { TemplatesDialog } from "./components/TemplatesDialog";
 import Titlebar from "./components/Titlebar";
 import { tablesApi } from "./lib/api";
-import { emptyExportReport, type ExportReport, type TableSnap } from "./lib/deps";
+import { emptyExportReport, type ExportProgress, type ExportReport, type TableSnap } from "./lib/deps";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
 import { shell } from "./lib/shell";
 import Guide, { CreateSampleDialog, OpenDialog } from "./pages/Guide";
@@ -32,6 +32,7 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportReport, setExportReport] = useState<ExportReport | null>(null);
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [activeTableId, setActiveTableId] = useState("");
   const [recentRoots, setRecentRoots] = useState<string[]>([]);
   const dialogs = useGuideDialogs();
@@ -179,6 +180,7 @@ export default function App() {
     setExportBusy(true);
     setExportOpen(true);
     setExportReport(null);
+    setExportProgress({ done: 0, total: 0, running: [], writing: false });
     try {
       const report = kind === "current" ? await cmds.exportCurrent() : await cmds.exportAll();
       setExportReport(report);
@@ -224,6 +226,7 @@ export default function App() {
           tablePacks={tablePacks}
           editorCommandsRef={editorCommandsRef}
           onActiveIdChange={handleActiveIdChange}
+          onExportProgress={setExportProgress}
         />
       ) : null}
       <EnumsDialog open={enumsOpen} catalog={enumsCatalog} onClose={() => setEnumsOpen(false)} />
@@ -236,10 +239,12 @@ export default function App() {
       <ExportDialog
         open={exportOpen}
         busy={exportBusy}
+        progress={exportProgress}
         report={exportReport}
         onClose={() => {
           setExportOpen(false);
           setExportReport(null);
+          setExportProgress(null);
         }}
       />
       <TemplatesDialog open={templatesOpen} onClose={() => setTemplatesOpen(false)} />

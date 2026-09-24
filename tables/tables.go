@@ -485,6 +485,33 @@ func (r *Root) Files(id string) (Files, error) {
 	}, nil
 }
 
+type ExportSource struct {
+	Struct    string `json:"struct"`
+	Data      string `json:"data"`
+	Export    string `json:"export"`
+	HasExport bool   `json:"hasExport"`
+}
+
+func (r *Root) ExportSource(id string) (ExportSource, error) {
+	dir, err := r.Dir(id)
+	if err != nil {
+		return ExportSource{}, err
+	}
+	if _, err := os.Stat(dir); err != nil {
+		return ExportSource{}, err
+	}
+	tableID := TableID(id)
+	structText, _ := readFile(dir, tableID, "struct.yaml")
+	dataText, _ := readFile(dir, tableID, "data.yaml")
+	exportText, hasExport := r.compiledScript(dir, tableID, "export")
+	return ExportSource{
+		Struct:    structText,
+		Data:      dataText,
+		Export:    exportText,
+		HasExport: hasExport,
+	}, nil
+}
+
 func (r *Root) PutData(id, data string) error {
 	dir, err := r.Dir(id)
 	if err != nil {

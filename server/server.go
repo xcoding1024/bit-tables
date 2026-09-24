@@ -223,6 +223,15 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "export" {
+		src, err := s.current().ExportSource(r.PathValue("id"))
+		if err != nil {
+			writeTableErr(w, err)
+			return
+		}
+		writeOK(w, src)
+		return
+	}
 	files, err := s.current().Files(r.PathValue("id"))
 	if err != nil {
 		writeTableErr(w, err)

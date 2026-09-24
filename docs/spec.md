@@ -103,7 +103,7 @@ Checker / export 吃整表 struct + data（所有 sheet），错误路径形如 
 
 保存：写 data → 隔离跑 checker → 展示错误。磁盘上五件套或 `{id}_docs.md` 变更后，SSE 推送，页面重载 data、iframe 或右栏文档。
 
-导出：沙箱 iframe 调 `BitTableExporter.export(data, struct)`，把返回的 `{ client:[{ name, content }], server:[{ name, content }] }` 分别写入配表根上一级的 `build/client/` 与 `build/server/`。缺 `export.ts` / `export.js` 的表跳过。导出当前表的集合 = 当前表 ∪ 所有传递下游（struct 里跨表 enum 引用它的表）。导出所有不按依赖扩张。导出产物不计入配表文件、不触发 SSE。兼容旧返回 `{ files }` 时，两端各写一份。
+导出：每张表只编译 export 脚本（`GET /api/tables/{id}/files?view=export`）。最多 4 个 Worker 并行调用 `BitTableExporter.export(data, struct)`。导出过程显示已完成数量、进度条和正在导出的表。把返回的 `{ client:[{ name, content }], server:[{ name, content }] }` 分别写入配表根上一级的 `build/client/` 与 `build/server/`。缺 `export.ts` / `export.js` 的表跳过。导出当前表的集合 = 当前表 ∪ 所有传递下游（struct 里跨表 enum 引用它的表）。导出所有不按依赖扩张。导出产物不计入配表文件、不触发 SSE。兼容旧返回 `{ files }` 时，两端各写一份。
 
 缺 `editor.ts` / `editor.js` 时工作台用简易回退表（解析当前 sheet 的 `rows`），仍可查看/保存数据。回退编辑器不画 sheet 页签。
 
