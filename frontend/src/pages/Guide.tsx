@@ -52,7 +52,7 @@ export default function Guide({
     <div className="m-auto max-w-[420px] px-6 text-center" data-testid="tables-guide">
       <Table2 className="mx-auto mb-3 text-muted" size={28} />
       <div className="mb-1 font-medium">打开配表目录</div>
-      <div className="mb-4 text-muted">每张表是一个子目录，里面是五件套 + docs。</div>
+      <div className="mb-4 text-muted">选择包含 tables 子目录的项目根。每张表在 tables 里是一个子目录。</div>
       {error ? <div className="mb-3 text-danger">{error}</div> : null}
       <div className="flex justify-center gap-2">
         <Btn variant="primary" data-testid="tables-open" onClick={onOpen}>
@@ -101,7 +101,7 @@ export function OpenDialog({
         </>
       }
     >
-      <Field label="目录" hint="选择已有的配表根目录">
+      <Field label="目录" hint="选择包含 tables 的根目录，不要直接选择 tables">
         <PathPicker value={path} testId="tables-open-path" onChange={onPath} />
       </Field>
       {error ? <div className="text-danger">{error}</div> : null}

@@ -146,12 +146,17 @@ export default function App() {
   }
 
   async function confirmOpen() {
-    const dir = dialogs.openPath.trim();
+    const dir = dialogs.openPath.trim().replace(/[/\\]+$/, "");
     if (!dir) return;
+    if (/(?:^|[/\\])tables$/i.test(dir)) {
+      dialogs.setError("请选择包含 tables 的根目录，不要直接选择 tables 目录");
+      return;
+    }
     dialogs.setBusy(true);
     dialogs.setError("");
     try {
-      await applyRoot(dir);
+      const sep = dir.includes("\\") ? "\\" : "/";
+      await applyRoot(`${dir}${sep}tables`);
     } catch (err: unknown) {
       dialogs.setError(err instanceof Error ? err.message : "打开失败");
       dialogs.setBusy(false);
