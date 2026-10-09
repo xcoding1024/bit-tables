@@ -21,6 +21,9 @@ func TestGenericPluginsJSFromDemo(t *testing.T) {
 	if !strings.Contains(js, "scale") {
 		t.Fatalf("missing scale plugin %s", js)
 	}
+	if !strings.Contains(js, "reference") {
+		t.Fatalf("missing reference plugin %s", js)
+	}
 }
 
 func TestTablePluginJSFromDemo(t *testing.T) {

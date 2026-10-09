@@ -176,14 +176,12 @@ export default function Workbench({
   const genericPluginJsRef = useRef(genericPluginJs);
   const recomputeTimer = useRef(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
-  const pluginTargetRef = useRef<PluginSelection | null>(null);
   const checksRef = useRef(checks);
   const errorCursorRef = useRef<Record<string, number>>({});
   const errorSigRef = useRef<Record<string, string>>({});
   bindingsRef.current = bindingsById;
   genericPluginJsRef.current = genericPluginJs;
   pluginPickRef.current = pluginPick;
-  pluginTargetRef.current = pluginTarget;
   checksRef.current = checks;
   filesRef.current = filesById;
   draftRef.current = draftById;
@@ -1024,14 +1022,14 @@ export default function Workbench({
           : null;
         if (locatingRef.current) return;
         const pick = pluginPickRef.current;
-        if (pick?.kind === "source" && next) {
+        if (pick?.kind === "source") {
+          if (!next) return;
           const ref = selectionToRef(next);
           if (ref) setPickedRef({ pluginId: pick.pluginId, key: pick.key, ref });
-        } else if (pick?.kind === "target" && next) {
-          setPluginTarget(next);
-        } else if (!pick && !pluginTargetRef.current) {
-          setPluginTarget(next);
+          return;
         }
+        setPluginTarget(next);
+        if (next) setRightTab("plugin");
       } else if (msg.type === "copyText") {
         const text = String(msg.text || "");
         if (!text) return;
