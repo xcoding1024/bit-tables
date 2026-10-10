@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { PanelLeft, PanelRight, Plus, X } from "lucide-react";
+import { PanelLeft, PanelRight, Search, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
 import { QuickSearch } from "../components/QuickSearch";
 import { StatusLogBar, type StatusLogEntry, type StatusLogKind } from "../components/StatusLogBar";
@@ -9,7 +9,7 @@ import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
 import { tablesApi, type TableFiles, type TreeNode } from "../lib/api";
 import { buildDepGraph, emptyExportReport, exportSet, type ExportProgress, type ExportReport, type TableSnap } from "../lib/deps";
-import { filterFileHits, listFileHits, searchTableContent, type ContentHit, type FileHit } from "../lib/search";
+import { filterFileHits, filterTreeByFile, listFileHits, searchTableContent, type ContentHit, type FileHit } from "../lib/search";
 import {
   LEFT_COLLAPSE_AT,
   LEFT_DEFAULT,
@@ -78,6 +78,7 @@ type RightTab = DocsKind | "history" | "plugin";
 type RevealTarget = { rowIndex: number; field?: string; query?: string };
 
 export type EditorCommands = {
+  newTable: () => void;
   undo: () => void;
   redo: () => void;
   save: () => void;
@@ -160,6 +161,8 @@ export default function Workbench({
   const [quickOpen, setQuickOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [fileQuery, setFileQuery] = useState("");
+  const [sidebarQuery, setSidebarQuery] = useState("");
+  const sidebarTree = useMemo(() => filterTreeByFile(tree, sidebarQuery), [tree, sidebarQuery]);
   const [findQuery, setFindQuery] = useState("");
   const [findScope, setFindScope] = useState<"sheet" | "all">("all");
   const [logs, setLogs] = useState<StatusLogEntry[]>([]);
@@ -569,6 +572,7 @@ export default function Workbench({
   useEffect(() => {
     if (!editorCommandsRef) return;
     editorCommandsRef.current = {
+      newTable: () => { setNewId(""); setNewOpen(true); },
       undo: () => postEditorCmd("undo"),
       redo: () => postEditorCmd("redo"),
       save: () => postEditorCmd("save"),
@@ -1336,19 +1340,17 @@ export default function Workbench({
             </button>
           ) : (
             <>
-              <div className="p-3">
-                <button
-                  type="button"
-                  data-testid="tables-new"
-                  onClick={() => setNewOpen(true)}
-                  className="flex h-8 w-full items-center justify-center gap-1 rounded bg-accent text-accent-fg hover:bg-accent-hover"
-                >
-                  <Plus size={14} /> 新建表
-                </button>
+              <div className="relative p-3">
+                <Search size={14} className="pointer-events-none absolute left-5 top-5 text-muted" />
+                <Input type="search" aria-label="搜索文件" placeholder="搜索文件" data-testid="tables-file-search"
+                  style={{ paddingLeft: 28 }} value={sidebarQuery} onChange={(ev) => setSidebarQuery(ev.target.value)}
+                  onKeyDown={(ev) => { if (ev.key === "Escape") { ev.stopPropagation(); setSidebarQuery(""); } }} />
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" data-testid="tables-list">
                 <TableTree
-                  tree={tree}
+                  tree={sidebarTree}
+                  expandAll={Boolean(sidebarQuery.trim())}
+                  emptyText={sidebarQuery.trim() ? "没有匹配的文件" : "暂无配置表"}
                   activeId={activeId}
                   openIds={tabs}
                   errorCounts={errorCounts}

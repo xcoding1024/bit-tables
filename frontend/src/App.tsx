@@ -206,6 +206,7 @@ export default function App() {
         rootPath={workbenchReady ? rootPath : ""}
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
+        onNewTable={workbenchReady ? () => editorCommandsRef.current?.newTable() : undefined}
         recentRoots={recentRoots}
         onOpenRecent={sh ? openRecent : undefined}
         onEnums={workbenchReady ? () => setEnumsOpen(true) : undefined}

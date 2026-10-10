@@ -28,6 +28,7 @@ export default function Titlebar({
   rootPath = "",
   onOpen,
   onCreateSample,
+  onNewTable,
   recentRoots = [],
   onOpenRecent,
   onEnums,
@@ -44,6 +45,7 @@ export default function Titlebar({
   rootPath?: string;
   onOpen?: () => void;
   onCreateSample?: () => void;
+  onNewTable?: () => void;
   recentRoots?: string[];
   onOpenRecent?: (dir: string) => void;
   onEnums?: () => void;
@@ -120,6 +122,7 @@ export default function Titlebar({
             onOpen={setOpenMenu}
           >
             <MenuItem label="打开…" disabled={!onOpen} onClick={() => run(onOpen)} />
+            <MenuItem label="新建表" testId="titlebar-new-table" disabled={!onNewTable} onClick={() => run(onNewTable)} />
             <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
             <MenuSep />
             <MenuSection label="最近打开" />
