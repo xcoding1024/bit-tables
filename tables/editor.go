@@ -39,6 +39,154 @@ func EditorHTML(editorJS string) string {
   var tableId = "";
   var sheetId = "";
   var pluginCells = [];
+  var pluginPicking = false;
+  var pluginPickAnchor = null;
+  var pluginPickFocus = null;
+  var pluginDragging = false;
+  var pluginSources = [];
+  var pluginPaintPending = false;
+  var pluginOverlay = document.createElement("div");
+  pluginOverlay.setAttribute("data-testid", "plugin-source-overlays");
+  pluginOverlay.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:1000;overflow:hidden";
+  document.body.appendChild(pluginOverlay);
+  function paintPluginSources() {
+    pluginPaintPending = false;
+    pluginOverlay.innerHTML = "";
+    root.querySelectorAll("[data-plugin-source]").forEach(function (el) { el.removeAttribute("data-plugin-source"); });
+    var rows = (data && data.rows) || [];
+    var fields = (struct && struct.fields) || [];
+    var seen = {};
+    pluginSources.forEach(function (source) {
+      var field = String(source.field || "");
+      var row = String(source.row || "*");
+      var endField = String(source.endField || field);
+      var endRow = String(source.endRow || row);
+      var key = field + "\t" + row + "\t" + endField + "\t" + endRow + "\t" + source.pluginName;
+      if (!field || seen[key]) return;
+      seen[key] = true;
+      var firstCol = fields.findIndex(function (f) { return f.key === field; });
+      var lastCol = fields.findIndex(function (f) { return f.key === endField; });
+      var rowId = function (item, index) { return String(item.id == null || item.id === "" ? "#" + index : item.id); };
+      var firstRow = row === "*" ? 0 : rows.findIndex(function (item, index) { return rowId(item, index) === row; });
+      var lastRow = row === "*" ? rows.length - 1 : rows.findIndex(function (item, index) { return rowId(item, index) === endRow; });
+      if (firstCol < 0 || lastCol < 0 || firstRow < 0 || lastRow < 0) return;
+      var nodes = [];
+      root.querySelectorAll('[data-role="cell"], [data-role="cell-edit"]').forEach(function (el) {
+        var ci = fields.findIndex(function (f) { return f.key === el.getAttribute("data-key"); });
+        var index = Number(el.getAttribute("data-index"));
+        if (ci >= Math.min(firstCol, lastCol) && ci <= Math.max(firstCol, lastCol)
+          && index >= Math.min(firstRow, lastRow) && index <= Math.max(firstRow, lastRow)) nodes.push(el);
+      });
+      if (row === "*") {
+        root.querySelectorAll('[data-role="col-head"]').forEach(function (el) {
+          var ci = Number(el.getAttribute("data-col"));
+          if (ci >= Math.min(firstCol, lastCol) && ci <= Math.max(firstCol, lastCol)) nodes.unshift(el);
+        });
+      }
+      if (!nodes.length) return;
+      var left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+      nodes.forEach(function (el) {
+        el.setAttribute("data-plugin-source", "1");
+        var rect = el.getBoundingClientRect();
+        left = Math.min(left, rect.left); top = Math.min(top, rect.top);
+        right = Math.max(right, rect.right); bottom = Math.max(bottom, rect.bottom);
+      });
+      var clip = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+      for (var parentEl = nodes[0].parentElement; parentEl; parentEl = parentEl.parentElement) {
+        var style = getComputedStyle(parentEl);
+        var bounds = parentEl.getBoundingClientRect();
+        if (/(auto|scroll|hidden)/.test(style.overflowX)) { clip.left = Math.max(clip.left, bounds.left); clip.right = Math.min(clip.right, bounds.right); }
+        if (/(auto|scroll|hidden)/.test(style.overflowY)) { clip.top = Math.max(clip.top, bounds.top); clip.bottom = Math.min(clip.bottom, bounds.bottom); }
+      }
+      left = Math.max(left, clip.left); top = Math.max(top, clip.top);
+      right = Math.min(right, clip.right); bottom = Math.min(bottom, clip.bottom);
+      if (right <= left || bottom <= top) return;
+      var box = document.createElement("div");
+      box.setAttribute("data-testid", "plugin-source-mark");
+      box.setAttribute("data-field", field);
+      box.setAttribute("data-row", row);
+      box.style.cssText = "position:absolute;border:2px dashed #e2b340;box-sizing:border-box;left:" + left + "px;top:" + top + "px;width:" + (right-left) + "px;height:" + (bottom-top) + "px";
+      var label = document.createElement("span");
+      label.textContent = source.label || source.pluginName || "";
+      label.title = label.textContent;
+      label.style.cssText = "position:absolute;right:0;top:" + (top >= 18 ? "-18px" : "0") + ";background:#332b11;color:#ffdf80;padding:1px 4px;font-size:11px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis";
+      box.appendChild(label);
+      pluginOverlay.appendChild(box);
+    });
+  }
+  function schedulePluginSources() {
+    if (pluginPaintPending) return;
+    pluginPaintPending = true;
+    requestAnimationFrame(paintPluginSources);
+  }
+  new MutationObserver(schedulePluginSources).observe(root, { childList: true, subtree: true });
+  window.addEventListener("scroll", schedulePluginSources, true);
+  window.addEventListener("resize", schedulePluginSources);
+  function isPluginPaging(target) {
+    return target && target.closest('[data-testid$="page-next"], [data-testid$="page-prev"], [data-testid$="page-size"]');
+  }
+  function pluginSourcePosition(target) {
+    var cell = target.closest('[data-role="cell"], [data-role="cell-edit"]');
+    var head = target.closest('[data-role="col-head"]');
+    var fields = (struct && struct.fields) || [];
+    var ci = head ? Number(head.getAttribute("data-col")) : cell ? fields.findIndex(function (f) { return f.key === cell.getAttribute("data-key"); }) : -1;
+    if (!fields[ci]) return null;
+    return { ci: ci, ri: cell ? Number(cell.getAttribute("data-index")) : 0, mode: head ? "col" : "cell" };
+  }
+  function reportPluginSource() {
+    if (!pluginPickAnchor || !pluginPickFocus) return;
+    var fields = (struct && struct.fields) || [];
+    var rows = (data && data.rows) || [];
+    var mode = pluginPickAnchor.mode;
+    var r0 = Math.min(pluginPickAnchor.ri, pluginPickFocus.ri), r1 = Math.max(pluginPickAnchor.ri, pluginPickFocus.ri);
+    var c0 = Math.min(pluginPickAnchor.ci, pluginPickFocus.ci), c1 = Math.max(pluginPickAnchor.ci, pluginPickFocus.ci);
+    var selected = [];
+    function push(ri, ci) {
+      var row = rows[ri] || {}, field = fields[ci];
+      if (!field) return;
+      var id = mode === "col" ? "*" : String(row.id == null || row.id === "" ? "#" + ri : row.id);
+      selected.push({ id: id, field: field.key, type: field.type || "", widget: field.widget || "" });
+    }
+    push(r0, c0);
+    if (r0 !== r1 || c0 !== c1) push(r1, c1);
+    parent.postMessage({ type: "selection", tableId: tableId, sheet: sheetId || "main", mode: mode, cells: selected }, "*");
+  }
+  function pickPluginSource(ev) {
+    if (!pluginPicking || ev.button !== 0 || isPluginPaging(ev.target)) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    var pos = pluginSourcePosition(ev.target);
+    pluginDragging = Boolean(pos);
+    if (!pos) return;
+    if (!ev.shiftKey || !pluginPickAnchor || pluginPickAnchor.mode !== pos.mode) pluginPickAnchor = pos;
+    pluginPickFocus = pos;
+    reportPluginSource();
+  }
+  document.addEventListener("mousedown", pickPluginSource, true);
+  document.addEventListener("mousemove", function (ev) {
+    if (!pluginPicking || !pluginDragging) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    var pos = pluginSourcePosition(ev.target);
+    if (!pos || pos.mode !== pluginPickAnchor.mode) return;
+    if (pos.ri === pluginPickFocus.ri && pos.ci === pluginPickFocus.ci) return;
+    pluginPickFocus = pos;
+    reportPluginSource();
+  }, true);
+  document.addEventListener("mouseup", function () { pluginDragging = false; }, true);
+  ["click", "dblclick", "contextmenu", "paste", "cut", "beforeinput", "change"].forEach(function (type) {
+    document.addEventListener(type, function (ev) {
+      if (!pluginPicking || isPluginPaging(ev.target)) return;
+      ev.preventDefault(); ev.stopImmediatePropagation();
+    }, true);
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (!pluginPicking) return;
+    if (ev.key === "Escape") {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      parent.postMessage({ type: "cancelPluginPick" }, "*");
+    } else if (ev.key !== "Tab" && !/^Arrow/.test(ev.key) && ev.key !== "PageDown" && ev.key !== "PageUp") {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+    }
+  }, true);
   var checkErrors = [];
   var errorTotal = 0;
   var enums = {};
@@ -200,15 +348,38 @@ func EditorHTML(editorJS string) string {
     el.setAttribute("data-reveal", "1");
     if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", inline: "nearest" });
   }
-  function mount() {
+  function mount(preserveScroll) {
+    var scroll = [];
+    var rootScroll = { left: root.scrollLeft, top: root.scrollTop };
+    if (preserveScroll !== false) {
+      root.querySelectorAll("[data-testid]").forEach(function (el) {
+        if (el.scrollLeft || el.scrollTop) scroll.push({ id: el.getAttribute("data-testid"), left: el.scrollLeft, top: el.scrollTop });
+      });
+    }
     root.innerHTML = "";
     if (window.BitTableEditor && typeof window.BitTableEditor.mount === "function") {
       window.BitTableEditor.mount(root, api);
+    }
+    if (preserveScroll !== false) {
+      root.scrollLeft = rootScroll.left; root.scrollTop = rootScroll.top;
+      scroll.forEach(function (pos) {
+        root.querySelectorAll("[data-testid]").forEach(function (el) {
+          if (el.getAttribute("data-testid") === pos.id) { el.scrollLeft = pos.left; el.scrollTop = pos.top; }
+        });
+      });
     }
   }
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
     if (!msg || typeof msg !== "object") return;
+    if (msg.type === "pluginInteraction") {
+      if (pluginPicking !== Boolean(msg.picking)) { pluginPickAnchor = null; pluginPickFocus = null; pluginDragging = false; }
+      pluginPicking = Boolean(msg.picking);
+      pluginSources = Array.isArray(msg.sources) ? msg.sources : [];
+      root.setAttribute("data-plugin-picking", pluginPicking ? "1" : "0");
+      schedulePluginSources();
+      return;
+    }
     if (msg.type === "reveal") {
       scheduleReveal(msg);
       return;
@@ -246,7 +417,7 @@ func EditorHTML(editorJS string) string {
         data = msg.data;
         alignHistory();
       }
-      mount();
+      mount(sameSheet);
       if (msg.reveal) scheduleReveal(msg.reveal);
       if (msg.selectByRef) scheduleSelectByRef(msg.selectByRef);
     } else if (msg.type === "replaceData") {

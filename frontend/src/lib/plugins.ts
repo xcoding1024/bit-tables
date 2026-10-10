@@ -1,5 +1,5 @@
 import { dump, load } from "js-yaml";
-import { mergeSheetData, sheetData } from "./tableHost";
+import { listSheets, mergeSheetData, sheetData } from "./tableHost";
 
 export type PluginMatch = {
   table?: string;
@@ -31,6 +31,7 @@ export type PluginBinding = {
   field: string;
   plugin: string;
   args?: Record<string, unknown>;
+  targetRange?: string;
 };
 
 export type PluginCellSel = {
@@ -72,7 +73,8 @@ export function parseBindings(text: string): PluginBinding[] {
       const plugin = String(row.plugin || "").trim();
       if (!sheet || !field || !plugin) continue;
       const args = asRecord(row.args) || {};
-      out.push({ sheet, row: rid, field, plugin, args });
+      const targetRange = typeof row.targetRange === "string" ? row.targetRange : undefined;
+      out.push({ sheet, row: rid, field, plugin, args, ...(targetRange ? { targetRange } : {}) });
     }
     return out;
   } catch {
@@ -112,7 +114,7 @@ export function pluginMatches(
   return Boolean(plugin.id);
 }
 
-export type CellRef = { table: string; sheet: string; field?: string; row?: string };
+export type CellRef = { table: string; sheet: string; field?: string; row?: string; endField?: string; endRow?: string };
 
 export function parseCellRef(ref: string): CellRef | null {
   const raw = String(ref || "").trim();
@@ -122,12 +124,19 @@ export function parseCellRef(ref: string): CellRef | null {
   const sheet = m[2];
   const rest = String(m[3] || "").trim();
   if (!rest) return { table, sheet };
-  const first = rest.split(":")[0].trim();
+  const [first, last] = rest.split(":").map((part) => part.trim());
   const cell = first.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\[([^\]]+)\]$/);
-  if (cell) return { table, sheet, field: cell[1], row: cell[2] };
+  if (cell) {
+    const end = last?.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\[([^\]]+)\]$/);
+    if (last && !end) return null;
+    return { table, sheet, field: cell[1], row: cell[2], ...(end ? { endField: end[1], endRow: end[2] } : {}) };
+  }
   const onlyRow = first.match(/^\[([^\]]+)\]$/);
   if (onlyRow) return { table, sheet, row: onlyRow[1] };
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(first)) return { table, sheet, field: first };
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(first)) {
+    if (last && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(last)) return null;
+    return { table, sheet, field: first, ...(last ? { endField: last } : {}) };
+  }
   return { table, sheet };
 }
 
@@ -170,8 +179,40 @@ export function rowsOfSheet(data: unknown, sheetId: string): Record<string, unkn
   return Array.isArray(part.rows) ? (part.rows as Record<string, unknown>[]) : [];
 }
 
+export function referenceRange(ref: string, pack: TablePack): { fields: string[]; rows: string[] } {
+  const parsed = parseCellRef(ref);
+  if (!parsed?.field) throw new Error(`引用无效：${ref}`);
+  const keys = (listSheets(pack.struct).find((sheet) => sheet.id === parsed.sheet)?.fields || [])
+    .map((field) => String(asRecord(field)?.key || ""));
+  const firstCol = keys.indexOf(parsed.field);
+  const lastCol = keys.indexOf(parsed.endField || parsed.field);
+  if (firstCol < 0 || lastCol < 0) throw new Error(`找不到引用字段：${ref}`);
+  const ids = rowsOfSheet(pack.data, parsed.sheet).map(rowIdOf);
+  const firstRow = isColRow(parsed.row) ? 0 : ids.indexOf(parsed.row!);
+  const lastRow = isColRow(parsed.row) ? ids.length - 1 : ids.indexOf(parsed.endRow || parsed.row!);
+  if (firstRow < 0 || lastRow < 0) throw new Error(`找不到引用行：${ref}`);
+  return { fields: keys.slice(Math.min(firstCol, lastCol), Math.max(firstCol, lastCol) + 1),
+    rows: ids.slice(Math.min(firstRow, lastRow), Math.max(firstRow, lastRow) + 1) };
+}
+
+export function selectionBindings(sel: PluginSelection, pack: TablePack, binding: PluginBinding): PluginBinding[] {
+  const targetRange = selectionToRef(sel);
+  const range = referenceRange(targetRange, pack);
+  return range.fields.flatMap((field) => sel.mode === "col"
+    ? [{ ...binding, field, row: PLUGIN_COL_ROW, targetRange }]
+    : range.rows.map((row) => ({ ...binding, row, field, targetRange })));
+}
+
+export function bindingInSelection(binding: PluginBinding, sel: PluginSelection, pack: TablePack): boolean {
+  if (binding.sheet !== sel.sheet) return false;
+  try {
+    const range = referenceRange(selectionToRef(sel), pack);
+    return range.fields.includes(binding.field) && (isColRow(binding.row) || range.rows.includes(binding.row));
+  } catch { return false; }
+}
+
 export function getCellValue(data: unknown, sheet: string, rowId: string, field: string): unknown {
-  const row = rowsOfSheet(data, sheet).find((item) => String(item.id ?? "").trim() === rowId);
+  const row = rowsOfSheet(data, sheet).find((item, index) => rowIdOf(item, index) === rowId);
   if (!row || !field) return undefined;
   return row[field];
 }
@@ -185,8 +226,8 @@ export function setCellValue(
   value: unknown,
 ): unknown {
   const part = sheetData(full, sheetId);
-  const rows = rowsOfSheet(full, sheetId).map((row) => {
-    if (String(row.id ?? "").trim() !== rowId) return row;
+  const rows = rowsOfSheet(full, sheetId).map((row, index) => {
+    if (rowIdOf(row, index) !== rowId) return row;
     return { ...row, [field]: value };
   });
   return mergeSheetData(full, struct, sheetId, { ...part, rows });
@@ -201,21 +242,33 @@ function collectArgRefs(args: Record<string, unknown> | undefined): string[] {
   return out;
 }
 
-export function sortBindings(tableId: string, bindings: PluginBinding[]): { order: PluginBinding[]; cycle: boolean } {
+export function sortBindings(tableId: string, bindings: PluginBinding[], pack?: TablePack): { order: PluginBinding[]; cycle: boolean } {
   const indeg = bindings.map(() => 0);
   const edges: number[][] = bindings.map(() => []);
   bindings.forEach((b, i) => {
+    const dependencies = new Set<number>();
     for (const ref of collectArgRefs(b.args)) {
       const parsed = parseCellRef(ref);
       if (!parsed?.field || parsed.table !== tableId) continue;
-      const sourceIsCol = isColRow(parsed.row);
-      bindings.forEach((other, j) => {
-        if (j === i) return;
-        if (other.sheet !== parsed.sheet || other.field !== parsed.field) return;
-        if (!sourceIsCol && !isColRow(other.row) && other.row !== parsed.row) return;
-        edges[j].push(i);
-        indeg[i] += 1;
-      });
+      const sources = pack && b.targetRange ? bindingTargets(pack.data, b).map((target) => {
+        if (!parsed.endField && !parsed.endRow && !isColRow(parsed.row)) return { field: parsed.field, row: parsed.row };
+        const source = referenceRange(ref, pack);
+        const range = referenceRange(b.targetRange!, pack);
+        const ri = isColRow(parsed.row) ? target.index : range.rows.indexOf(target.rowId);
+        const ci = range.fields.indexOf(b.field);
+        return { field: source.fields[source.fields.length === 1 ? 0 : ci], row: source.rows[source.rows.length === 1 ? 0 : ri] };
+      }) : [{ field: parsed.field, row: parsed.row }];
+      for (const source of sources) {
+        bindings.forEach((other, j) => {
+          if (other.sheet !== parsed.sheet || other.field !== source.field) return;
+          if (!isColRow(source.row) && !isColRow(other.row) && other.row !== source.row) return;
+          dependencies.add(j);
+        });
+      }
+    }
+    for (const j of dependencies) {
+      edges[j].push(i);
+      indeg[i] += 1;
     }
   });
   const queue = indeg.map((n, i) => (n === 0 ? i : -1)).filter((i) => i >= 0);
@@ -360,7 +413,7 @@ export async function computePluginValue(
   return result?.value;
 }
 
-export type RefAlign = { rowId?: string; rowIndex?: number };
+export type RefAlign = { rowId?: string; rowIndex?: number; rangeRow?: number; rangeColumn?: number };
 
 function rowIdOf(row: Record<string, unknown>, index: number): string {
   return String(row.id ?? "").trim() || `#${index}`;
@@ -368,18 +421,25 @@ function rowIdOf(row: Record<string, unknown>, index: number): string {
 
 export async function resolveRefValue(
   ref: string,
-  current: { tableId: string; data: unknown },
+  current: { tableId: string; data: unknown; struct?: unknown },
   loadTable: (id: string) => Promise<TablePack | null>,
   align?: RefAlign,
 ): Promise<unknown> {
   const parsed = parseCellRef(ref);
   if (!parsed?.field) throw new Error(`引用无效：${ref}`);
   const field = parsed.field;
-  let pack: TablePack | null = { data: current.data, struct: {} };
+  let pack: TablePack | null = { data: current.data, struct: current.struct || {} };
   if (parsed.table !== current.tableId) {
     pack = await loadTable(parsed.table);
   }
   if (!pack) throw new Error(`找不到表 ${parsed.table}`);
+  if (align?.rangeRow != null && (parsed.endField || parsed.endRow || isColRow(parsed.row))) {
+    const range = referenceRange(ref, pack);
+    const row = range.rows[range.rows.length === 1 ? 0 : align.rangeRow];
+    const key = range.fields[range.fields.length === 1 ? 0 : align.rangeColumn || 0];
+    if (!row || !key) throw new Error(`来源与目标范围尺寸不匹配：${ref}`);
+    return getCellValue(pack.data, parsed.sheet, row, key);
+  }
   if (!isColRow(parsed.row)) {
     return getCellValue(pack.data, parsed.sheet, parsed.row || "", field);
   }
@@ -400,7 +460,7 @@ function bindingTargets(
   if (isColRow(binding.row)) {
     return rows.map((row, index) => ({ row, rowId: rowIdOf(row, index), index }));
   }
-  const index = rows.findIndex((item) => String(item.id ?? "").trim() === binding.row);
+  const index = rows.findIndex((item, index) => rowIdOf(item, index) === binding.row);
   if (index >= 0) return [{ row: rows[index], rowId: binding.row, index }];
   return [{ row: {}, rowId: binding.row, index: -1 }];
 }
@@ -415,17 +475,20 @@ export async function recomputeBindings(opts: {
 }): Promise<{ data: unknown; error?: string }> {
   const { tableId, struct, bindings, scripts, loadTable } = opts;
   if (!bindings.length) return { data: opts.data };
-  const { order, cycle } = sortBindings(tableId, bindings);
+  const { order, cycle } = sortBindings(tableId, bindings, { data: opts.data, struct });
   if (cycle) return { data: opts.data, error: "插件绑定存在循环引用" };
   let data = opts.data;
   for (const binding of order) {
     try {
       for (const target of bindingTargets(data, binding)) {
+        const targetRange = binding.targetRange ? referenceRange(binding.targetRange, { data, struct }) : undefined;
         const values: Record<string, unknown> = {};
         for (const ref of collectArgRefs(binding.args)) {
-          values[ref] = await resolveRefValue(ref, { tableId, data }, loadTable, {
+          values[ref] = await resolveRefValue(ref, { tableId, data, struct }, loadTable, {
             rowId: target.rowId,
             rowIndex: target.index,
+            rangeRow: targetRange ? isColRow(parseCellRef(ref)?.row) ? target.index : targetRange.rows.indexOf(target.rowId) : undefined,
+            rangeColumn: targetRange?.fields.indexOf(binding.field),
           });
         }
         const value = await computePluginValue(

@@ -44,9 +44,13 @@ import {
 import {
   listExclusiveMeta,
   listPluginMeta,
+  isColRow,
   parseBindings,
   parseCellRef,
   recomputeBindings,
+  referenceRange,
+  selectionBindings,
+  bindingInSelection,
   rowsOfSheet,
   selectionToRef,
   stringifyBindings,
@@ -54,7 +58,7 @@ import {
   type PluginDef,
   type PluginSelection,
 } from "../lib/plugins";
-import type { PluginPick } from "../components/PluginPanel";
+import type { PluginPick, PluginSource } from "../components/PluginPanel";
 
 function parseDoc(text: string): unknown {
   try {
@@ -133,6 +137,8 @@ export default function Workbench({
   const [rightTab, setRightTab] = useState<RightTab>("struct");
   const [pluginTarget, setPluginTarget] = useState<PluginSelection | null>(null);
   const [pluginPick, setPluginPick] = useState<PluginPick | null>(null);
+  const [pluginSources, setPluginSources] = useState<PluginSource[]>([]);
+  const [pluginSourcePlugin, setPluginSourcePlugin] = useState<string | undefined>();
   const [pickedRef, setPickedRef] = useState<{ pluginId: string; key: string; ref: string } | null>(null);
   const [genericPluginJs, setGenericPluginJs] = useState("");
   const [genericPlugins, setGenericPlugins] = useState<PluginDef[]>([]);
@@ -176,12 +182,20 @@ export default function Workbench({
   const genericPluginJsRef = useRef(genericPluginJs);
   const recomputeTimer = useRef(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
+  const pluginWritesRef = useRef(new Set<string>());
+  const pluginWriteRevisionRef = useRef<Record<string, number>>({});
+  const pluginSourcesRef = useRef(pluginSources);
+  const pluginSourceOwnerRef = useRef({ pluginId: pluginSourcePlugin, target: pluginTarget });
+  const pluginNamesRef = useRef<PluginDef[]>([]);
+  const postPluginInteractionRef = useRef<(id: string) => void>(() => undefined);
   const checksRef = useRef(checks);
   const errorCursorRef = useRef<Record<string, number>>({});
   const errorSigRef = useRef<Record<string, string>>({});
   bindingsRef.current = bindingsById;
   genericPluginJsRef.current = genericPluginJs;
   pluginPickRef.current = pluginPick;
+  pluginSourcesRef.current = pluginSources;
+  pluginSourceOwnerRef.current = { pluginId: pluginSourcePlugin, target: pluginTarget };
   checksRef.current = checks;
   filesRef.current = filesById;
   draftRef.current = draftById;
@@ -194,6 +208,7 @@ export default function Workbench({
   const files = activeId ? filesById[activeId] || null : null;
   const docBody = rightTab === "history" || rightTab === "plugin" || !files ? "" : docsSection(files.docs || "", rightTab);
   const pluginList = useMemo(() => [...exclusivePlugins, ...genericPlugins], [exclusivePlugins, genericPlugins]);
+  pluginNamesRef.current = pluginList;
   const errorCounts = useMemo(() => {
     const out: Record<string, number> = {};
     for (const [id, check] of Object.entries(checks)) {
@@ -279,16 +294,6 @@ export default function Workbench({
     setBindingsById((prev) => ({ ...prev, [id]: bindings }));
   }, []);
 
-  const rememberBindings = useCallback((id: string, bindings: PluginBinding[], pluginsText?: string) => {
-    bindingsRef.current = { ...bindingsRef.current, [id]: bindings };
-    setBindingsById((prev) => ({ ...prev, [id]: bindings }));
-    const cur = filesRef.current[id];
-    if (!cur) return;
-    const next = { ...cur, plugins: pluginsText ?? stringifyBindings(bindings) };
-    filesRef.current = { ...filesRef.current, [id]: next };
-    setFilesById((prev) => ({ ...prev, [id]: next }));
-  }, []);
-
   const postReveal = useCallback((id: string, target: RevealTarget) => {
     iframeRefs.current[id]?.contentWindow?.postMessage(
       { type: "reveal", rowIndex: target.rowIndex, field: target.field || "", query: target.query || "" },
@@ -342,12 +347,14 @@ export default function Workbench({
           { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
           "*",
         );
+        postPluginInteractionRef.current(id);
         return;
       }
       frame.contentWindow.postMessage(
         { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
         "*",
       );
+      postPluginInteractionRef.current(id);
     },
     [fullDataOf, sheetOf, structOf],
   );
@@ -451,6 +458,7 @@ export default function Workbench({
   }, [fullDataOf, onExportProgress]);
 
   const postEditorCmd = useCallback((type: "undo" | "redo" | "save" | "clearReveal") => {
+    if (pluginPickRef.current && type !== "clearReveal") return;
     const id = activeRef.current;
     if (!id) return;
     iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
@@ -469,6 +477,12 @@ export default function Workbench({
       const key = String(ev.key || "").toLowerCase();
       const mod = ev.ctrlKey || ev.metaKey;
       if (key === "escape" && !mod && !ev.altKey) {
+        if (pluginPickRef.current) {
+          ev.preventDefault();
+          setPluginPick(null);
+          setPickedRef(null);
+          return;
+        }
         postEditorCmd("clearReveal");
         return;
       }
@@ -495,11 +509,6 @@ export default function Workbench({
       if (key === "s") {
         ev.preventDefault();
         postEditorCmd("save");
-        return;
-      }
-      if (key === "Escape" && pluginPickRef.current) {
-        ev.preventDefault();
-        setPluginPick(null);
         return;
       }
       const target = ev.target as HTMLElement | null;
@@ -644,8 +653,9 @@ export default function Workbench({
   }, [fullDataOf, rememberFiles, structOf]);
 
   const runRecompute = useCallback(
-    async (id: string, data = fullDataOf(id), bindings = bindingsRef.current[id] || []) => {
+    async (id: string, data = fullDataOf(id), bindings = bindingsRef.current[id] || [], strict = false) => {
       if (!bindings.length) return data;
+      const revision = pluginWriteRevisionRef.current[id] || 0;
       const result = await recomputeBindings({
         tableId: id,
         data,
@@ -654,8 +664,10 @@ export default function Workbench({
         scripts: [genericPluginJsRef.current, filesRef.current[id]?.plugin || ""],
         loadTable: loadTablePack,
       });
+      if (revision !== (pluginWriteRevisionRef.current[id] || 0)) return fullDataOf(id);
       if (result.error) {
         appendLog(`${id} 插件：${result.error}`, "err");
+        if (strict) throw new Error(result.error);
         return data;
       }
       rememberDraft(id, result.data);
@@ -1011,6 +1023,9 @@ export default function Workbench({
         }
       } else if (msg.type === "nextError") {
         jumpNextError(id);
+      } else if (msg.type === "cancelPluginPick") {
+        setPluginPick(null);
+        setPickedRef(null);
       } else if (msg.type === "selection") {
         const raw = ev.data as { sheet?: string; tableId?: string; mode?: PluginSelection["mode"]; cells?: PluginSelection["cells"] };
         const mode: PluginSelection["mode"] = raw.mode === "col" || raw.mode === "row" ? raw.mode : "cell";
@@ -1023,7 +1038,7 @@ export default function Workbench({
         if (locatingRef.current) return;
         const pick = pluginPickRef.current;
         if (pick?.kind === "source") {
-          if (!next) return;
+          if (!next || next.mode === "row") return;
           const ref = selectionToRef(next);
           if (ref) setPickedRef({ pluginId: pick.pluginId, key: pick.key, ref });
           return;
@@ -1058,6 +1073,54 @@ export default function Workbench({
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, [appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
+
+  const handlePluginSources = useCallback((sources: PluginSource[], pluginId?: string) => {
+    setPluginSources((prev) => JSON.stringify(prev) === JSON.stringify(sources) ? prev : sources);
+    setPluginSourcePlugin(pluginId);
+  }, []);
+
+  useEffect(() => {
+    if (rightTab !== "plugin") handlePluginSources([]);
+  }, [rightTab, handlePluginSources]);
+
+  const postPluginInteraction = useCallback((id: string) => {
+    const sheet = sheetRef.current[id] || "";
+    const owner = pluginSourceOwnerRef.current;
+    const pluginName = (pluginId: string) => pluginNamesRef.current.find((p) => p.id === pluginId)?.name || pluginId;
+    const sources: (PluginSource & { pluginName: string })[] = pluginPickRef.current
+      ? pluginSourcesRef.current.map((source) => ({ ...source, pluginName: pluginName(owner.pluginId || "") })) : [];
+    if (!pluginPickRef.current && owner.target) {
+      const table = owner.target.tableId;
+      const pack = { data: fullDataOf(table), struct: structOf(table) };
+      const bindings = bindingsRef.current[table] || [];
+      for (const binding of bindings) {
+        if (!bindingInSelection(binding, owner.target, pack)) continue;
+        for (const [key, value] of Object.entries(binding.args || {})) {
+          const param = pluginNamesRef.current.find((p) => p.id === binding.plugin)?.params?.find((p) => p.key === key);
+          if (typeof value === "string" && parseCellRef(value)?.field) sources.push({ ref: value, label: param?.label || key, pluginName: pluginName(binding.plugin) });
+        }
+      }
+    }
+    const marks = sources.flatMap((source) => {
+      const ref = parseCellRef(source.ref);
+      return ref?.table === id && ref.sheet === sheet && ref.field
+        ? [{ field: ref.field, row: ref.row || "*", endField: ref.endField, endRow: ref.endRow, pluginName: source.pluginName, label: `${source.pluginName}->${source.label}` }] : [];
+    });
+    const grouped = new Map<string, { mark: typeof marks[number]; names: Set<string> }>();
+    for (const mark of marks) {
+      const key = JSON.stringify([mark.field, mark.row, mark.endField, mark.endRow]);
+      const group = grouped.get(key) || { mark, names: new Set<string>() };
+      group.names.add(mark.label);
+      grouped.set(key, group);
+    }
+    const merged = [...grouped.values()].map(({ mark, names }) => ({ ...mark, label: [...names].join("、") }));
+    iframeRefs.current[id]?.contentWindow?.postMessage({ type: "pluginInteraction", picking: Boolean(pluginPickRef.current), sources: merged }, "*");
+  }, [fullDataOf, structOf]);
+  postPluginInteractionRef.current = postPluginInteraction;
+
+  useEffect(() => {
+    for (const id of tabs) postPluginInteraction(id);
+  }, [tabs, sheetById, bindingsById, pluginPick, pluginSources, pluginSourcePlugin, pluginTarget, filesById, pluginList, postPluginInteraction]);
 
   useEffect(() => {
     for (const id of tabs) {
@@ -1129,12 +1192,15 @@ export default function Workbench({
         setHistoryReload((n) => n + 1);
         const ids = tables.map((item) => item.id);
         for (const id of [...tabsRef.current]) {
+          if (pluginWritesRef.current.has(id)) continue;
+          const revision = pluginWriteRevisionRef.current[id] || 0;
           if (!ids.includes(id)) {
             closeTab(id);
             continue;
           }
           const prev = filesRef.current[id];
           const next = await tablesApi.files(id);
+          if (pluginWritesRef.current.has(id) || revision !== (pluginWriteRevisionRef.current[id] || 0)) continue;
           rememberFiles(id, next);
           rememberDraft(id, parseDoc(next.data));
           setSheetById((cur) => {
@@ -1185,33 +1251,68 @@ export default function Workbench({
 
   const persistBindings = async (id: string, bindings: PluginBinding[]) => {
     const text = stringifyBindings(bindings);
-    rememberBindings(id, bindings, text);
-    await tablesApi.putPlugins(id, text);
-    const computed = await runRecompute(id, fullDataOf(id), bindings);
-    postSlice(id, "replaceData");
-    return computed;
+    const previous = fullDataOf(id);
+    pluginWritesRef.current.add(id);
+    pluginWriteRevisionRef.current[id] = (pluginWriteRevisionRef.current[id] || 0) + 1;
+    window.clearTimeout(recomputeTimer.current);
+    try {
+      const computed = await runRecompute(id, previous, bindings, true);
+      await tablesApi.putData(id, stringifyTableDoc(computed));
+      await tablesApi.putPlugins(id, text);
+      const next = await tablesApi.files(id);
+      savedAtRef.current[id] = Date.now();
+      rememberFiles(id, next);
+      rememberDraft(id, parseDoc(next.data));
+      postSlice(id, "replaceData");
+      await runCheck(id, next, parseDoc(next.data), true);
+      return computed;
+    } catch (err) {
+      rememberDraft(id, previous);
+      postSlice(id, "replaceData");
+      throw err;
+    } finally {
+      pluginWritesRef.current.delete(id);
+    }
   };
 
-  const handleBindPlugin = (binding: PluginBinding) => {
+  const handleBindPlugin = async (binding: PluginBinding) => {
     const id = pluginTableId;
-    if (!id) return;
-    const prev = bindingsRef.current[id] || [];
-    const next = [
-      ...prev.filter((item) => !(item.sheet === binding.sheet && item.field === binding.field)),
-      binding,
-    ];
+    if (!id || !pluginTarget) return;
     setPluginBusy(true);
-    void persistBindings(id, next)
-      .then(() => appendLog(`${id} 已绑定插件 ${binding.plugin}`, "ok"))
-      .catch((err: unknown) => appendLog(err instanceof Error ? err.message : "绑定失败", "err"))
-      .finally(() => setPluginBusy(false));
+    try {
+      const pack = { data: fullDataOf(id), struct: structOf(id) };
+      const target = referenceRange(selectionToRef(pluginTarget), pack);
+      for (const value of Object.values(binding.args || {})) {
+        if (typeof value !== "string") continue;
+        const ref = parseCellRef(value);
+        if (!ref?.field) continue;
+        const sourcePack = ref.table === id ? pack : await loadTablePack(ref.table);
+        if (!sourcePack) throw new Error(`找不到表 ${ref.table}`);
+        const source = referenceRange(value, sourcePack);
+        if ((source.rows.length > 1 && ref.endRow && source.rows.length !== target.rows.length)
+          || (source.fields.length > 1 && source.fields.length !== target.fields.length)) {
+          throw new Error("来源与目标范围尺寸不匹配，请框选相同行数和列数");
+        }
+      }
+      const replacements = selectionBindings(pluginTarget, pack, binding);
+      const prev = bindingsRef.current[id] || [];
+      const next = [
+        ...prev.filter((item) => !replacements.some((replacement) => item.sheet === replacement.sheet && item.field === replacement.field
+          && (isColRow(replacement.row) || isColRow(item.row) || item.row === replacement.row))),
+        ...replacements,
+      ];
+      await persistBindings(id, next);
+      appendLog(`${id} 已绑定插件 ${binding.plugin}`, "ok");
+    } catch (err) { appendLog(err instanceof Error ? err.message : "绑定失败", "err"); }
+    finally { setPluginBusy(false); }
   };
 
   const handleUnbindPlugin = (binding: PluginBinding) => {
     const id = pluginTableId;
     if (!id) return;
     const prev = bindingsRef.current[id] || [];
-    const next = prev.filter((item) => !(item.sheet === binding.sheet && item.row === binding.row && item.field === binding.field));
+    const pack = { data: fullDataOf(id), struct: structOf(id) };
+    const next = prev.filter((item) => !(item.plugin === binding.plugin && pluginTarget && bindingInSelection(item, pluginTarget, pack)));
     setPluginBusy(true);
     void persistBindings(id, next)
       .then(() => appendLog(`${id} 已解除插件绑定`, "ok"))
@@ -1392,6 +1493,7 @@ export default function Workbench({
                     key={id}
                     type="button"
                     data-testid={`tables-docs-${id}`}
+                    disabled={Boolean(pluginPick) && id !== "plugin"}
                     className={`h-7 rounded px-2 ${rightTab === id ? "bg-active text-ink" : "text-muted hover:bg-hover"}`}
                     onClick={() => setRightTab(id)}
                   >
@@ -1409,6 +1511,7 @@ export default function Workbench({
                   <TableHistoryPanel tableId={activeId} reloadKey={historyReload} />
                 ) : rightTab === "plugin" ? (
                   <PluginPanel
+                    key={`${pluginTableId}:${pluginSheetId}:${pluginTarget?.mode}:${pluginTarget?.cells[0]?.field}:${pluginTarget?.cells[0]?.id}`}
                     tableId={pluginTableId}
                     sheetId={pluginSheetId}
                     target={pluginTarget}
@@ -1421,7 +1524,9 @@ export default function Workbench({
                       setPluginPick(pick);
                       setPickedRef(null);
                     }}
-                    onCancelPick={() => setPluginPick(null)}
+                    onCancelPick={() => { setPluginPick(null); setPickedRef(null); }}
+                    onFinishPick={() => { setPluginPick(null); setPickedRef(null); }}
+                    onSourcesChange={handlePluginSources}
                     onLocate={locatePluginRef}
                     onBind={handleBindPlugin}
                     onUnbind={handleUnbindPlugin}
