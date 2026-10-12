@@ -2,6 +2,8 @@
 
 ## 结构
 
+- `补充.xlsx` 提供跨表插件引用的只读 Excel 工作表“数据”。
+
 - 表名：枚举演示表
 - `default_sheet: rarities`
 - sheet `rarities`（`kind: enum`）：稀有度，字段 id / name
@@ -12,11 +14,15 @@
 
 ## 检查规则
 
+- Excel 来源不参与检查。
+
 - 校整表所有 sheet；路径形如 `sheets.rarities.rows.0.id`
 - id、name 必填；id 须小写字母开头，仅字母数字下划线，且在同一 sheet 内不重复
 - 对应 `enum_demo_checker.ts` 的 `BitTableChecker.check`
 
 ## 导出规则
+
+- Excel 来源不直接进入客户端或服务端导出。
 
 - 对应 `enum_demo_export.ts` 的 `BitTableExporter.export`
 - 客户端：写入配表根上一级 `build/client/enum_demo.json`（`JSON.stringify` 整表 data）

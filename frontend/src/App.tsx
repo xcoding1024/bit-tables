@@ -34,6 +34,7 @@ export default function App() {
   const [exportReport, setExportReport] = useState<ExportReport | null>(null);
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [activeTableId, setActiveTableId] = useState("");
+  const [excelReadOnly, setExcelReadOnly] = useState(false);
   const [recentRoots, setRecentRoots] = useState<string[]>([]);
   const dialogs = useGuideDialogs();
   const sh = shell();
@@ -212,9 +213,9 @@ export default function App() {
         onEnums={workbenchReady ? () => setEnumsOpen(true) : undefined}
         onDeps={workbenchReady ? () => setDepsOpen(true) : undefined}
         onTemplates={() => setTemplatesOpen(true)}
-        onUndo={workbenchReady ? () => editorCommandsRef.current?.undo() : undefined}
-        onRedo={workbenchReady ? () => editorCommandsRef.current?.redo() : undefined}
-        onSave={workbenchReady ? () => editorCommandsRef.current?.save() : undefined}
+        onUndo={workbenchReady && activeTableId && !excelReadOnly ? () => editorCommandsRef.current?.undo() : undefined}
+        onRedo={workbenchReady && activeTableId && !excelReadOnly ? () => editorCommandsRef.current?.redo() : undefined}
+        onSave={workbenchReady && activeTableId && !excelReadOnly ? () => editorCommandsRef.current?.save() : undefined}
         onCheckCurrent={workbenchReady && activeTableId ? () => void editorCommandsRef.current?.checkCurrent() : undefined}
         onCheckAll={workbenchReady ? () => void editorCommandsRef.current?.checkAll() : undefined}
         onExportCurrent={workbenchReady && activeTableId ? () => void handleExport("current") : undefined}
@@ -232,6 +233,7 @@ export default function App() {
           tablePacks={tablePacks}
           editorCommandsRef={editorCommandsRef}
           onActiveIdChange={handleActiveIdChange}
+          onReadOnlyChange={setExcelReadOnly}
           onExportProgress={setExportProgress}
         />
       ) : null}

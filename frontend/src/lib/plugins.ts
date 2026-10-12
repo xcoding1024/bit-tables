@@ -1,5 +1,6 @@
 import { dump, load } from "js-yaml";
 import { listSheets, mergeSheetData, sheetData } from "./tableHost";
+import { parseExcelRef, findExcelSheet, excelRange, excelValue, type ExcelWorkbook } from "./excel";
 
 export type PluginMatch = {
   table?: string;
@@ -50,7 +51,7 @@ export type PluginSelection = {
   cells: PluginCellSel[];
 };
 
-export type TablePack = { data: unknown; struct: unknown };
+export type TablePack = { data: unknown; struct: unknown; excel?: ExcelWorkbook[] };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -114,10 +115,11 @@ export function pluginMatches(
   return Boolean(plugin.id);
 }
 
-export type CellRef = { table: string; sheet: string; field?: string; row?: string; endField?: string; endRow?: string };
+export type CellRef = { table: string; sheet: string; field?: string; row?: string; endField?: string; endRow?: string; excelFile?: string };
 
 export function parseCellRef(ref: string): CellRef | null {
   const raw = String(ref || "").trim();
+  if (raw.startsWith("xlsx://")) return parseExcelRef(raw);
   const m = raw.match(/^([a-z][a-z0-9_]{0,31})\.([a-z][a-z0-9_]{0,31})(?:!(.+))?$/i);
   if (!m) return null;
   const table = m[1];
@@ -180,6 +182,8 @@ export function rowsOfSheet(data: unknown, sheetId: string): Record<string, unkn
 }
 
 export function referenceRange(ref: string, pack: TablePack): { fields: string[]; rows: string[] } {
+  const excel = parseExcelRef(ref);
+  if (excel) return excelRange(excel, findExcelSheet(pack.excel, excel));
   const parsed = parseCellRef(ref);
   if (!parsed?.field) throw new Error(`引用无效：${ref}`);
   const keys = (listSheets(pack.struct).find((sheet) => sheet.id === parsed.sheet)?.fields || [])
@@ -249,7 +253,7 @@ export function sortBindings(tableId: string, bindings: PluginBinding[], pack?: 
     const dependencies = new Set<number>();
     for (const ref of collectArgRefs(b.args)) {
       const parsed = parseCellRef(ref);
-      if (!parsed?.field || parsed.table !== tableId) continue;
+      if (!parsed?.field || parsed.excelFile || parsed.table !== tableId) continue;
       const sources = pack && b.targetRange ? bindingTargets(pack.data, b).map((target) => {
         if (!parsed.endField && !parsed.endRow && !isColRow(parsed.row)) return { field: parsed.field, row: parsed.row };
         const source = referenceRange(ref, pack);
@@ -425,6 +429,26 @@ export async function resolveRefValue(
   loadTable: (id: string) => Promise<TablePack | null>,
   align?: RefAlign,
 ): Promise<unknown> {
+  const excel = parseExcelRef(ref);
+  if (excel) {
+    const pack = await loadTable(excel.table);
+    if (!pack) throw new Error(`找不到表 ${excel.table}`);
+    const sheet = findExcelSheet(pack.excel, excel);
+    const range = excelRange(excel, sheet);
+    if (align?.rangeRow != null && (excel.endField || excel.endRow || !excel.row)) {
+      const row = range.rows[range.rows.length === 1 ? 0 : align.rangeRow];
+      const field = range.fields[range.fields.length === 1 ? 0 : align.rangeColumn || 0];
+      if (!row || !field) throw new Error(`来源与目标范围尺寸不匹配：${ref}`);
+      return excelValue(sheet, field, row);
+    }
+    if (excel.row) return excelValue(sheet, range.fields[0], range.rows[0]);
+    if (align?.rowIndex != null) {
+      const row = range.rows[align.rowIndex];
+      if (!row) throw new Error(`来源与目标范围尺寸不匹配：${ref}`);
+      return excelValue(sheet, range.fields[0], row);
+    }
+    return range.rows.map((row) => excelValue(sheet, range.fields[0], row));
+  }
   const parsed = parseCellRef(ref);
   if (!parsed?.field) throw new Error(`引用无效：${ref}`);
   const field = parsed.field;
@@ -478,13 +502,18 @@ export async function recomputeBindings(opts: {
   const { order, cycle } = sortBindings(tableId, bindings, { data: opts.data, struct });
   if (cycle) return { data: opts.data, error: "插件绑定存在循环引用" };
   let data = opts.data;
+  const sources = new Map<string, Promise<TablePack | null>>();
+  const loadSource = (id: string) => {
+    if (!sources.has(id)) sources.set(id, loadTable(id));
+    return sources.get(id)!;
+  };
   for (const binding of order) {
     try {
       for (const target of bindingTargets(data, binding)) {
         const targetRange = binding.targetRange ? referenceRange(binding.targetRange, { data, struct }) : undefined;
         const values: Record<string, unknown> = {};
         for (const ref of collectArgRefs(binding.args)) {
-          values[ref] = await resolveRefValue(ref, { tableId, data, struct }, loadTable, {
+          values[ref] = await resolveRefValue(ref, { tableId, data, struct }, loadSource, {
             rowId: target.rowId,
             rowIndex: target.index,
             rangeRow: targetRange ? isColRow(parseCellRef(ref)?.row) ? target.index : targetRange.rows.indexOf(target.rowId) : undefined,

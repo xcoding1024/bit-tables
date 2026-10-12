@@ -1,3 +1,4 @@
+import type { ExcelWorkbook } from "./excel";
 export type TableInfo = {
   id: string;
   name?: string;
@@ -20,6 +21,7 @@ export type TreeNode = {
 };
 
 export type TableFiles = TableInfo & {
+  excel?: ExcelWorkbook[];
   struct: string;
   data: string;
   editor: string;

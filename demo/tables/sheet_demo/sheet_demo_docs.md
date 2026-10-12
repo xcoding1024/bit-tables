@@ -2,6 +2,8 @@
 
 ## 结构
 
+- Excel 来源：目录内的 `来源 数据.xlsx` 与 `补充.xlsx` 提供只读工作表。保留空白、合并布局和首行；显示格式化文本，插件读取原类型及公式缓存。重名分页附加文件名，隐藏工作表也可浏览。
+
 - 编辑器 / 检查器 / 导出分别 `import` 自 `bit-tables.editor` / `bit-tables.checker` / `bit-tables.export`（实现位于 `demo/src/`）
 - 表名：Sheet 控件演示表
 - `default_sheet: items`
@@ -31,6 +33,8 @@
 
 ## 检查规则
 
+- Excel 数据源不参与检查；缺少缓存的公式或错误单元格不能作为插件计算值。
+
 - 校整表所有 sheet；路径形如 `sheets.items.rows.0.id`
 - 该 sheet `required` 字段必填；缺省时非 enum sheet 至少检查 id、name
 - id 须小写字母开头，仅字母数字下划线，且在同一 sheet 内不重复
@@ -40,6 +44,8 @@
 - 对应 `sheet_demo_checker.ts` 的 `BitTableChecker.check(data, struct, enums)`
 
 ## 导出规则
+
+- Excel 来源不直接导出；通过插件写入配置表的普通值按该表原有客户端/服务端规则导出。
 
 - 对应 `sheet_demo_export.ts` 的 `BitTableExporter.export`
 - 客户端：写入配表根上一级 `build/client/sheet_demo.json`（`JSON.stringify` 整表 data）

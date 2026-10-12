@@ -99,7 +99,7 @@ function PluginCard({ plugin, tableId, sheetId, field, row, binding, otherBound,
               <div className="flex gap-1">
                 <Input data-testid={`plugin-arg-${plugin.id}-${param.key}`} style={{ minWidth: 0, flex: "1 1 0%" }} readOnly
                   value={preview?.key === param.key ? preview.ref : args[param.key] || ""} placeholder="点更改选择来源" />
-                {!picking ? <Btn className="shrink-0" disabled={!args[param.key]} onClick={() => onLocate(args[param.key])}>选中</Btn> : null}
+                {!picking ? <Btn className="shrink-0" data-testid={`plugin-locate-${plugin.id}-${param.key}`} disabled={!args[param.key]} onClick={() => onLocate(args[param.key])}>选中</Btn> : null}
                 {selecting ? <>
                   <Btn className="shrink-0" data-testid="plugin-pick-cancel" onClick={onCancelPick}>取消</Btn>
                   <Btn className="shrink-0" data-testid="plugin-pick-finish" disabled={!preview} onClick={() => {

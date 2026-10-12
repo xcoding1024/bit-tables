@@ -1,3 +1,6 @@
+import excelIcon from "../assets/excel.ico";
+import { ExcelGrid } from "../components/ExcelGrid";
+import { excelSheetId, isExcelSheet, parseExcelRef, type ExcelWorkbook } from "../lib/excel";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { PanelLeft, PanelRight, Search, X } from "lucide-react";
 import { DocsMarkdown } from "../components/DocsMarkdown";
@@ -68,7 +71,8 @@ function parseDoc(text: string): unknown {
   }
 }
 
-function resolveSheetId(struct: unknown, preferred?: string): string {
+function resolveSheetId(struct: unknown, preferred?: string, excel?: ExcelWorkbook[]): string {
+  if (preferred && excel?.some((book) => book.sheets.some((sheet) => excelSheetId(book.file, sheet.name) === preferred))) return preferred;
   const sheets = listSheets(struct);
   if (preferred && sheets.some((item) => item.id === preferred)) return preferred;
   return defaultSheetId(struct);
@@ -117,6 +121,7 @@ export default function Workbench({
   tablePacks = [],
   editorCommandsRef,
   onActiveIdChange,
+  onReadOnlyChange,
   onExportProgress,
 }: {
   rootPath: string;
@@ -124,6 +129,7 @@ export default function Workbench({
   tablePacks?: TableSnap[];
   editorCommandsRef?: MutableRefObject<EditorCommands | null>;
   onActiveIdChange?: (id: string) => void;
+  onReadOnlyChange?: (readOnly: boolean) => void;
   onExportProgress?: (progress: ExportProgress) => void;
 }) {
   const left = usePanel("left", LEFT_DEFAULT, LEFT_MIN, LEFT_MAX, 1, LEFT_COLLAPSE_AT);
@@ -146,6 +152,8 @@ export default function Workbench({
   const [exclusivePlugins, setExclusivePlugins] = useState<PluginDef[]>([]);
   const [bindingsById, setBindingsById] = useState<Record<string, PluginBinding[]>>({});
   const [pluginBusy, setPluginBusy] = useState(false);
+  const [excelMarksById, setExcelMarksById] = useState<Record<string, { ref: string; label: string }[]>>({});
+  const [excelLocate, setExcelLocate] = useState<Record<string, { ref: string; revision: number }>>({});
   const [historyReload, setHistoryReload] = useState(0);
   const [newOpen, setNewOpen] = useState(false);
   const [checkProgress, setCheckProgress] = useState<{
@@ -236,8 +244,17 @@ export default function Workbench({
     setLogOpen((open) => !open);
   }, []);
   const activeStruct = files ? parseDoc(files.struct) : {};
-  const activeSheets: SheetInfo[] = files ? listSheets(activeStruct) : [];
-  const activeSheetId = files ? resolveSheetId(activeStruct, sheetById[activeId]) : "";
+  const ordinarySheets = files ? listSheets(activeStruct) : [];
+  const excelTabs = (files?.excel || []).flatMap((book) => book.sheets.map((sheet) => ({
+    id: excelSheetId(book.file, sheet.name), name: sheet.name, fields: [], excelFile: book.file, excelSheet: sheet,
+  })));
+  const activeSheets: (SheetInfo & { excelFile?: string })[] = [...ordinarySheets, ...excelTabs].map((sheet) => ({
+    ...sheet, name: "excelFile" in sheet && [...ordinarySheets, ...excelTabs].filter((item) => item.name === sheet.name).length > 1
+      ? `${sheet.name}（${sheet.excelFile}）` : sheet.name,
+  }));
+  const activeSheetId = files ? resolveSheetId(activeStruct, sheetById[activeId], files.excel) : "";
+  const activeExcel = excelTabs.find((sheet) => sheet.id === activeSheetId);
+  useEffect(() => { onReadOnlyChange?.(Boolean(activeExcel)); return () => onReadOnlyChange?.(false); }, [Boolean(activeExcel), onReadOnlyChange]);
   const pluginSheetId = pluginTarget?.sheet || activeSheetId;
 
   const searchPacks = useMemo(() => {
@@ -281,7 +298,7 @@ export default function Workbench({
   }, []);
 
   const sheetOf = useCallback((id: string, struct?: unknown) => {
-    return resolveSheetId(struct ?? structOf(id), sheetRef.current[id]);
+    return resolveSheetId(struct ?? structOf(id), sheetRef.current[id], filesRef.current[id]?.excel);
   }, [structOf]);
 
   const rememberDraft = useCallback((id: string, data: unknown) => {
@@ -337,6 +354,7 @@ export default function Workbench({
       if (!frame?.contentWindow || !cur) return;
       const struct = structOf(id);
       const sheetId = sheetOf(id, struct);
+      if (isExcelSheet(sheetId)) return;
       const sliced = sliceForSheet(struct, fullDataOf(id), sheetId);
       const enums = buildEnumsPayload(struct, cur.id, enumsRef.current);
       const reveal = extra?.reveal || undefined;
@@ -463,7 +481,7 @@ export default function Workbench({
   const postEditorCmd = useCallback((type: "undo" | "redo" | "save" | "clearReveal") => {
     if (pluginPickRef.current && type !== "clearReveal") return;
     const id = activeRef.current;
-    if (!id) return;
+    if (!id || isExcelSheet(sheetRef.current[id])) return;
     iframeRefs.current[id]?.contentWindow?.postMessage({ type }, "*");
   }, []);
 
@@ -643,17 +661,17 @@ export default function Workbench({
     };
   }, [appendLog, editorCommandsRef, fullDataOf, postEditorCmd, rememberFiles, runCheck, runExport]);
 
-  const loadTablePack = useCallback(async (id: string) => {
-    if (filesRef.current[id] || Object.prototype.hasOwnProperty.call(draftRef.current, id)) {
-      return { data: fullDataOf(id), struct: structOf(id) };
+  const loadTablePack = useCallback(async (id: string, fresh = false) => {
+    const key = Object.keys(filesRef.current).find((key) => key === id || filesRef.current[key].path === id) || id;
+    if (!fresh && filesRef.current[key]) {
+      return { data: fullDataOf(key), struct: structOf(key), excel: filesRef.current[key]?.excel };
     }
     try {
       const next = await tablesApi.files(id);
-      rememberFiles(id, next);
-      return { data: parseDoc(next.data), struct: parseDoc(next.struct) };
-    } catch {
-      return null;
-    }
+      const targetKey = next.id || key;
+      rememberFiles(targetKey, next);
+      return { data: Object.prototype.hasOwnProperty.call(draftRef.current, targetKey) ? fullDataOf(targetKey) : parseDoc(next.data), struct: parseDoc(next.struct), excel: next.excel };
+    } catch { return null; }
   }, [fullDataOf, rememberFiles, structOf]);
 
   const runRecompute = useCallback(
@@ -666,7 +684,7 @@ export default function Workbench({
         struct: structOf(id),
         bindings,
         scripts: [genericPluginJsRef.current, filesRef.current[id]?.plugin || ""],
-        loadTable: loadTablePack,
+        loadTable: (sourceId) => loadTablePack(sourceId, true),
       });
       if (revision !== (pluginWriteRevisionRef.current[id] || 0)) return fullDataOf(id);
       if (result.error) {
@@ -715,7 +733,7 @@ export default function Workbench({
       const data = parseDoc(next.data);
       rememberDraft(id, data);
       setSheetById((prev) => {
-        const sheetId = resolveSheetId(struct, preferredSheet || prev[id]);
+        const sheetId = resolveSheetId(struct, preferredSheet || prev[id], next.excel);
         sheetRef.current = { ...sheetRef.current, [id]: sheetId };
         return { ...prev, [id]: sheetId };
       });
@@ -806,6 +824,19 @@ export default function Workbench({
     (ref: string) => {
       const parsed = parseCellRef(ref);
       if (!parsed?.field) return;
+      if (parsed.excelFile) {
+        void (async () => {
+          const next = await tablesApi.files(parsed.table);
+          referenceRange(ref, { data: parseDoc(next.data), struct: parseDoc(next.struct), excel: next.excel });
+          const key = next.id || parsed.table;
+          rememberFiles(key, next);
+          setTabs((prev) => prev.includes(key) ? prev : [...prev, key]);
+          setActiveId(key); writeTableParam(key);
+          setSheetById((prev) => ({ ...prev, [key]: parsed.sheet }));
+          setExcelLocate((prev) => ({ ...prev, [key]: { ref, revision: Date.now() } }));
+        })().catch((err) => appendLog(err instanceof Error ? err.message : "定位 Excel 来源失败", "err"));
+        return;
+      }
       const field = parsed.field;
       locatingRef.current = true;
       const rowId = parsed.row || "*";
@@ -837,7 +868,7 @@ export default function Workbench({
       if (!tabsRef.current.includes(parsed.table)) {
         setTabs((prev) => (prev.includes(parsed.table) ? prev : [...prev, parsed.table]));
       }
-      const nextSheet = resolveSheetId(parseDoc(cur.struct), parsed.sheet);
+      const nextSheet = resolveSheetId(parseDoc(cur.struct), parsed.sheet, cur.excel);
       const sheetChanged = sheetRef.current[parsed.table] !== nextSheet;
       if (sheetChanged) {
         sheetRef.current = { ...sheetRef.current, [parsed.table]: nextSheet };
@@ -865,7 +896,7 @@ export default function Workbench({
         });
       });
     },
-    [handleOpenTable, postSlice],
+    [handleOpenTable, postSlice, rememberFiles, appendLog],
   );
 
   const jumpNextError = useCallback(
@@ -1105,9 +1136,14 @@ export default function Workbench({
         }
       }
     }
+    const excelMarks = sources.filter((source) => {
+      const ref = parseExcelRef(source.ref);
+      return (ref?.table === id || ref?.table === filesRef.current[id]?.path) && ref?.sheet === sheet;
+    }).map((source) => ({ ref: source.ref, label: `${source.pluginName}->${source.label}` }));
+    setExcelMarksById((prev) => JSON.stringify(prev[id] || []) === JSON.stringify(excelMarks) ? prev : { ...prev, [id]: excelMarks });
     const marks = sources.flatMap((source) => {
       const ref = parseCellRef(source.ref);
-      return ref?.table === id && ref.sheet === sheet && ref.field
+      return ref?.table === id && !ref.excelFile && ref.sheet === sheet && ref.field
         ? [{ field: ref.field, row: ref.row || "*", endField: ref.endField, endRow: ref.endRow, pluginName: source.pluginName, label: `${source.pluginName}->${source.label}` }] : [];
     });
     const grouped = new Map<string, { mark: typeof marks[number]; names: Set<string> }>();
@@ -1206,12 +1242,14 @@ export default function Workbench({
           const next = await tablesApi.files(id);
           if (pluginWritesRef.current.has(id) || revision !== (pluginWriteRevisionRef.current[id] || 0)) continue;
           rememberFiles(id, next);
-          rememberDraft(id, parseDoc(next.data));
+          const excelOnly = prev && (["struct", "data", "editor", "checker", "export", "plugins", "plugin", "docs"] as const).every((key) => prev[key] === next[key]);
+          if (!excelOnly) rememberDraft(id, parseDoc(next.data));
           setSheetById((cur) => {
-            const sheetId = resolveSheetId(parseDoc(next.struct), cur[id]);
+            const sheetId = resolveSheetId(parseDoc(next.struct), cur[id], next.excel);
             sheetRef.current = { ...sheetRef.current, [id]: sheetId };
             return { ...cur, [id]: sheetId };
           });
+          if (excelOnly) continue;
           if (prev && (next.editor !== prev.editor || next.struct !== prev.struct)) {
             setChecks((cur) => ({
               ...cur,
@@ -1290,7 +1328,7 @@ export default function Workbench({
         if (typeof value !== "string") continue;
         const ref = parseCellRef(value);
         if (!ref?.field) continue;
-        const sourcePack = ref.table === id ? pack : await loadTablePack(ref.table);
+        const sourcePack = ref.excelFile ? await loadTablePack(ref.table, true) : ref.table === id ? pack : await loadTablePack(ref.table);
         if (!sourcePack) throw new Error(`找不到表 ${ref.table}`);
         const source = referenceRange(value, sourcePack);
         if ((source.rows.length > 1 && ref.endRow && source.rows.length !== target.rows.length)
@@ -1425,7 +1463,7 @@ export default function Workbench({
                   }}
                   data-testid={id === activeId ? "table-editor-frame" : undefined}
                   title={`${id} 编辑器`}
-                  className={`absolute inset-0 h-full w-full border-0 bg-bg ${id === activeId ? "" : "invisible"}`}
+                  className={`absolute inset-0 h-full w-full border-0 bg-bg ${id === activeId && !isExcelSheet(sheetById[id]) ? "" : "invisible"}`}
                   sandbox="allow-scripts"
                   src={tablesApi.editorURL(id, checks[id]?.editorKey || 1)}
                   onLoad={() => {
@@ -1435,7 +1473,14 @@ export default function Workbench({
                 />
               ))
             )}
+            {activeExcel ? <div className="absolute inset-0">
+              <ExcelGrid key={`${activeId}:${activeExcel.id}`} table={files?.path || activeId} file={activeExcel.excelFile} sheet={activeExcel.excelSheet}
+                picking={Boolean(pluginPick)} marks={excelMarksById[activeId] || []} selectedRef={excelLocate[activeId]}
+                onPick={(ref) => { const pick = pluginPickRef.current; if (pick) setPickedRef({ pluginId: pick.pluginId, key: pick.key, ref }); }}
+                onCancel={() => { setPluginPick(null); setPickedRef(null); }} onError={(message) => appendLog(message, "err")} />
+            </div> : null}
           </div>
+          {files?.excel?.filter((book) => book.error).map((book) => <div key={book.file} role="alert" className="shrink-0 px-3 py-1 text-xs text-danger">{book.file}：{book.error}</div>)}
           {activeId && activeSheets.length ? (
             <div className="flex h-8 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-t border-line bg-elevated" data-testid="tables-sheets">
               {activeSheets.map((sheet) => {
@@ -1445,6 +1490,8 @@ export default function Workbench({
                     key={sheet.id}
                     type="button"
                     data-testid={`tables-sheet-${sheet.id}`}
+                    data-excel-file={sheet.excelFile}
+                    title={sheet.excelFile ? `${sheet.excelFile} · ${sheet.name}` : sheet.name}
                     className={`max-w-[180px] shrink-0 truncate px-3 ${
                       active ? "border-b-2 border-accent bg-bg text-ink" : "text-muted hover:bg-hover"
                     }`}
@@ -1455,7 +1502,7 @@ export default function Workbench({
                       postSlice(activeId, "setSheet");
                     }}
                   >
-                    {sheet.name}
+                    {sheet.excelFile ? <img src={excelIcon} alt="Excel" width={16} height={16} draggable={false} className="mr-1 inline-block align-middle" /> : null}{sheet.name}
                   </button>
                 );
               })}

@@ -49,14 +49,15 @@ type TreeNode struct {
 
 type Files struct {
 	Info
-	Struct  string `json:"struct"`
-	Data    string `json:"data"`
-	Editor  string `json:"editor"`
-	Checker string `json:"checker"`
-	Export  string `json:"export"`
-	Docs    string `json:"docs"`
-	Plugins string `json:"plugins"`
-	Plugin  string `json:"plugin"`
+	Excel   []ExcelWorkbook `json:"excel,omitempty"`
+	Struct  string          `json:"struct"`
+	Data    string          `json:"data"`
+	Editor  string          `json:"editor"`
+	Checker string          `json:"checker"`
+	Export  string          `json:"export"`
+	Docs    string          `json:"docs"`
+	Plugins string          `json:"plugins"`
+	Plugin  string          `json:"plugin"`
 }
 
 type Root struct {
@@ -463,6 +464,7 @@ func (r *Root) Files(id string) (Files, error) {
 	pluginsText, _ := readFile(dir, tableID, "plugins.yaml")
 	pluginJS := r.TablePluginJS(dir, tableID)
 	return Files{
+		Excel: r.readExcel(dir),
 		Info: Info{
 			ID:         tableID,
 			Path:       r.relPath(dir),
