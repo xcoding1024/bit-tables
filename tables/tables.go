@@ -447,6 +447,8 @@ func (r *Root) Delete(id string) error {
 }
 
 func (r *Root) Files(id string) (Files, error) {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
 	dir, err := r.Dir(id)
 	if err != nil {
 		return Files{}, err
@@ -495,6 +497,8 @@ type ExportSource struct {
 }
 
 func (r *Root) ExportSource(id string) (ExportSource, error) {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
 	dir, err := r.Dir(id)
 	if err != nil {
 		return ExportSource{}, err
@@ -515,6 +519,8 @@ func (r *Root) ExportSource(id string) (ExportSource, error) {
 }
 
 func (r *Root) PutData(id, data string) error {
+	stateMu.Lock()
+	defer stateMu.Unlock()
 	dir, err := r.Dir(id)
 	if err != nil {
 		return err
@@ -526,6 +532,8 @@ func (r *Root) PutData(id, data string) error {
 }
 
 func (r *Root) PutPlugins(id, text string) error {
+	stateMu.Lock()
+	defer stateMu.Unlock()
 	dir, err := r.Dir(id)
 	if err != nil {
 		return err
@@ -605,6 +613,8 @@ func (r *Root) ResolveAsset(tableID, rel string) (string, error) {
 }
 
 func (r *Root) Signature() (string, error) {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
 	var b strings.Builder
 	err := filepath.WalkDir(r.Path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

@@ -8,14 +8,17 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "accept": "node scripts/accept-shot.mjs",
+    "test:e2e": "node e2e/fill.mjs",
     "desktop": "electron .",
     "pack:win": "powershell -File scripts/pack-win.ps1",
     "pack:linux": "node scripts/pack.js linux",
     "pack:mac": "node scripts/pack.js mac"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "electron": "^37.10.3",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "js-yaml": "^5.4.2"
   },
   "build": {
     "appId": "wang.bitserver.bit-tables",

@@ -496,6 +496,7 @@ export async function recomputeBindings(opts: {
   bindings: PluginBinding[];
   scripts: string[];
   loadTable: (id: string) => Promise<TablePack | null>;
+  targets?: ReadonlySet<string>;
 }): Promise<{ data: unknown; error?: string }> {
   const { tableId, struct, bindings, scripts, loadTable } = opts;
   if (!bindings.length) return { data: opts.data };
@@ -510,6 +511,7 @@ export async function recomputeBindings(opts: {
   for (const binding of order) {
     try {
       for (const target of bindingTargets(data, binding)) {
+        if (opts.targets && !opts.targets.has(bindingKey({ ...binding, row: target.rowId }))) continue;
         const targetRange = binding.targetRange ? referenceRange(binding.targetRange, { data, struct }) : undefined;
         const values: Record<string, unknown> = {};
         for (const ref of collectArgRefs(binding.args)) {

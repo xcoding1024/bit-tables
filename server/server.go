@@ -95,6 +95,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/tables/{id}/history", s.getHistory)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
 	mux.HandleFunc("PUT /api/tables/{id}/plugins", s.putPlugins)
+	mux.HandleFunc("PUT /api/tables/{id}/state", s.putState)
 	mux.HandleFunc("GET /api/plugins", s.getPlugins)
 	mux.HandleFunc("GET /api/tables/{id}/editor", s.getEditor)
 	mux.HandleFunc("GET /api/tables/{id}/asset", s.getAsset)
@@ -273,6 +274,23 @@ func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]any{"id": id, "data": files.Data})
+}
+
+func (s *Server) putState(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Data    *string `json:"data"`
+		Plugins *string `json:"plugins"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.Data == nil || req.Plugins == nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "请求体必须包含 data 和 plugins")
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.current().PutState(id, *req.Data, *req.Plugins); err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"id": id, "data": *req.Data, "plugins": *req.Plugins})
 }
 
 func (s *Server) putPlugins(w http.ResponseWriter, r *http.Request) {

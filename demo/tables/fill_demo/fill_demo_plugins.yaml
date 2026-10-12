@@ -1,0 +1,6 @@
+bindings:
+  - sheet: main
+    row: row_004
+    field: output
+    plugin: reference
+    args: {source: 'fill_demo.main!input[row_004]'}

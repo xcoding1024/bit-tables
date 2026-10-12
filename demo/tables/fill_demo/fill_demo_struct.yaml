@@ -1,0 +1,15 @@
+id: fill_demo
+name: 填充演示表
+default_sheet: main
+sheets:
+  - id: main
+    name: 配置
+    fields:
+      - {key: id, label: 标识, type: string}
+      - {key: name, label: 名称, type: string}
+      - {key: input, label: 来源值, type: int}
+      - {key: output, label: 结果, type: int}
+      - {key: group, label: 分组, type: string}
+      - {key: enabled, label: 启用, type: bool}
+      - {key: payload, label: 参数, type: object, widget: params}
+      - {key: icon, label: 图标, type: icon, widget: icon}

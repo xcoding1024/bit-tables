@@ -110,6 +110,10 @@ export const tablesApi = {
       method: "PUT",
       body: JSON.stringify({ data }),
     }),
+  stateWriter: (id: string) => {
+    const url = `/api/tables/${encodeURIComponent(id)}/state`;
+    return (data: string, plugins: string) => api<{ id: string; data: string; plugins: string }>(url, { method: "PUT", body: JSON.stringify({ data, plugins }) });
+  },
   putPlugins: (id: string, plugins: string) =>
     api<{ id: string; plugins: string }>(`/api/tables/${encodeURIComponent(id)}/plugins`, {
       method: "PUT",

@@ -1,0 +1,9 @@
+id: fill_source
+name: 填充来源表
+default_sheet: main
+sheets:
+  - id: main
+    name: 来源
+    fields:
+      - {key: id, label: 标识, type: string}
+      - {key: amount, label: 数值, type: int}

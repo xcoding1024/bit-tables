@@ -39,6 +39,10 @@ func EditorHTML(editorJS string) string {
   var tableId = "";
   var sheetId = "";
   var pluginCells = [];
+  var pluginBindings = [];
+  var stateSeq = 0;
+  var statePending = {};
+  var stateBusy = false;
   var pluginPicking = false;
   var pluginPickAnchor = null;
   var pluginPickFocus = null;
@@ -202,8 +206,9 @@ func EditorHTML(editorJS string) string {
     try { return JSON.stringify(a) === JSON.stringify(b); } catch (err) { return a === b; }
   }
   function historyKey() { return sheetId || "main"; }
+  function snapshot(next) { return { data: clone(next == null ? data : next), bindings: clone(pluginBindings) }; }
   function resetHistory() {
-    histories[historyKey()] = { undo: [], redo: [], committed: clone(data), lastPushAt: 0 };
+    histories[historyKey()] = { undo: [], redo: [], committed: snapshot(), lastPushAt: 0 };
   }
   function history() {
     if (!histories[historyKey()]) resetHistory();
@@ -211,37 +216,35 @@ func EditorHTML(editorJS string) string {
   }
   function alignHistory() {
     var h = histories[historyKey()];
-    if (!h || !same(h.committed, data)) resetHistory();
+    if (!h || !same(h.committed, snapshot())) resetHistory();
   }
-  function canUndo() { return history().undo.length > 0; }
-  function canRedo() { return history().redo.length > 0; }
-  function applySnapshot(next) {
-    applying = true;
-    data = clone(next);
-    history().committed = clone(data);
-    mount();
-    parent.postMessage({ type: "dirty", data: data }, "*");
-    applying = false;
+  function canUndo() { return history().undo.length > 0 && !isStateBusy(); }
+  function canRedo() { return history().redo.length > 0 && !isStateBusy(); }
+  function isStateBusy() { return stateBusy || Object.keys(statePending).length > 0; }
+  function paintStateBusy() { root.setAttribute("data-state-busy", isStateBusy() ? "1" : "0"); }
+  function requestState(type, payload, action) {
+    if (isStateBusy()) return Promise.reject(new Error("正在处理配表操作"));
+    var id = ++stateSeq;
+    return new Promise(function (resolve, reject) {
+      statePending[id] = { resolve: resolve, reject: reject, h: history(), action: action, sheet: sheetId, persist: Boolean(payload.persist) };
+      paintStateBusy();
+      parent.postMessage(Object.assign({ type: type, requestId: id, sheetId: sheetId, data: clone(data) }, payload), "*");
+    });
   }
-  function undo() {
+  function restoreHistory(action) {
     var h = history();
-    if (!h.undo.length) return;
-    h.redo.push(clone(h.committed));
-    var prev = h.undo.pop();
-    h.lastPushAt = 0;
-    applySnapshot(prev);
+    var list = action === "undo" ? h.undo : h.redo;
+    if (isStateBusy() || !list.length) return;
+    var next = clone(list[list.length - 1]);
+    requestState("restoreTableState", { data: next.data, bindings: next.bindings, persist: next.persist }, action).catch(function (err) {
+      parent.postMessage({ type: "toast", text: String(err.message || err) }, "*");
+    });
   }
-  function redo() {
-    var h = history();
-    if (!h.redo.length) return;
-    h.undo.push(clone(h.committed));
-    var next = h.redo.pop();
-    h.lastPushAt = 0;
-    applySnapshot(next);
-  }
+  function undo() { restoreHistory("undo"); }
+  function redo() { restoreHistory("redo"); }
   function recordChange(next) {
     var h = history();
-    var snap = clone(next);
+    var snap = snapshot(next);
     if (same(h.committed, snap)) return;
     var now = Date.now();
     if (!h.undo.length || now - h.lastPushAt >= COALESCE_MS) {
@@ -258,11 +261,13 @@ func EditorHTML(editorJS string) string {
     getEnums: function () { return enums || {}; },
     setData: function (next) {
       if (!applying) recordChange(next);
-      else history().committed = clone(next);
+      else history().committed = snapshot(next);
       data = next;
       parent.postMessage({ type: "dirty", data: data }, "*");
     },
-    save: function () { parent.postMessage({ type: "save", data: data }, "*"); },
+    save: function () { if (!isStateBusy()) parent.postMessage({ type: "save", data: data }, "*"); },
+    fillCells: function (request) { return requestState("fillCells", { request: request }, "fill"); },
+    isFillBusy: isStateBusy,
     askAI: function (mode, prompt) { parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); },
     undo: undo,
     redo: redo,
@@ -270,7 +275,7 @@ func EditorHTML(editorJS string) string {
     canRedo: canRedo,
     getTableId: function () {
       if (tableId) return tableId;
-      var m = String(location.pathname || "").match(/\/api\/tables\/([^/]+)\/editor/);
+      var m = String(location.pathname || "").match(/\/tables\/([^/]+)\/editor/);
       return m ? decodeURIComponent(m[1]) : "";
     },
     getSheetId: function () { return sheetId || "main"; },
@@ -372,9 +377,30 @@ func EditorHTML(editorJS string) string {
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
     if (!msg || typeof msg !== "object") return;
+    if (msg.type === "tableStateResult") {
+      var pending = statePending[msg.requestId];
+      if (!pending) return;
+      delete statePending[msg.requestId];
+      paintStateBusy();
+      if (msg.error) { pending.reject(new Error(msg.error)); return; }
+      data = clone(msg.data);
+      pluginBindings = clone(msg.bindings || []);
+      pluginCells = pluginBindings.map(function (binding) { return { row: binding.row, field: binding.field }; });
+      var h = pending.h, next = snapshot();
+      if (pending.action === "undo") { h.redo.push(Object.assign(clone(h.committed), { persist: pending.persist })); h.undo.pop(); }
+      else if (pending.action === "redo") { h.undo.push(Object.assign(clone(h.committed), { persist: pending.persist })); h.redo.pop(); }
+      else if (!same(h.committed, next)) { h.undo.push(Object.assign(clone(h.committed), { persist: Boolean(msg.persist) })); h.redo = []; }
+      if (h.undo.length > MAX_HISTORY) h.undo.shift();
+      h.committed = next; h.lastPushAt = 0;
+      if (pending.action !== "fill") mount();
+      pending.resolve();
+      return;
+    }
     if (msg.type === "pluginInteraction") {
       if (pluginPicking !== Boolean(msg.picking)) { pluginPickAnchor = null; pluginPickFocus = null; pluginDragging = false; }
       pluginPicking = Boolean(msg.picking);
+      stateBusy = Boolean(msg.busy);
+      paintStateBusy();
       pluginSources = Array.isArray(msg.sources) ? msg.sources : [];
       root.setAttribute("data-plugin-picking", pluginPicking ? "1" : "0");
       schedulePluginSources();
@@ -407,6 +433,7 @@ func EditorHTML(editorJS string) string {
       if (msg.sheetId != null) sheetId = msg.sheetId;
       if (msg.enums != null) enums = msg.enums;
       if (msg.pluginCells != null) pluginCells = msg.pluginCells;
+      if (msg.pluginBindings != null) pluginBindings = clone(msg.pluginBindings);
       if (msg.checkErrors != null) checkErrors = msg.checkErrors;
       if (msg.errorTotal != null) errorTotal = msg.errorTotal;
       var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
@@ -427,6 +454,7 @@ func EditorHTML(editorJS string) string {
       data = msg.data;
       if (msg.enums != null) enums = msg.enums;
       if (msg.pluginCells != null) pluginCells = msg.pluginCells;
+      if (msg.pluginBindings != null) pluginBindings = clone(msg.pluginBindings);
       if (msg.checkErrors != null) checkErrors = msg.checkErrors;
       if (msg.errorTotal != null) errorTotal = msg.errorTotal;
       alignHistory();
@@ -440,6 +468,12 @@ func EditorHTML(editorJS string) string {
     } else if (msg.type === "save") {
       api.save();
     }
+  });
+  ["mousedown", "dblclick", "beforeinput", "change", "paste", "cut", "keydown"].forEach(function (type) {
+    document.addEventListener(type, function (ev) {
+      if (!isStateBusy()) return;
+      ev.preventDefault(); ev.stopImmediatePropagation();
+    }, true);
   });
   window.addEventListener("keydown", function (ev) {
     if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {

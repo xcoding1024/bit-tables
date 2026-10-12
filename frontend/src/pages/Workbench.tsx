@@ -1,3 +1,4 @@
+import { fillCells, type FillCellsRequest } from "../lib/fill";
 import excelIcon from "../assets/excel.ico";
 import { ExcelGrid } from "../components/ExcelGrid";
 import { excelSheetId, isExcelSheet, parseExcelRef, type ExcelWorkbook } from "../lib/excel";
@@ -194,6 +195,11 @@ export default function Workbench({
   const recomputeTimer = useRef(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
   const pluginWritesRef = useRef(new Set<string>());
+  const stateRequestsRef = useRef(new Set<string>());
+  const workbenchAliveRef = useRef(true);
+  const pluginBusyRef = useRef(false);
+  pluginBusyRef.current = pluginBusy;
+  useEffect(() => { workbenchAliveRef.current = true; return () => { workbenchAliveRef.current = false; }; }, []);
   const pluginWriteRevisionRef = useRef<Record<string, number>>({});
   const pluginSourcesRef = useRef(pluginSources);
   const pluginSourceOwnerRef = useRef({ pluginId: pluginSourcePlugin, target: pluginTarget });
@@ -363,16 +369,17 @@ export default function Workbench({
         .filter((item) => item.sheet === sheetId)
         .map((item) => ({ row: item.row, field: item.field }));
       const marks = checkMarksFor(id, sheetId);
+      const pluginBindings = (bindingsRef.current[id] || []).filter((binding) => binding.sheet === sheetId);
       if (type === "replaceData") {
         frame.contentWindow.postMessage(
-          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
+          { type: "replaceData", sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, pluginBindings, reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
           "*",
         );
         postPluginInteractionRef.current(id);
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
+        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, pluginBindings, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
         "*",
       );
       postPluginInteractionRef.current(id);
@@ -720,6 +727,7 @@ export default function Workbench({
 
   const openTable = useCallback(
     async (id: string, remount: boolean, preferredSheet?: string) => {
+      if (stateRequestsRef.current.size) return;
       if (!id) {
         setActiveId("");
         writeTableParam("");
@@ -1002,6 +1010,58 @@ export default function Workbench({
     };
   }, [appendLog, loadList, openTable]);
 
+  const handleStateRequest = useCallback(async (id: string, msg: { type?: string; requestId: number; sheetId?: string; data?: unknown; request?: FillCellsRequest; bindings?: PluginBinding[]; persist?: boolean }) => {
+    const frame = iframeRefs.current[id]?.contentWindow;
+    const reply = (payload: object) => frame?.postMessage({ type: "tableStateResult", requestId: msg.requestId, ...payload }, "*");
+    const cur = filesRef.current[id], sheet = sheetRef.current[id];
+    if (!cur || !sheet || isExcelSheet(sheet) || msg.sheetId !== sheet || pluginPickRef.current || pluginWritesRef.current.size || pluginBusyRef.current) {
+      reply({ error: "当前状态不能填充，请稍后重试" }); return;
+    }
+    const writeState = tablesApi.stateWriter(id);
+    pluginWritesRef.current.add(id); stateRequestsRef.current.add(id);
+    pluginWriteRevisionRef.current[id] = (pluginWriteRevisionRef.current[id] || 0) + 1;
+    window.clearTimeout(recomputeTimer.current);
+    setPluginBusy(true);
+    try {
+      const struct = structOf(id);
+      const data = mergeSheetData(fullDataOf(id), struct, sheet, msg.data);
+      const beforeBindings = [...(bindingsRef.current[id] || [])];
+      let nextData: unknown = data, nextBindings = beforeBindings, persist = false;
+      if (msg.type === "fillCells") {
+        if (!msg.request || msg.request.sheet !== sheet) throw new Error("填充分页已变化");
+        const next = await fillCells({ tableId: id, pack: { data, struct }, bindings: beforeBindings, request: msg.request,
+          scripts: [genericPluginJsRef.current, cur.plugin || ""], loadTable: (sourceId) => loadTablePack(sourceId, true) });
+        nextData = next.data; nextBindings = next.bindings; persist = next.persist;
+      } else {
+        if (!Array.isArray(msg.bindings) || msg.bindings.some((binding) => binding.sheet !== sheet)) throw new Error("撤销状态无效");
+        nextBindings = [...beforeBindings.filter((binding) => binding.sheet !== sheet), ...msg.bindings];
+        persist = Boolean(msg.persist) || stringifyBindings(nextBindings) !== stringifyBindings(beforeBindings);
+      }
+      if (!workbenchAliveRef.current || frame !== iframeRefs.current[id]?.contentWindow || sheet !== sheetRef.current[id]) throw new Error("配表已切换，操作已取消");
+      let nextFiles = filesRef.current[id];
+      if (persist) {
+        const dataText = stringifyTableDoc(nextData), plugins = stringifyBindings(nextBindings);
+        await writeState(dataText, plugins);
+        nextFiles = { ...nextFiles, data: dataText, plugins };
+        savedAtRef.current[id] = Date.now();
+        if (!workbenchAliveRef.current) return;
+        rememberFiles(id, nextFiles);
+      }
+      rememberDraft(id, nextData);
+      bindingsRef.current = { ...bindingsRef.current, [id]: nextBindings };
+      setBindingsById((prev) => ({ ...prev, [id]: nextBindings }));
+      reply({ persist, data: sliceForSheet(struct, nextData, sheet).data, bindings: nextBindings.filter((binding) => binding.sheet === sheet) });
+      appendLog(msg.type === "fillCells" ? `${id} 向下填充完成` : `${id} 已恢复编辑状态`, "ok");
+      await runCheck(id, nextFiles, nextData, true);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "填充失败";
+      reply({ error }); appendLog(error, "err");
+    } finally {
+      pluginWritesRef.current.delete(id); stateRequestsRef.current.delete(id);
+      setPluginBusy(false); postPluginInteractionRef.current(id);
+    }
+  }, [appendLog, fullDataOf, structOf, loadTablePack, rememberDraft, rememberFiles, runCheck]);
+
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
       const id = Object.keys(iframeRefs.current).find((key) => iframeRefs.current[key]?.contentWindow === ev.source);
@@ -1009,13 +1069,17 @@ export default function Workbench({
       const frame = iframeRefs.current[id];
       const msg = ev.data as { type?: string; data?: unknown; key?: string; text?: string };
       const cur = filesRef.current[id];
-      if (msg.type === "ready" && frame) {
+      if (msg.type === "fillCells" || msg.type === "restoreTableState") {
+        void handleStateRequest(id, ev.data);
+      } else if (msg.type === "ready" && frame) {
         frameReadyRef.current[id] = true;
         tryInitFrame(id);
       } else if (msg.type === "dirty") {
+        if (pluginWritesRef.current.has(id)) return;
         applyPartial(id, msg.data);
         scheduleRecompute(id);
       } else if (msg.type === "save") {
+        if (pluginWritesRef.current.has(id)) return;
         if (!cur) return;
         const merged = applyPartial(id, msg.data);
         savedAtRef.current[id] = Date.now();
@@ -1107,7 +1171,7 @@ export default function Workbench({
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
+  }, [handleStateRequest, appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
 
   const handlePluginSources = useCallback((sources: PluginSource[], pluginId?: string) => {
     setPluginSources((prev) => JSON.stringify(prev) === JSON.stringify(sources) ? prev : sources);
@@ -1154,13 +1218,13 @@ export default function Workbench({
       grouped.set(key, group);
     }
     const merged = [...grouped.values()].map(({ mark, names }) => ({ ...mark, label: [...names].join("、") }));
-    iframeRefs.current[id]?.contentWindow?.postMessage({ type: "pluginInteraction", picking: Boolean(pluginPickRef.current), sources: merged }, "*");
+    iframeRefs.current[id]?.contentWindow?.postMessage({ type: "pluginInteraction", picking: Boolean(pluginPickRef.current), busy: pluginWritesRef.current.size > 0 || pluginBusyRef.current, sources: merged }, "*");
   }, [fullDataOf, structOf]);
   postPluginInteractionRef.current = postPluginInteraction;
 
   useEffect(() => {
     for (const id of tabs) postPluginInteraction(id);
-  }, [tabs, sheetById, bindingsById, pluginPick, pluginSources, pluginSourcePlugin, pluginTarget, filesById, pluginList, postPluginInteraction]);
+  }, [tabs, sheetById, bindingsById, pluginPick, pluginSources, pluginSourcePlugin, pluginTarget, filesById, pluginList, pluginBusy, postPluginInteraction]);
 
   useEffect(() => {
     for (const id of tabs) {
@@ -1299,8 +1363,7 @@ export default function Workbench({
     window.clearTimeout(recomputeTimer.current);
     try {
       const computed = await runRecompute(id, previous, bindings, true);
-      await tablesApi.putData(id, stringifyTableDoc(computed));
-      await tablesApi.putPlugins(id, text);
+      await tablesApi.stateWriter(id)(stringifyTableDoc(computed), text);
       const next = await tablesApi.files(id);
       savedAtRef.current[id] = Date.now();
       rememberFiles(id, next);
@@ -1423,6 +1486,7 @@ export default function Workbench({
                       data-testid={`tables-tab-${id}`}
                       className="min-w-0 flex-1 truncate px-3 text-left"
                       onClick={() => {
+                        if (stateRequestsRef.current.size) return;
                         setActiveId(id);
                         writeTableParam(id);
                       }}
@@ -1436,7 +1500,7 @@ export default function Workbench({
                       className="mr-1 flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-active hover:text-ink"
                       onClick={(ev) => {
                         ev.stopPropagation();
-                        closeTab(id);
+                        if (!stateRequestsRef.current.size) closeTab(id);
                       }}
                     >
                       <X size={12} />
@@ -1496,7 +1560,7 @@ export default function Workbench({
                       active ? "border-b-2 border-accent bg-bg text-ink" : "text-muted hover:bg-hover"
                     }`}
                     onClick={() => {
-                      if (sheet.id === sheetRef.current[activeId]) return;
+                      if (stateRequestsRef.current.size || sheet.id === sheetRef.current[activeId]) return;
                       sheetRef.current = { ...sheetRef.current, [activeId]: sheet.id };
                       setSheetById((prev) => ({ ...prev, [activeId]: sheet.id }));
                       postSlice(activeId, "setSheet");

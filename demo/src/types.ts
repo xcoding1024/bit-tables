@@ -1,4 +1,5 @@
 export type EnumEntry = { id: string; name: string };
+export type FillCellsRequest = { sheet: string; sourceRows: string[]; targetRows: string[]; fields: string[]; idReadonly?: boolean };
 
 export type EditorAPI = {
   getStruct(): unknown;
@@ -15,6 +16,8 @@ export type EditorAPI = {
   getTableId?(): string;
   getSheetId?(): string;
   getPluginCells?(): { row: string; field: string }[];
+  fillCells?(request: FillCellsRequest): Promise<void>;
+  isFillBusy?(): boolean;
   getCheckErrors?(): { rowIndex: number; field: string; message?: string }[];
   getCheckErrorTotal?(): number;
 };

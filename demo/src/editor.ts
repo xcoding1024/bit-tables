@@ -1,4 +1,4 @@
-import type { EditorAPI, EnumEntry, FieldDef, ParamField, Row } from "./types";
+import type { EditorAPI, EnumEntry, FieldDef, FillCellsRequest, ParamField, Row } from "./types";
 import { asRecord, escapeAttr, escapeHtml, joinMulti, num, splitMulti, truthy } from "./dom";
 import { BitSearchSelect } from "./search_select";
 export { BitSearchSelect } from "./search_select";
@@ -46,6 +46,9 @@ export class BitTableEditorBase {
   protected editingCell: { ri: number; key: string } | null = null;
   protected selection: CellSel | null = null;
   private selecting = false;
+  private fillBusy = false;
+  private fillBound = false;
+  private fillDrag: { all: number[]; source: number[]; range: CellRange; end: number; startY: number } | null = null;
   private editBlurTimer = 0;
   private resetTableScroll = false;
   private filterCloseBound = false;
@@ -122,6 +125,12 @@ export class BitTableEditorBase {
 
   protected onEscape(ev: KeyboardEvent): void {
     if (ev.key !== "Escape" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (this.fillDrag) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      this.fillDrag = null;
+      this.paintFillPreview();
+      return;
+    }
     if (this.paramsEditRi != null) {
       ev.preventDefault();
       this.paramsEditRi = null;
@@ -186,6 +195,7 @@ export class BitTableEditorBase {
 
   setCheckErrors(errors: { rowIndex: number; field: string; message?: string }[], total?: number): void {
     this.readCheckErrors(errors, total);
+    if (!this.el) return;
     this.render();
   }
 
@@ -443,6 +453,92 @@ export class BitTableEditorBase {
       if (this.isRowHeadSelected(ri)) td.setAttribute("data-sel", "1");
       else td.removeAttribute("data-sel");
     });
+    this.paintFillHandle();
+  }
+
+  private fillAllowed(): boolean {
+    return Boolean(this.api.fillCells && this.view === "table" && this.selection?.mode === "cell" && !this.editingCell
+      && !this.fillBusy && !this.api.isFillBusy?.() && !this.el.closest('[data-plugin-picking="1"]'));
+  }
+
+  private fillSource() {
+    const range = this.selectionRange();
+    if (!range) return null;
+    const all = [...this.allVisibleRowIndexes()];
+    const source = all.filter((ri) => ri >= range.r0 && ri <= range.r1);
+    return source.length ? { all, source, range } : null;
+  }
+
+  private paintFillHandle(): void {
+    let handle = this.el.querySelector<HTMLButtonElement>('[data-role="fill-handle"]');
+    if (!this.fillAllowed()) { handle?.remove(); return; }
+    const source = this.fillSource();
+    if (!source) { handle?.remove(); return; }
+    const field = this.fields[source.range.c1];
+    const ri = source.source[source.source.length - 1];
+    const cell = this.el.querySelector<HTMLElement>(`td[data-role="cell"][data-index="${ri}"][data-col="${source.range.c1}"]`);
+    if (!cell || !field) { handle?.remove(); return; }
+    const bounds = cell.getBoundingClientRect();
+    const wrap = this.el.querySelector<HTMLElement>(`[data-testid="${this.tid("table")}"]`);
+    const clip = wrap?.getBoundingClientRect();
+    if (bounds.bottom < 0 || bounds.bottom > window.innerHeight || bounds.right > window.innerWidth
+      || (clip && (bounds.bottom > clip.bottom || bounds.right > clip.right || bounds.right < clip.left || bounds.bottom < clip.top))) {
+      handle?.remove(); return;
+    }
+    if (!handle) {
+      handle = document.createElement("button");
+      handle.type = "button"; handle.dataset.role = "fill-handle"; handle.dataset.testid = this.tid("fill-handle");
+      handle.title = "拖拽向下填充，双击填到筛选结果最后一行";
+      handle.setAttribute("aria-label", "向下填充");
+      handle.style.cssText = "position:fixed;width:10px;height:10px;padding:0;border:1px solid #0a0a0a;background:#3794ff;cursor:crosshair;z-index:1100";
+      handle.addEventListener("mousedown", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        if (ev.button !== 0 || !this.fillAllowed()) return;
+        const src = this.fillSource();
+        if (src) this.fillDrag = { ...src, end: src.source[src.source.length - 1], startY: ev.clientY };
+      });
+      handle.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+      handle.addEventListener("dblclick", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        if (!this.fillAllowed()) return;
+        const src = this.fillSource();
+        this.fillDrag = null;
+        if (src) void this.applyFill(src, src.all[src.all.length - 1]);
+      });
+      this.el.appendChild(handle);
+    }
+    handle.style.left = `${bounds.right - 5}px`;
+    handle.style.top = `${bounds.bottom - 5}px`;
+  }
+
+  private paintFillPreview(): void {
+    const drag = this.fillDrag;
+    this.el.querySelectorAll<HTMLElement>('td[data-role="cell"]').forEach((cell) => {
+      const ri = Number(cell.dataset.index), ci = Number(cell.dataset.col);
+      const selected = drag && drag.all.includes(ri) && ri > drag.range.r1 && ri <= drag.end && ci >= drag.range.c0 && ci <= drag.range.c1;
+      if (selected) { cell.dataset.fillPreview = "1"; cell.style.outline = "1px dashed #3794ff"; }
+      else if (cell.dataset.fillPreview) { delete cell.dataset.fillPreview; cell.style.outline = ""; }
+    });
+  }
+
+  private async applyFill(source: { all: number[]; source: number[]; range: CellRange }, end: number): Promise<void> {
+    const target = source.all.filter((ri) => ri > source.range.r1 && ri <= end);
+    if (!target.length || !this.api.fillCells) return;
+    const request: FillCellsRequest = {
+      sheet: this.currentSheetId(), sourceRows: source.source.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
+      targetRows: target.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
+      fields: this.fields.slice(source.range.c0, source.range.c1 + 1).map((field) => field.key), idReadonly: this.idReadonly,
+    };
+    this.fillBusy = true; this.paintFillHandle();
+    try {
+      await this.api.fillCells(request);
+      this.data = this.normalizeData(this.api.getData());
+      this.pluginBound = new Set((this.api.getPluginCells?.() || []).map((cell) => `${cell.row}\t${cell.field}`));
+      this.afterDataChange();
+      this.render();
+    } catch (err) {
+      parent.postMessage({ type: "toast", text: err instanceof Error ? err.message : "填充失败" }, "*");
+    } finally { this.fillBusy = false; this.paintFillHandle(); this.syncHistoryButtons(); }
   }
 
   protected focusSelectionHost(): void {
@@ -847,6 +943,7 @@ export class BitTableEditorBase {
   }
 
   protected onSelectMouseDown(ev: MouseEvent): void {
+    if (this.fillBusy || this.api.isFillBusy?.()) return;
     if (this.view !== "table" || ev.button !== 0) return;
     const target = ev.target as HTMLElement | null;
     if (this.shouldIgnoreSelectStart(target)) return;
@@ -883,6 +980,14 @@ export class BitTableEditorBase {
   }
 
   protected onSelectMouseMove(ev: MouseEvent): void {
+    if (this.fillDrag) {
+      const pos = this.tableCellFromPoint(ev.clientX, ev.clientY);
+      if (pos && this.pagedRowIndexes().includes(pos.ri) && Math.abs(ev.clientY - this.fillDrag.startY) > 3) {
+        this.fillDrag.end = Math.max(this.fillDrag.range.r1, pos.ri);
+        this.paintFillPreview();
+      }
+      return;
+    }
     if (!this.selecting || this.view !== "table" || !this.selection) return;
     const mode = this.selection.mode || "cell";
     const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
@@ -905,6 +1010,12 @@ export class BitTableEditorBase {
   }
 
   protected onSelectMouseUp(): void {
+    if (this.fillDrag) {
+      const drag = this.fillDrag;
+      this.fillDrag = null; this.paintFillPreview();
+      if (drag.end > drag.range.r1) void this.applyFill(drag, drag.end);
+      return;
+    }
     if (!this.selecting) return;
     this.setSelecting(false);
     this.focusSelectionHost();
@@ -2061,6 +2172,13 @@ export class BitTableEditorBase {
       document.addEventListener("mousemove", (ev) => this.onSelectMouseMove(ev));
       document.addEventListener("mouseup", () => this.onSelectMouseUp());
     }
+    if (!this.fillBound) {
+      this.fillBound = true;
+      this.el.addEventListener("scroll", () => this.paintFillHandle(), true);
+      window.addEventListener("resize", () => this.paintFillHandle());
+      new MutationObserver(() => { this.paintFillHandle(); this.syncHistoryButtons(); }).observe(this.el, { attributes: true, attributeFilter: ["data-plugin-picking", "data-state-busy"] });
+    }
+    this.paintFillHandle();
     if (!this.clipboardBound) {
       this.clipboardBound = true;
       document.addEventListener("copy", (ev) => this.onCopy(ev));
