@@ -249,6 +249,9 @@ export default function Workbench({
   const toggleLog = useCallback(() => {
     setLogOpen((open) => !open);
   }, []);
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+  }, []);
   const activeStruct = files ? parseDoc(files.struct) : {};
   const ordinarySheets = files ? listSheets(activeStruct) : [];
   const excelTabs = (files?.excel || []).flatMap((book) => book.sheets.map((sheet) => ({
@@ -1663,7 +1666,7 @@ export default function Workbench({
         </aside>
       </div>
 
-      <StatusLogBar logs={logs} expanded={logOpen} onToggle={toggleLog} />
+      <StatusLogBar logs={logs} expanded={logOpen} onToggle={toggleLog} onClear={clearLogs} />
 
       <QuickSearch<FileHit>
         open={quickOpen}

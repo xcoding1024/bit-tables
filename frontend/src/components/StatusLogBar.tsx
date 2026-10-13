@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Trash2 } from "lucide-react";
 
 export type StatusLogKind = "" | "ok" | "err";
 
@@ -30,10 +31,12 @@ export function StatusLogBar({
   logs,
   expanded,
   onToggle,
+  onClear,
 }: {
   logs: StatusLogEntry[];
   expanded: boolean;
   onToggle: () => void;
+  onClear: () => void;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const latest = logs[logs.length - 1];
@@ -54,26 +57,42 @@ export function StatusLogBar({
       data-testid="tables-statusbar"
     >
       {expanded ? (
-        <div
-          ref={listRef}
-          className="min-h-0 flex-1 overflow-auto px-3 py-1"
-          data-testid="tables-status-log"
-        >
-          {logs.length === 0 ? (
-            <div className="text-muted">就绪</div>
-          ) : (
-            logs.map((item) => (
-              <div key={item.id} className={`flex gap-2 ${kindClass(item.kind)}`}>
-                <span className="shrink-0 text-muted tabular-nums">{formatLogTime(item.at)}</span>
-                <span className="min-w-0 break-all">{item.text}</span>
-              </div>
-            ))
-          )}
-        </div>
+        <>
+          <div className="flex h-6 shrink-0 items-center justify-end border-b border-line px-1">
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center text-muted hover:bg-hover hover:text-ink disabled:cursor-default disabled:opacity-40"
+              data-testid="tables-status-clear"
+              aria-label="清除日志"
+              title="清除日志"
+              disabled={logs.length === 0}
+              onClick={onClear}
+            >
+              <Trash2 size={13} strokeWidth={1.8} />
+            </button>
+          </div>
+          <div
+            ref={listRef}
+            className="min-h-0 flex-1 overflow-auto px-3 py-1"
+            data-testid="tables-status-log"
+          >
+            {logs.length === 0 ? (
+              <div className="text-muted">就绪</div>
+            ) : (
+              logs.map((item) => (
+                <div key={item.id} className={`flex gap-2 ${kindClass(item.kind)}`}>
+                  <span className="shrink-0 text-muted tabular-nums">{formatLogTime(item.at)}</span>
+                  <span className="min-w-0 break-all">{item.text}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       ) : (
         <button
           type="button"
           className="flex h-6 w-full min-w-0 items-center gap-2 overflow-hidden px-3 text-left"
+          data-testid="tables-status-toggle"
           onClick={onToggle}
           title={latest ? `${formatLogTime(latest.at)} ${latestText}` : latestText}
         >

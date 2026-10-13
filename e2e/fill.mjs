@@ -57,6 +57,11 @@ try {
   await frame.getByTestId("fill-redo").click(); await busy(); assert.equal((await draft())[299].name, "名称000");
   await frame.getByTestId("fill-save").click();
   await poll(async () => load((await files()).data).sheets.main.rows[299].name === "名称000");
+  await page.getByTestId("tables-status-toggle").click();
+  await poll(async () => (await page.getByTestId("tables-status-log").innerText()).includes("检查通过"));
+  await page.getByTestId("tables-status-clear").click();
+  assert.equal((await page.getByTestId("tables-status-log").innerText()).trim(), "就绪");
+  assert.equal(await page.getByTestId("tables-status-clear").isDisabled(), true);
   const saved = await files();
   const source = "xlsx://fill_demo/fill-source.xlsx/" + encodeURIComponent("来源 长表") + "!B1";
   const response = await page.request.put(`${base}/api/tables/fill_demo/state`, { data: { data: saved.data,
