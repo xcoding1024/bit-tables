@@ -13,3 +13,8 @@ demo/node_modules/
 scripts/.record-tools/
 docs/assets/.record-tmp/
 docs/assets/.frames/
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/test-results/
+docs/playwright-report/

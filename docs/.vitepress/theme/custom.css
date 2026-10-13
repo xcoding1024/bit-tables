@@ -1,0 +1,79 @@
+:root {
+  --vp-c-brand-1: #087f6a;
+  --vp-c-brand-2: #076c5b;
+  --vp-c-brand-3: #075b4d;
+  --vp-c-brand-soft: rgba(8, 127, 106, 0.12);
+  --vp-c-tip-1: #087f6a;
+  --vp-c-tip-soft: rgba(8, 127, 106, 0.1);
+  --vp-font-family-base: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --vp-font-family-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.VPNavBarTitle .title { font-weight: 700; }
+.VPDoc h1 { letter-spacing: 0; }
+.VPDoc h2 { margin-top: 40px; border-top-color: var(--vp-c-divider); letter-spacing: 0; }
+.VPDoc h3 { letter-spacing: 0; }
+.VPDoc :not(pre) > code { color: #9b3f2c; background: rgba(197, 86, 55, 0.09); }
+.dark .VPDoc :not(pre) > code { color: #ffb09d; background: rgba(255, 176, 157, 0.1); }
+
+.demo-figure {
+  width: 100%;
+  max-width: 920px;
+  margin: 22px 0 28px;
+  overflow: hidden;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background: #0a0a0a;
+}
+
+.demo-figure__media {
+  display: flex;
+  max-width: 100%;
+  justify-content: center;
+  overflow: hidden;
+  background: #0a0a0a;
+}
+
+.demo-figure img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.demo-figure figcaption {
+  padding: 9px 12px;
+  border-top: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 28px;
+}
+
+.tutorial-grid > a {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+  background: var(--vp-c-bg-soft);
+}
+
+.tutorial-grid > a:hover { border-color: var(--vp-c-brand-1); }
+.tutorial-grid strong { display: block; margin-bottom: 4px; color: var(--vp-c-brand-1); }
+.tutorial-grid span { color: var(--vp-c-text-2); font-size: 13px; }
+
+@media (max-width: 640px) {
+  .tutorial-grid { grid-template-columns: 1fr; }
+  .demo-figure { margin-left: 0; margin-right: 0; }
+}
