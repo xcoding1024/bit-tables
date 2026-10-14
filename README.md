@@ -2,6 +2,8 @@
 
 > 本项目的目标是完全抛弃Excel的配表方式，让配置表能更好的融合进AI工作流
 
+教程：[https://bit-tables.coding1024.com/](https://bit-tables.coding1024.com/)
+
 核心特性：
 
 - 所有的内容都是纯文本，对版本管理和AI都非常友好
