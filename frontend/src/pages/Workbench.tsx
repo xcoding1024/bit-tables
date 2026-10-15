@@ -618,12 +618,10 @@ export default function Workbench({
       checkCurrent: async () => {
         const id = activeRef.current;
         if (!id) return;
-        let files = filesRef.current[id];
-        if (!files) {
-          files = await tablesApi.files(id);
-          rememberFiles(id, files);
-        }
-        await runCheck(id, files, fullDataOf(id));
+        const files = await tablesApi.files(id);
+        rememberFiles(id, files);
+        const data = Object.prototype.hasOwnProperty.call(draftRef.current, id) ? draftRef.current[id] : parseDoc(files.data);
+        await runCheck(id, files, data);
       },
       checkAll: async () => {
         if (checkAllRunning.current) return;
@@ -638,11 +636,8 @@ export default function Workbench({
             const id = ids[i];
             setCheckProgress({ open: true, running: true, done: i, total: ids.length, current: id, failed });
             try {
-              let files = filesRef.current[id];
-              if (!files) {
-                files = await tablesApi.files(id);
-                rememberFiles(id, files);
-              }
+              const files = await tablesApi.files(id);
+              rememberFiles(id, files);
               const data = Object.prototype.hasOwnProperty.call(draftRef.current, id) ? draftRef.current[id] : parseDoc(files.data);
               const ok = await runCheck(id, files, data, true);
               if (!ok) failed += 1;
@@ -669,7 +664,7 @@ export default function Workbench({
     return () => {
       editorCommandsRef.current = null;
     };
-  }, [appendLog, editorCommandsRef, fullDataOf, postEditorCmd, rememberFiles, runCheck, runExport]);
+  }, [appendLog, editorCommandsRef, postEditorCmd, rememberFiles, runCheck, runExport]);
 
   const loadTablePack = useCallback(async (id: string, fresh = false) => {
     const key = Object.keys(filesRef.current).find((key) => key === id || filesRef.current[key].path === id) || id;
