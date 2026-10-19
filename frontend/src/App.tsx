@@ -35,6 +35,7 @@ export default function App() {
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [activeTableId, setActiveTableId] = useState("");
   const [excelReadOnly, setExcelReadOnly] = useState(false);
+  const [refreshingSources, setRefreshingSources] = useState(false);
   const [recentRoots, setRecentRoots] = useState<string[]>([]);
   const dialogs = useGuideDialogs();
   const sh = shell();
@@ -201,6 +202,17 @@ export default function App() {
     }
   }
 
+  async function handleRefreshSources() {
+    const commands = editorCommandsRef.current;
+    if (!commands) return;
+    setRefreshingSources(true);
+    try {
+      await commands.refreshSources();
+    } finally {
+      setRefreshingSources(false);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-bg text-ink">
       <Titlebar
@@ -208,6 +220,7 @@ export default function App() {
         onOpen={sh ? dialogs.startOpen : undefined}
         onCreateSample={sh ? dialogs.startCreate : undefined}
         onNewTable={workbenchReady ? () => editorCommandsRef.current?.newTable() : undefined}
+        onRefreshSources={workbenchReady && activeTableId && !refreshingSources ? () => void handleRefreshSources() : undefined}
         recentRoots={recentRoots}
         onOpenRecent={sh ? openRecent : undefined}
         onEnums={workbenchReady ? () => setEnumsOpen(true) : undefined}

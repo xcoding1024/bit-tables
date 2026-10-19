@@ -1,6 +1,6 @@
 export type ExcelCell = { text: string; value: string | number | boolean | null; error?: string };
 export type ExcelSheet = { name: string; rows: number; columns: number; cells: Record<string, ExcelCell>; merges: string[]; error?: string };
-export type ExcelWorkbook = { file: string; sheets: ExcelSheet[]; error?: string };
+export type ExcelWorkbook = { file: string; md5?: string; sheets: ExcelSheet[]; error?: string };
 export type ExcelRef = { table: string; sheet: string; excelFile: string; field: string; row?: string; endField?: string; endRow?: string };
 
 function encode(value: string) {

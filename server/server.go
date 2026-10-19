@@ -224,6 +224,16 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "excel-hashes" {
+		books, err := s.current().ExcelHashes(r.PathValue("id"))
+		if err != nil {
+			writeTableErr(w, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeOK(w, map[string]any{"excel": books})
+		return
+	}
 	if r.URL.Query().Get("view") == "export" {
 		src, err := s.current().ExportSource(r.PathValue("id"))
 		if err != nil {

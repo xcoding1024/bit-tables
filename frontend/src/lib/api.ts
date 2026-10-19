@@ -87,6 +87,7 @@ export type ExportWriteResult = {
 };
 
 export const tablesApi = {
+  excelHashes: (id: string) => api<{ excel?: ExcelWorkbook[] }>(`/api/tables/${encodeURIComponent(id)}/files?view=excel-hashes`),
   root: () => api<RootInfo>("/api/root"),
   setRoot: (path: string, opts?: { sample?: boolean; guide?: boolean }) =>
     api<RootInfo>("/api/root", {

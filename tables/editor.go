@@ -43,6 +43,17 @@ func EditorHTML(editorJS string) string {
   var stateSeq = 0;
   var statePending = {};
   var stateBusy = false;
+  var editorEditing = false;
+  function reportEditing() {
+    var active = document.activeElement;
+    var editing = Boolean(active && active.matches && active.matches("input, textarea, select, [contenteditable='true']"));
+    if (editing === editorEditing) return;
+    editorEditing = editing;
+    parent.postMessage({ type: "editorEditing", editing: editing }, "*");
+  }
+  document.addEventListener("focusin", reportEditing, true);
+  document.addEventListener("focusout", function () { setTimeout(reportEditing, 0); }, true);
+  new MutationObserver(reportEditing).observe(root, { childList: true, subtree: true });
   var pluginPicking = false;
   var pluginPickAnchor = null;
   var pluginPickFocus = null;

@@ -29,6 +29,7 @@ export default function Titlebar({
   onOpen,
   onCreateSample,
   onNewTable,
+  onRefreshSources,
   recentRoots = [],
   onOpenRecent,
   onEnums,
@@ -46,6 +47,7 @@ export default function Titlebar({
   onOpen?: () => void;
   onCreateSample?: () => void;
   onNewTable?: () => void;
+  onRefreshSources?: () => void;
   recentRoots?: string[];
   onOpenRecent?: (dir: string) => void;
   onEnums?: () => void;
@@ -124,6 +126,7 @@ export default function Titlebar({
             <MenuItem label="打开…" disabled={!onOpen} onClick={() => run(onOpen)} />
             <MenuItem label="新建表" testId="titlebar-new-table" disabled={!onNewTable} onClick={() => run(onNewTable)} />
             <MenuItem label="新建示例" disabled={!onCreateSample} onClick={() => run(onCreateSample)} />
+            <MenuItem label="刷新来源" testId="titlebar-refresh-sources" disabled={!onRefreshSources} onClick={() => run(onRefreshSources)} />
             <MenuSep />
             <MenuSection label="最近打开" />
             {recentRoots.length === 0 ? (

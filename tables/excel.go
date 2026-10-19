@@ -3,6 +3,7 @@ package tables
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/md5"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 // Excel 数据独立于配表结构和数据，只供浏览及插件引用。
 type ExcelWorkbook struct {
 	File   string       `json:"file"`
+	MD5    string       `json:"md5,omitempty"`
 	Sheets []ExcelSheet `json:"sheets"`
 	Error  string       `json:"error,omitempty"`
 }
@@ -40,6 +42,24 @@ type ExcelCell struct {
 }
 
 func (r *Root) readExcel(dir string) []ExcelWorkbook {
+	return r.readExcelSources(dir, false)
+}
+
+// ExcelHashes 只读取文件内容摘要，不解析工作簿。
+func (r *Root) ExcelHashes(id string) ([]ExcelWorkbook, error) {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
+	dir, err := r.Dir(id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(dir); err != nil {
+		return nil, err
+	}
+	return r.readExcelSources(dir, true), nil
+}
+
+func (r *Root) readExcelSources(dir string, hashesOnly bool) []ExcelWorkbook {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -63,7 +83,14 @@ func (r *Root) readExcel(dir string) []ExcelWorkbook {
 			err = rootErr
 		}
 		if err == nil {
-			book.Sheets, err = readExcelFile(resolved)
+			var data []byte
+			data, err = os.ReadFile(resolved)
+			if err == nil {
+				book.MD5 = fmt.Sprintf("%x", md5.Sum(data))
+				if !hashesOnly {
+					book.Sheets, err = readExcelData(data)
+				}
+			}
 		}
 		if err != nil {
 			book.Sheets = []ExcelSheet{}
@@ -77,11 +104,7 @@ func (r *Root) readExcel(dir string) []ExcelWorkbook {
 
 // 读取工作表 XML 中实际存在的坐标及缓存标记，避免 GetRows 压缩空白、
 // GetCellValue 将合并区域的锚点值填入覆盖单元格，或把无缓存公式当成空值。
-func readExcelFile(filename string) ([]ExcelSheet, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
+func readExcelData(data []byte) ([]ExcelSheet, error) {
 	f, err := excelize.OpenReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err

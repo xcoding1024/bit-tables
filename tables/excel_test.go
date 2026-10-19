@@ -1,7 +1,9 @@
 package tables
 
 import (
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +35,44 @@ func excelTestRoot(t *testing.T) *Root {
 		}
 	}
 	return root
+}
+
+func TestExcelContentHashes(t *testing.T) {
+	r := excelTestRoot(t)
+	dir, _ := r.Dir("item")
+	file := filepath.Join(dir, "来源 数据.xlsx")
+	original, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stat, _ := os.Stat(file)
+	books, err := r.ExcelHashes("item")
+	if err != nil || len(books) != 2 {
+		t.Fatalf("摘要读取失败: %#v %v", books, err)
+	}
+	want := fmt.Sprintf("%x", md5.Sum(original))
+	if books[0].MD5 != want || len(books[0].Sheets) != 0 {
+		t.Fatalf("摘要不匹配或解析了工作簿: %#v", books[0])
+	}
+	files, _ := r.Files("item")
+	if files.Excel[0].MD5 != want {
+		t.Fatal("分页内容与摘要不一致")
+	}
+	replacement, _ := os.ReadFile(filepath.Join(dir, "补充.xlsx"))
+	if err := os.WriteFile(file, replacement, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// 内容检测不能只依赖修改时间。
+	if err := os.Chtimes(file, stat.ModTime(), stat.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	changed, _ := r.ExcelHashes("item")
+	if changed[0].MD5 == want || changed[0].MD5 != fmt.Sprintf("%x", md5.Sum(replacement)) {
+		t.Fatal("内容变化未反映到 MD5")
+	}
+	if _, err := r.ExcelHashes("../item"); err == nil {
+		t.Fatal("摘要接口允许目录越界")
+	}
 }
 
 func TestExcelPreservesCoordinatesValuesAndFormulaCaches(t *testing.T) {

@@ -1,4 +1,5 @@
 import { fillCells, type FillCellsRequest } from "../lib/fill";
+import { xlsxBindingKey, xlsxSourceHashes } from "../lib/xlsxSources";
 import excelIcon from "../assets/excel.ico";
 import { ExcelGrid } from "../components/ExcelGrid";
 import { excelSheetId, isExcelSheet, parseExcelRef, type ExcelWorkbook } from "../lib/excel";
@@ -84,6 +85,7 @@ type RevealTarget = { rowIndex: number; field?: string; query?: string };
 
 export type EditorCommands = {
   newTable: () => void;
+  refreshSources: () => Promise<void>;
   undo: () => void;
   redo: () => void;
   save: () => void;
@@ -192,7 +194,19 @@ export default function Workbench({
   const savedAtRef = useRef<Record<string, number>>({});
   const bindingsRef = useRef(bindingsById);
   const genericPluginJsRef = useRef(genericPluginJs);
+  const genericPluginsReadyRef = useRef<Promise<boolean>>(Promise.resolve(false));
+  const initialSourceRefreshRef = useRef(new Set<string>());
+  const [initializingSources, setInitializingSources] = useState(true);
   const recomputeTimer = useRef(0);
+  const deferredRecomputeRef = useRef(new Set<string>());
+  const refreshSourcesRunningRef = useRef(false);
+  const refreshSourcesRef = useRef<() => Promise<void>>(async () => undefined);
+  const refreshReplaceOnReturnRef = useRef(new Set<string>());
+  const xlsxHashesRef = useRef(new Map<string, { key: string; hashes: string | null }>());
+  const xlsxPollingRef = useRef(false);
+  const editorEditingRef = useRef(new Set<string>());
+  const savingRef = useRef(new Set<string>());
+  const [xlsxNotice, setXlsxNotice] = useState(0);
   const pluginPickRef = useRef<PluginPick | null>(null);
   const pluginWritesRef = useRef(new Set<string>());
   const stateRequestsRef = useRef(new Set<string>());
@@ -601,6 +615,13 @@ export default function Workbench({
     if (!editorCommandsRef) return;
     editorCommandsRef.current = {
       newTable: () => { setNewId(""); setNewOpen(true); },
+      refreshSources: async () => {
+        try {
+          await refreshSourcesRef.current();
+        } catch (err: unknown) {
+          appendLog(`刷新来源失败：${err instanceof Error ? err.message : String(err)}`, "err");
+        }
+      },
       undo: () => postEditorCmd("undo"),
       redo: () => postEditorCmd("redo"),
       save: () => postEditorCmd("save"),
@@ -706,10 +727,137 @@ export default function Workbench({
     [appendLog, fullDataOf, loadTablePack, postSlice, rememberDraft, structOf],
   );
 
+  const refreshSources = useCallback(async (id = activeRef.current, automatic = false) => {
+    if (!id) return;
+    if (refreshSourcesRunningRef.current || pluginBusyRef.current || stateRequestsRef.current.size || savingRef.current.size || pluginPickRef.current || editorEditingRef.current.size) {
+      if (automatic) return;
+      throw new Error("当前有配置表操作正在进行，请稍后重试");
+    }
+    const writeState = tablesApi.stateWriter(id);
+    refreshSourcesRunningRef.current = true;
+    pluginBusyRef.current = true;
+    pluginWritesRef.current.add(id);
+    stateRequestsRef.current.add(id);
+    pluginWriteRevisionRef.current[id] = (pluginWriteRevisionRef.current[id] || 0) + 1;
+    setPluginBusy(true);
+    postPluginInteractionRef.current(id);
+    window.clearTimeout(recomputeTimer.current);
+    deferredRecomputeRef.current.delete(id);
+    try {
+      const current = fullDataOf(id);
+      const next = await tablesApi.files(id);
+      const bindings = parseBindings(next.plugins || "");
+      const loaded = new Map<string, TableFiles>([[id, next]]);
+      const result = await recomputeBindings({
+        tableId: id, data: current, struct: parseDoc(next.struct), bindings,
+        scripts: [genericPluginJsRef.current, next.plugin || ""],
+        loadTable: async (sourceId) => {
+          if (!workbenchAliveRef.current) throw new Error("配表已关闭");
+          let source = loaded.get(sourceId);
+          if (!source) {
+            source = await tablesApi.files(sourceId);
+            loaded.set(sourceId, source);
+          }
+          return { data: sourceId === id ? current : fullDataOf(source.id, source.data), struct: parseDoc(source.struct), excel: source.excel };
+        },
+      });
+      if (result.error) throw new Error(result.error);
+      if (!workbenchAliveRef.current || !tabsRef.current.includes(id)) return;
+      const dataText = stringifyTableDoc(result.data);
+      await writeState(dataText, next.plugins || "");
+      if (!workbenchAliveRef.current) return;
+      savedAtRef.current[id] = Date.now();
+      for (const [sourceId, source] of loaded) rememberFiles(sourceId, source);
+      rememberFiles(id, { ...next, data: dataText });
+      rememberDraft(id, result.data);
+      setSheetById((prev) => {
+        const sheetId = resolveSheetId(parseDoc(next.struct), prev[id], next.excel);
+        sheetRef.current = { ...sheetRef.current, [id]: sheetId };
+        return { ...prev, [id]: sheetId };
+      });
+      initialSourceRefreshRef.current.delete(id);
+      if (isExcelSheet(sheetRef.current[id])) refreshReplaceOnReturnRef.current.add(id);
+      else postSlice(id, "replaceData");
+      const entry = xlsxHashesRef.current.get(id);
+      if (entry && entry.key === xlsxBindingKey(bindings)) {
+        entry.hashes = await xlsxSourceHashes(id, bindings, async (sourceId) => loaded.get(sourceId)?.excel || []);
+      }
+      if (automatic) setXlsxNotice(Date.now());
+      appendLog(`${id} 已刷新来源、重算并保存`, "ok");
+      await runCheck(id, next, result.data, true);
+    } finally {
+      refreshSourcesRunningRef.current = false;
+      pluginBusyRef.current = false;
+      pluginWritesRef.current.delete(id);
+      stateRequestsRef.current.delete(id);
+      setPluginBusy(false);
+      postPluginInteractionRef.current(id);
+    }
+  }, [appendLog, fullDataOf, postSlice, rememberDraft, rememberFiles, runCheck]);
+  refreshSourcesRef.current = refreshSources;
+
+  useEffect(() => {
+    for (const id of [...xlsxHashesRef.current.keys()]) {
+      if (!tabs.includes(id)) xlsxHashesRef.current.delete(id);
+    }
+    for (const id of tabs) {
+      if (!filesById[id]) continue;
+      const bindings = bindingsById[id] || [];
+      const key = xlsxBindingKey(bindings);
+      if (xlsxHashesRef.current.get(id)?.key === key) continue;
+      const entry = { key, hashes: null as string | null };
+      xlsxHashesRef.current.set(id, entry);
+      void xlsxSourceHashes(id, bindings, async (sourceId) => {
+        const cached = Object.values(filesRef.current).find((files) => files.id === sourceId || files.path === sourceId);
+        return cached?.excel || (await tablesApi.excelHashes(sourceId)).excel || [];
+      }).then((hashes) => { if (entry.hashes === null) entry.hashes = hashes; }).catch(() => undefined);
+    }
+  }, [tabs, filesById, bindingsById]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (xlsxPollingRef.current || refreshSourcesRunningRef.current || pluginBusyRef.current || stateRequestsRef.current.size || savingRef.current.size || pluginPickRef.current || editorEditingRef.current.size) return;
+      xlsxPollingRef.current = true;
+      void (async () => {
+        if (!(await genericPluginsReadyRef.current) || !workbenchAliveRef.current) return;
+        for (const id of [...tabsRef.current]) {
+          if (!workbenchAliveRef.current) return;
+          const entry = xlsxHashesRef.current.get(id);
+          if (!entry) continue;
+          try {
+            if (entry.hashes === null || initialSourceRefreshRef.current.has(id)) {
+              await refreshSources(id, true);
+              continue;
+            }
+            const bindings = bindingsRef.current[id] || [];
+            const hashes = await xlsxSourceHashes(id, bindings, async (sourceId) => {
+              if (!workbenchAliveRef.current) throw new Error("配表已关闭");
+              return (await tablesApi.excelHashes(sourceId)).excel || [];
+            });
+            if (!workbenchAliveRef.current || !tabsRef.current.includes(id) || xlsxHashesRef.current.get(id) !== entry) continue;
+            if (hashes !== entry.hashes) await refreshSources(id, true);
+          } catch (err: unknown) {
+            if (workbenchAliveRef.current) appendLog(`${id} XLSX 来源更新失败：${err instanceof Error ? err.message : String(err)}`, "err");
+          }
+        }
+      })().finally(() => { xlsxPollingRef.current = false; });
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [appendLog, refreshSources]);
+
+  useEffect(() => {
+    if (!xlsxNotice) return;
+    const timer = window.setTimeout(() => setXlsxNotice(0), 4000);
+    return () => window.clearTimeout(timer);
+  }, [xlsxNotice]);
+
   const scheduleRecompute = useCallback(
     (id: string) => {
+      deferredRecomputeRef.current.add(id);
       window.clearTimeout(recomputeTimer.current);
       recomputeTimer.current = window.setTimeout(() => {
+        if (editorEditingRef.current.has(id)) return;
+        deferredRecomputeRef.current.delete(id);
         void runRecompute(id);
       }, 400);
     },
@@ -937,6 +1085,10 @@ export default function Workbench({
 
   const closeTab = useCallback(
     (id: string) => {
+      editorEditingRef.current.delete(id);
+      xlsxHashesRef.current.delete(id);
+      initialSourceRefreshRef.current.delete(id);
+      refreshReplaceOnReturnRef.current.delete(id);
       const nextTabs = tabsRef.current.filter((item) => item !== id);
       setTabs(nextTabs);
       setFilesById((prev) => {
@@ -982,13 +1134,16 @@ export default function Workbench({
       .then(async (tables) => {
         if (cancelled) return;
         const current = readTableParam();
-        if (current && tables.some((item) => item.id === current)) {
-          await openTable(current, true);
-          return;
-        }
-        if (tables.length === 1) {
-          await openTable(tables[0].id, true);
-        }
+        const id = current && tables.some((item) => item.id === current)
+          ? current : tables.length === 1 ? tables[0].id : "";
+        if (!id) return;
+        await openTable(id, true);
+        if (cancelled) return;
+        const files = filesRef.current[id];
+        if (!files?.excel?.length && !bindingsRef.current[id]?.length) return;
+        initialSourceRefreshRef.current.add(id);
+        if (!(await genericPluginsReadyRef.current) || cancelled) return;
+        await refreshSources(id, true);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -1002,11 +1157,13 @@ export default function Workbench({
             }));
           }
         }
+      }).finally(() => {
+        if (!cancelled) setInitializingSources(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [appendLog, loadList, openTable]);
+  }, [appendLog, loadList, openTable, refreshSources]);
 
   const handleStateRequest = useCallback(async (id: string, msg: { type?: string; requestId: number; sheetId?: string; data?: unknown; request?: FillCellsRequest; bindings?: PluginBinding[]; persist?: boolean }) => {
     const frame = iframeRefs.current[id]?.contentWindow;
@@ -1067,9 +1224,16 @@ export default function Workbench({
       const frame = iframeRefs.current[id];
       const msg = ev.data as { type?: string; data?: unknown; key?: string; text?: string };
       const cur = filesRef.current[id];
-      if (msg.type === "fillCells" || msg.type === "restoreTableState") {
+      if (msg.type === "editorEditing") {
+        if (ev.data.editing) editorEditingRef.current.add(id);
+        else {
+          editorEditingRef.current.delete(id);
+          if (deferredRecomputeRef.current.has(id)) scheduleRecompute(id);
+        }
+      } else if (msg.type === "fillCells" || msg.type === "restoreTableState") {
         void handleStateRequest(id, ev.data);
       } else if (msg.type === "ready" && frame) {
+        editorEditingRef.current.delete(id);
         frameReadyRef.current[id] = true;
         tryInitFrame(id);
       } else if (msg.type === "dirty") {
@@ -1079,6 +1243,7 @@ export default function Workbench({
       } else if (msg.type === "save") {
         if (pluginWritesRef.current.has(id)) return;
         if (!cur) return;
+        savingRef.current.add(id);
         const merged = applyPartial(id, msg.data);
         savedAtRef.current[id] = Date.now();
         void runRecompute(id, merged)
@@ -1104,7 +1269,7 @@ export default function Workbench({
                 editorKey: prev[id]?.editorKey || 1,
               },
             }));
-          });
+          }).finally(() => { savingRef.current.delete(id); });
       } else if (msg.type === "shortcut") {
         const key = String(msg.key || "");
         if (key === "p") {
@@ -1236,17 +1401,20 @@ export default function Workbench({
 
   useEffect(() => {
     let cancelled = false;
-    void tablesApi
+    genericPluginsReadyRef.current = tablesApi
       .plugins()
       .then(async (next) => {
         const script = next.script || "";
         const metas = await listPluginMeta(script, "");
-        if (cancelled) return;
+        if (cancelled) return false;
+        genericPluginJsRef.current = script;
         setGenericPluginJs(script);
         setGenericPlugins(metas.map((item) => ({ ...item, kind: item.kind || "generic" })));
+        return true;
       })
       .catch((err: unknown) => {
         if (!cancelled) appendLog(err instanceof Error ? err.message : "加载通用插件失败", "err");
+        return false;
       });
     return () => {
       cancelled = true;
@@ -1424,7 +1592,8 @@ export default function Workbench({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {initializingSources ? <div data-testid="tables-initial-loading" className="absolute inset-0 z-40 flex items-center justify-center bg-bg/80 text-sm text-muted">正在加载配置表…</div> : null}
       <div className="flex min-h-0 flex-1">
         <aside className="relative flex shrink-0 flex-col overflow-hidden bg-sidebar" style={{ width: left.displayWidth }}>
           {left.collapsed ? (
@@ -1559,9 +1728,12 @@ export default function Workbench({
                     }`}
                     onClick={() => {
                       if (stateRequestsRef.current.size || sheet.id === sheetRef.current[activeId]) return;
+                      const applyRefreshedDraft = isExcelSheet(sheetRef.current[activeId])
+                        && !sheet.excelFile
+                        && refreshReplaceOnReturnRef.current.delete(activeId);
                       sheetRef.current = { ...sheetRef.current, [activeId]: sheet.id };
                       setSheetById((prev) => ({ ...prev, [activeId]: sheet.id }));
-                      postSlice(activeId, "setSheet");
+                      postSlice(activeId, applyRefreshedDraft ? "replaceData" : "setSheet");
                     }}
                   >
                     {sheet.excelFile ? <img src={excelIcon} alt="Excel" width={16} height={16} draggable={false} className="mr-1 inline-block align-middle" /> : null}{sheet.name}
@@ -1661,6 +1833,7 @@ export default function Workbench({
         </aside>
       </div>
 
+      {xlsxNotice ? <div role="status" data-testid="xlsx-source-updated" className="pointer-events-none fixed left-1/2 top-16 z-50 -translate-x-1/2 rounded border border-line bg-elevated px-4 py-2 text-sm text-ink shadow-lg">xlsx数据源已更新</div> : null}
       <StatusLogBar logs={logs} expanded={logOpen} onToggle={toggleLog} onClear={clearLogs} />
 
       <QuickSearch<FileHit>
