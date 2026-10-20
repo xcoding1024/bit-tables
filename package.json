@@ -9,6 +9,8 @@
     "dev": "node scripts/dev.js",
     "accept": "node scripts/accept-shot.mjs",
     "test:e2e": "node e2e/fill.mjs",
+    "test:windows": "node e2e/windows.mjs",
+    "test:desktop": "node --test desktop/*.test.cjs",
     "desktop": "electron .",
     "pack:win": "powershell -File scripts/pack-win.ps1",
     "pack:linux": "node scripts/pack.js linux",

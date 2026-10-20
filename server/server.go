@@ -27,6 +27,7 @@ type Server struct {
 	clients map[chan fileEvent]struct{}
 	lastSig string
 	stop    chan struct{}
+	windows map[string]*windowWatch
 }
 
 type fileEvent struct {
@@ -41,6 +42,7 @@ func New(root *tables.Root) *Server {
 		spa:     openSPA(),
 		clients: map[chan fileEvent]struct{}{},
 		stop:    make(chan struct{}),
+		windows: map[string]*windowWatch{},
 	}
 	s.mux = s.routes()
 	go s.watchLoop()
@@ -105,7 +107,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.Handle("GET /web/", http.StripPrefix("/web/", http.FileServer(http.FS(web.FS))))
 	mux.Handle("GET /assets/", http.FileServer(http.FS(s.spa)))
-	return withCORS(mux)
+	return withCORS(s.withWindowRoot(mux))
 }
 
 func withCORS(next http.Handler) http.Handler {
@@ -157,6 +159,9 @@ func (s *Server) setRoot(root *tables.Root, guide bool) {
 
 func (s *Server) getRoot(w http.ResponseWriter, r *http.Request) {
 	root, guide := s.snapshot()
+	if scoped, ok := r.Context().Value(windowRootKey{}).(*tables.Root); ok {
+		root, guide = scoped, false
+	}
 	writeOK(w, map[string]any{"path": root.Path, "guide": guide})
 }
 
@@ -174,17 +179,23 @@ func (s *Server) putRoot(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "不能同时使用 sample 和 guide")
 		return
 	}
+	if r.URL.Query().Has("rootPath") && !filepath.IsAbs(strings.TrimSpace(req.Path)) {
+		writeErr(w, http.StatusBadRequest, "bad_request", "配表目录必须为绝对路径")
+		return
+	}
 	root, err := tables.OpenAt(strings.TrimSpace(req.Path), req.Sample)
 	if err != nil {
 		writeTableErr(w, err)
 		return
 	}
-	s.setRoot(root, req.Guide)
+	if !r.URL.Query().Has("rootPath") {
+		s.setRoot(root, req.Guide)
+	}
 	writeOK(w, map[string]any{"path": root.Path, "guide": req.Guide})
 }
 
 func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
-	root := s.current()
+	root := s.requestRoot(r)
 	list, err := root.List()
 	if err != nil {
 		writeTableErr(w, err)
@@ -206,7 +217,7 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
 		return
 	}
-	info, err := s.current().Create(strings.TrimSpace(req.ID))
+	info, err := s.requestRoot(r).Create(strings.TrimSpace(req.ID))
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -216,7 +227,7 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.current().Delete(id); err != nil {
+	if err := s.requestRoot(r).Delete(id); err != nil {
 		writeTableErr(w, err)
 		return
 	}
@@ -225,7 +236,7 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("view") == "excel-hashes" {
-		books, err := s.current().ExcelHashes(r.PathValue("id"))
+		books, err := s.requestRoot(r).ExcelHashes(r.PathValue("id"))
 		if err != nil {
 			writeTableErr(w, err)
 			return
@@ -235,7 +246,7 @@ func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Query().Get("view") == "export" {
-		src, err := s.current().ExportSource(r.PathValue("id"))
+		src, err := s.requestRoot(r).ExportSource(r.PathValue("id"))
 		if err != nil {
 			writeTableErr(w, err)
 			return
@@ -243,7 +254,7 @@ func (s *Server) getFiles(w http.ResponseWriter, r *http.Request) {
 		writeOK(w, src)
 		return
 	}
-	files, err := s.current().Files(r.PathValue("id"))
+	files, err := s.requestRoot(r).Files(r.PathValue("id"))
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -256,7 +267,7 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 	if raw := strings.TrimSpace(r.URL.Query().Get("kinds")); raw != "" {
 		kinds = strings.Split(raw, ",")
 	}
-	hist, err := s.current().History(r.PathValue("id"), kinds)
+	hist, err := s.requestRoot(r).History(r.PathValue("id"), kinds)
 	if err != nil {
 		writeTableErr(w, err)
 		return
@@ -273,7 +284,7 @@ func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	root := s.current()
+	root := s.requestRoot(r)
 	if err := root.PutData(id, req.Data); err != nil {
 		writeTableErr(w, err)
 		return
@@ -296,7 +307,7 @@ func (s *Server) putState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if err := s.current().PutState(id, *req.Data, *req.Plugins); err != nil {
+	if err := s.requestRoot(r).PutState(id, *req.Data, *req.Plugins); err != nil {
 		writeTableErr(w, err)
 		return
 	}
@@ -312,7 +323,7 @@ func (s *Server) putPlugins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	root := s.current()
+	root := s.requestRoot(r)
 	if err := root.PutPlugins(id, req.Plugins); err != nil {
 		writeTableErr(w, err)
 		return
@@ -326,12 +337,12 @@ func (s *Server) putPlugins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getPlugins(w http.ResponseWriter, r *http.Request) {
-	writeOK(w, map[string]any{"script": s.current().GenericPluginsJS()})
+	writeOK(w, map[string]any{"script": s.requestRoot(r).GenericPluginsJS()})
 }
 
 func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	js, err := s.current().EditorJS(id)
+	js, err := s.requestRoot(r).EditorJS(id)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			js = tables.FallbackEditorJS()
@@ -351,7 +362,7 @@ func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	rel := r.URL.Query().Get("path")
-	abs, err := s.current().ResolveAsset(id, rel)
+	abs, err := s.requestRoot(r).ResolveAsset(id, rel)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			writeErr(w, http.StatusNotFound, "not_found", "资源不存在")
@@ -365,7 +376,7 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getExport(w http.ResponseWriter, r *http.Request) {
-	root := s.current()
+	root := s.requestRoot(r)
 	writeOK(w, map[string]any{
 		"client": root.ExportDir(tables.ExportSideClient),
 		"server": root.ExportDir(tables.ExportSideServer),
@@ -381,7 +392,7 @@ func (s *Server) postExport(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
 		return
 	}
-	root := s.current()
+	root := s.requestRoot(r)
 	written, err := root.WriteExportFiles(req.Client, req.Server)
 	if err != nil {
 		writeTableErr(w, err)
@@ -408,17 +419,36 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	ch := make(chan fileEvent, 8)
 	s.mu.Lock()
-	s.clients[ch] = struct{}{}
+	clients := s.clients
+	key := ""
+	if r.URL.Query().Has("rootPath") {
+		root := s.requestRoot(r)
+		key = root.Path
+		watch := s.windows[key]
+		if watch == nil {
+			sig, _ := root.Signature()
+			watch = &windowWatch{root: root, signature: sig, clients: map[chan fileEvent]struct{}{}}
+			s.windows[key] = watch
+		}
+		clients = watch.clients
+	}
+	clients[ch] = struct{}{}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
-		delete(s.clients, ch)
+		delete(clients, ch)
+		if key != "" && len(clients) == 0 {
+			delete(s.windows, key)
+		}
 		s.mu.Unlock()
 	}()
 
+	flusher.Flush()
 	ctx := r.Context()
 	for {
 		select {
+		case <-s.stop:
+			return
 		case <-ctx.Done():
 			return
 		case ev := <-ch:
@@ -437,6 +467,7 @@ func (s *Server) watchLoop() {
 		case <-s.stop:
 			return
 		case <-ticker.C:
+			s.pollWindowRoots()
 			sig, err := s.current().Signature()
 			if err != nil {
 				continue

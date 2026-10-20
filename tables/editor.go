@@ -296,7 +296,8 @@ func EditorHTML(editorJS string) string {
     assetURL: function (rel) {
       var id = api.getTableId();
       if (!id || rel == null || rel === "") return "";
-      return "/api/tables/" + encodeURIComponent(id) + "/asset?path=" + encodeURIComponent(String(rel));
+      var rootPath = new URLSearchParams(location.search).get("rootPath");
+      return "/api/tables/" + encodeURIComponent(id) + "/asset?path=" + encodeURIComponent(String(rel)) + (rootPath ? "&rootPath=" + encodeURIComponent(rootPath) : "");
     }
   };
   function attrEscape(value) {

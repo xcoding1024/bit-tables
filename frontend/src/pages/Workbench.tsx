@@ -1,3 +1,4 @@
+import { TableTabMenu } from "../components/TableTabMenu";
 import { fillCells, type FillCellsRequest } from "../lib/fill";
 import { xlsxBindingKey, xlsxSourceHashes } from "../lib/xlsxSources";
 import excelIcon from "../assets/excel.ico";
@@ -84,6 +85,8 @@ type RightTab = DocsKind | "history" | "plugin";
 type RevealTarget = { rowIndex: number; field?: string; query?: string };
 
 export type EditorCommands = {
+  hasUnsavedChanges: () => boolean;
+  isBusy: () => boolean;
   newTable: () => void;
   refreshSources: () => Promise<void>;
   undo: () => void;
@@ -124,10 +127,12 @@ export default function Workbench({
   tablePacks = [],
   editorCommandsRef,
   onActiveIdChange,
+  onOpenWindow,
   onReadOnlyChange,
   onExportProgress,
 }: {
   rootPath: string;
+  onOpenWindow?: (id: string) => void;
   enumsCatalog?: EnumCatalogItem[];
   tablePacks?: TableSnap[];
   editorCommandsRef?: MutableRefObject<EditorCommands | null>;
@@ -614,6 +619,11 @@ export default function Workbench({
   useEffect(() => {
     if (!editorCommandsRef) return;
     editorCommandsRef.current = {
+      hasUnsavedChanges: () => Object.entries(draftRef.current).some(([id, draft]) => {
+        const files = filesRef.current[id];
+        return files && JSON.stringify(draft) !== JSON.stringify(parseDoc(files.data));
+      }),
+      isBusy: () => Boolean(stateRequestsRef.current.size || savingRef.current.size || pluginWritesRef.current.size || refreshSourcesRunningRef.current || pluginBusyRef.current),
       newTable: () => { setNewId(""); setNewOpen(true); },
       refreshSources: async () => {
         try {
@@ -1455,7 +1465,7 @@ export default function Workbench({
 
   useEffect(() => {
     if (!window.EventSource) return;
-    const es = new EventSource("/api/events");
+    const es = new EventSource(tablesApi.eventsURL());
     es.addEventListener("file_changed", () => {
       void (async () => {
         const tables = await loadList();
@@ -1642,7 +1652,8 @@ export default function Workbench({
               tabs.map((id) => {
                 const active = id === activeId;
                 return (
-                  <div
+                  <TableTabMenu
+                    onOpenWindow={onOpenWindow ? () => onOpenWindow(id) : undefined}
                     key={id}
                     className={`group flex max-w-[180px] shrink-0 items-center border-r border-line ${
                       active ? "bg-bg text-ink" : "text-muted hover:bg-hover"
@@ -1672,7 +1683,7 @@ export default function Workbench({
                     >
                       <X size={12} />
                     </button>
-                  </div>
+                  </TableTabMenu>
                 );
               })
             )}

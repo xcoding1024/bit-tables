@@ -1,3 +1,4 @@
+import { withWindowRoot } from "./tableWindow";
 import type { ExcelWorkbook } from "./excel";
 export type TableInfo = {
   id: string;
@@ -53,7 +54,11 @@ export type RootInfo = {
   guide?: boolean;
 };
 
-async function api<T>(path: string, opt?: RequestInit): Promise<T> {
+function api<T>(path: string, opt?: RequestInit): Promise<T> {
+  return request<T>(withWindowRoot(path), opt);
+}
+
+async function request<T>(path: string, opt?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
     ...opt,
@@ -112,8 +117,8 @@ export const tablesApi = {
       body: JSON.stringify({ data }),
     }),
   stateWriter: (id: string) => {
-    const url = `/api/tables/${encodeURIComponent(id)}/state`;
-    return (data: string, plugins: string) => api<{ id: string; data: string; plugins: string }>(url, { method: "PUT", body: JSON.stringify({ data, plugins }) });
+    const url = withWindowRoot(`/api/tables/${encodeURIComponent(id)}/state`);
+    return (data: string, plugins: string) => request<{ id: string; data: string; plugins: string }>(url, { method: "PUT", body: JSON.stringify({ data, plugins }) });
   },
   putPlugins: (id: string, plugins: string) =>
     api<{ id: string; plugins: string }>(`/api/tables/${encodeURIComponent(id)}/plugins`, {
@@ -121,7 +126,8 @@ export const tablesApi = {
       body: JSON.stringify({ plugins }),
     }),
   plugins: () => api<{ script: string }>("/api/plugins"),
-  editorURL: (id: string, key: number) => `/api/tables/${encodeURIComponent(id)}/editor?t=${key}`,
+  editorURL: (id: string, key: number) => withWindowRoot(`/api/tables/${encodeURIComponent(id)}/editor?t=${key}`),
+  eventsURL: () => withWindowRoot("/api/events"),
   exportInfo: () => api<ExportInfo>("/api/export"),
   writeExport: (payload: { client: ExportWriteFile[]; server: ExportWriteFile[] }) =>
     api<ExportWriteResult>("/api/export", {

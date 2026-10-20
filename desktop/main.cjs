@@ -3,6 +3,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { tableWindowURL, senderWindow } = require("./table-windows.cjs");
 
 const ADDR = process.env.BIT_TABLES_ADDR || "127.0.0.1:18780";
 const DEV_SERVER_URL = process.env.DEV_SERVER_URL || "";
@@ -22,6 +23,8 @@ let goProc = null;
 let shuttingDown = false;
 /** @type {import('electron').BrowserWindow | null} */
 let win = null;
+const managedWindows = new Set();
+let closingMain = false;
 
 function binName() {
   return process.platform === "win32" ? "bit-tables.exe" : "bit-tables";
@@ -211,15 +214,64 @@ function uiURL() {
   return DEV_SERVER_URL || `http://${ADDR}/`;
 }
 
-function createWindow() {
+function ownerWindow(event) {
+  return senderWindow(BrowserWindow, managedWindows, event);
+}
+
+function closeChildWindow(window) {
+  if (window.isDestroyed()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const finish = (closed) => {
+      window.removeListener("closed", onClosed);
+      window.removeListener("close-cancelled", onCancelled);
+      resolve(closed);
+    };
+    const onClosed = () => finish(true);
+    const onCancelled = () => finish(false);
+    window.once("closed", onClosed);
+    window.once("close-cancelled", onCancelled);
+    window.close();
+  });
+}
+
+function bindReloadShortcut(window) {
+  window.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.isAutoRepeat) return;
+    if (input.key === "F11" && !input.control && !input.meta && !input.alt && !input.shift) {
+      event.preventDefault();
+      window.setFullScreen(!window.isFullScreen());
+      return;
+    }
+    if (input.key === "Escape" && window.isFullScreen()) {
+      event.preventDefault();
+      window.setFullScreen(false);
+      return;
+    }
+    const toggleDevTools =
+      input.key === "F12" ||
+      (input.key === "I" && input.shift && (input.control || input.meta) && !input.alt);
+    if (toggleDevTools) {
+      event.preventDefault();
+      window.webContents.toggleDevTools();
+      return;
+    }
+    if (input.key !== "F5") return;
+    if (input.control || input.meta || input.alt || input.shift) return;
+    event.preventDefault();
+    window.webContents.reload();
+  });
+}
+
+function createWindow(target) {
   const isMac = process.platform === "darwin";
   const iconWin = path.join(__dirname, "icon.ico");
   const iconPng = path.join(__dirname, "icon.png");
-  win = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 900,
-    minHeight: 600,
+  const childURL = target ? tableWindowURL(uiURL(), target) : "";
+  const window = new BrowserWindow({
+    width: target ? 1100 : 1280,
+    height: target ? 760 : 860,
+    minWidth: target ? 760 : 900,
+    minHeight: target ? 480 : 600,
     backgroundColor: "#0a0a0a",
     title: "bit-tables",
     icon: fs.existsSync(process.platform === "win32" ? iconWin : iconPng)
@@ -234,8 +286,49 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  managedWindows.add(window);
+  if (!target) { win = window; }
+  let allowMainClose = false;
+  if (!target) window.on("close", (event) => {
+    if (allowMainClose || shuttingDown) return;
+    const children = [...managedWindows].filter((other) => other !== window && !other.isDestroyed());
+    if (!children.length) return;
+    event.preventDefault();
+    if (closingMain) return;
+    closingMain = true;
+    void (async () => {
+      try {
+        for (const child of children) {
+          if (!await closeChildWindow(child)) return;
+        }
+        allowMainClose = true;
+        window.close();
+      } finally {
+        allowMainClose = false;
+        closingMain = false;
+      }
+    })();
+  });
+  window.on("closed", () => {
+    managedWindows.delete(window);
+    if (win === window) { win = null; }
+  });
+  window.webContents.on("will-prevent-unload", (event) => {
+    const choice = dialog.showMessageBoxSync(window, {
+      type: "question", buttons: ["继续编辑", "放弃修改并关闭"], defaultId: 0, cancelId: 0,
+      title: "有未保存的配表修改", message: "关闭或刷新窗口会丢失未保存的修改。",
+    });
+    if (choice === 1) event.preventDefault();
+    else window.emit("close-cancelled");
+  });
   Menu.setApplicationMenu(null);
-  win.loadURL(uiURL());
+  bindReloadShortcut(window);
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.on("will-navigate", (event, url) => {
+    if (new URL(url).origin !== new URL(uiURL()).origin) event.preventDefault();
+  });
+  window.loadURL(childURL || uiURL());
+  return window;
 }
 
 async function switchApiRoot(dir) {
@@ -283,35 +376,29 @@ function rememberRoot(dir) {
   return dir;
 }
 
-ipcMain.handle("window:isMaximized", () => Boolean(win && win.isMaximized()));
-
-ipcMain.handle("dialog:openDirectory", async () => {
-  if (!win) return "";
-  const res = await dialog.showOpenDialog(win, { properties: ["openDirectory"] });
-  if (res.canceled || !res.filePaths[0]) return "";
-  return res.filePaths[0];
+ipcMain.handle("window:isMaximized", (event) => ownerWindow(event).isMaximized());
+ipcMain.handle("dialog:openDirectory", async (event) => {
+  const res = await dialog.showOpenDialog(ownerWindow(event), { properties: ["openDirectory"] });
+  return res.canceled ? "" : res.filePaths[0] || "";
 });
-
-ipcMain.handle("root:remember", async (_ev, dir) => rememberRoot(dir));
-
-ipcMain.handle("root:listRecent", async () => readRecentRoots());
-
-ipcMain.on("window:minimize", () => {
-  win?.minimize();
+ipcMain.handle("root:remember", (event, dir) => ownerWindow(event) === win ? rememberRoot(dir) : dir);
+ipcMain.handle("root:listRecent", (event) => { ownerWindow(event); return readRecentRoots(); });
+ipcMain.handle("tables:openWindow", (event, target) => {
+  ownerWindow(event);
+  if (closingMain || shuttingDown) throw new Error("正在关闭主窗口");
+  createWindow(target);
 });
-
-ipcMain.on("window:maximize", () => {
-  if (!win) return;
-  if (win.isMaximized()) {
-    win.unmaximize();
-    return;
-  }
-  win.maximize();
+ipcMain.on("window:minimize", (event) => ownerWindow(event).minimize());
+ipcMain.on("window:maximize", (event) => {
+  const window = ownerWindow(event);
+  if (window.isMaximized()) window.unmaximize();
+  else window.maximize();
 });
-
-ipcMain.on("window:close", () => {
-  win?.close();
+ipcMain.on("window:fullscreen", (event) => {
+  const window = ownerWindow(event);
+  window.setFullScreen(!window.isFullScreen());
 });
+ipcMain.on("window:close", (event) => ownerWindow(event).close());
 
 app.whenReady().then(() => {
   boot().catch((err) => {
@@ -321,7 +408,14 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (win && !win.isDestroyed()) {
+    event.preventDefault();
+    win.close();
+  }
+});
+
+app.on("will-quit", () => {
   shuttingDown = true;
   if (goProc) {
     goProc.kill();

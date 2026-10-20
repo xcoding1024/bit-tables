@@ -13,6 +13,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
   const mod = isMac ? "⌘" : "Ctrl";
   const shift = isMac ? "⇧" : "Shift";
   return [
+    { action: "切换全屏 / 退出全屏", keys: "F11 / Esc" },
     { action: "打开文件", keys: `${mod}+P` },
     { action: "在当前表中查找", keys: `${mod}+F` },
     { action: "保存", keys: `${mod}+S` },
@@ -27,6 +28,7 @@ function shortcutRows(isMac: boolean): ShortcutRow[] {
 export default function Titlebar({
   rootPath = "",
   onOpen,
+  onOpenWindow,
   onCreateSample,
   onNewTable,
   onRefreshSources,
@@ -45,6 +47,7 @@ export default function Titlebar({
 }: {
   rootPath?: string;
   onOpen?: () => void;
+  onOpenWindow?: () => void;
   onCreateSample?: () => void;
   onNewTable?: () => void;
   onRefreshSources?: () => void;
@@ -173,6 +176,8 @@ export default function Titlebar({
             active={openMenu}
             onOpen={setOpenMenu}
           >
+            <MenuItem label="在新窗口打开" testId="titlebar-open-table-window" disabled={!onOpenWindow} onClick={() => run(onOpenWindow)} />
+            {ctl ? <MenuItem label="切换全屏" shortcut="F11" onClick={() => run(ctl.toggleFullscreen)} /> : null}
             <MenuItem
               label="枚举"
               disabled={!onEnums}

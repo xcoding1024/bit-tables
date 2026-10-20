@@ -5,9 +5,11 @@ export type BitTablesShell = {
   window: {
     minimize: () => void;
     toggleMaximize: () => void;
+    toggleFullscreen: () => void;
     close: () => void;
     isMaximized: () => Promise<boolean>;
   };
+  openTableWindow: (target: { rootPath: string; tableId: string }) => Promise<void>;
   pickDirectory: () => Promise<string>;
   rememberRoot: (dir: string) => Promise<string>;
   listRecentRoots: () => Promise<string[]>;

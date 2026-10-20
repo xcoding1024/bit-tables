@@ -7,6 +7,7 @@ import Titlebar from "./components/Titlebar";
 import { tablesApi } from "./lib/api";
 import { emptyExportReport, type ExportProgress, type ExportReport, type TableSnap } from "./lib/deps";
 import { buildEnumsCatalog, parseTableDoc, type EnumCatalogItem } from "./lib/tableHost";
+import { openTableWindow, tableWindow } from "./lib/tableWindow";
 import { shell } from "./lib/shell";
 import Guide, { CreateSampleDialog, OpenDialog } from "./pages/Guide";
 import { useGuideDialogs } from "./pages/useGuideDialogs";
@@ -23,6 +24,7 @@ function parseDoc(text: string): unknown {
 export default function App() {
   const [rootPath, setRootPath] = useState("");
   const [guide, setGuide] = useState(false);
+  const [actionError, setActionError] = useState("");
   const [bootError, setBootError] = useState("");
   const [enumsCatalog, setEnumsCatalog] = useState<EnumCatalogItem[]>([]);
   const [tablePacks, setTablePacks] = useState<TableSnap[]>([]);
@@ -110,15 +112,46 @@ export default function App() {
 
   useEffect(() => {
     if (guide || !rootPath || !window.EventSource) return;
-    const es = new EventSource("/api/events");
+    const es = new EventSource(tablesApi.eventsURL());
     es.addEventListener("file_changed", () => {
       void reloadEnumsCatalog();
     });
     return () => es.close();
   }, [guide, rootPath, reloadEnumsCatalog]);
 
+  function assertCanLeave() {
+    const cmds = editorCommandsRef.current;
+    if (exportBusy || refreshingSources || cmds?.isBusy()) throw new Error("正在处理配表，请稍后再试");
+    if (cmds?.hasUnsavedChanges()) throw new Error("请先保存当前窗口中未保存的修改");
+  }
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (exportBusy || editorCommandsRef.current?.isBusy() || editorCommandsRef.current?.hasUnsavedChanges()) {
+        event.preventDefault(); event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [exportBusy]);
+
+  useEffect(() => { document.title = `${activeTableId ? activeTableId + " · " : ""}${rootPath || "bit-tables"}`; }, [activeTableId, rootPath]);
+
+  async function openWindow(id: string) {
+    try { assertCanLeave(); setActionError(""); await openTableWindow(rootPath, id); }
+    catch (err) { setActionError(err instanceof Error ? err.message : "打开窗口失败"); }
+  }
+
   async function applyRoot(dir: string, opts?: { sample?: boolean }) {
+    assertCanLeave();
     const next = await tablesApi.setRoot(dir, opts);
+    if (tableWindow) {
+      const url = new URL(location.href);
+      url.searchParams.set("rootPath", next.path);
+      location.replace(url);
+      return;
+    }
+    setActionError("");
     setRootPath(next.path);
     setGuide(Boolean(next.guide));
     setBootError("");
@@ -143,7 +176,7 @@ export default function App() {
     try {
       await applyRoot(dir);
     } catch (err: unknown) {
-      setBootError(err instanceof Error ? err.message : "打开失败");
+      setActionError(err instanceof Error ? err.message : "打开失败");
     }
   }
 
@@ -217,8 +250,9 @@ export default function App() {
     <div className="flex h-full flex-col bg-bg text-ink">
       <Titlebar
         rootPath={workbenchReady ? rootPath : ""}
-        onOpen={sh ? dialogs.startOpen : undefined}
-        onCreateSample={sh ? dialogs.startCreate : undefined}
+        onOpen={dialogs.startOpen}
+        onCreateSample={dialogs.startCreate}
+        onOpenWindow={workbenchReady && activeTableId ? () => void openWindow(activeTableId) : undefined}
         onNewTable={workbenchReady ? () => editorCommandsRef.current?.newTable() : undefined}
         onRefreshSources={workbenchReady && activeTableId && !refreshingSources ? () => void handleRefreshSources() : undefined}
         recentRoots={recentRoots}
@@ -234,17 +268,19 @@ export default function App() {
         onExportCurrent={workbenchReady && activeTableId ? () => void handleExport("current") : undefined}
         onExportAll={workbenchReady ? () => void handleExport("all") : undefined}
       />
+      {actionError ? <div role="alert" className="px-3 py-2 text-danger">{actionError}<button className="ml-3" onClick={() => setActionError("")}>关闭</button></div> : null}
       {bootError ? <div className="m-auto text-danger">{bootError}</div> : null}
       {!bootError && guide ? (
         <Guide error={dialogs.error} onOpen={dialogs.startOpen} onCreate={dialogs.startCreate} />
       ) : null}
-      {!bootError && !guide ? (
+      {workbenchReady ? (
         <Workbench
           key={rootPath}
           rootPath={rootPath}
           enumsCatalog={enumsCatalog}
           tablePacks={tablePacks}
           editorCommandsRef={editorCommandsRef}
+          onOpenWindow={(id) => void openWindow(id)}
           onActiveIdChange={handleActiveIdChange}
           onReadOnlyChange={setExcelReadOnly}
           onExportProgress={setExportProgress}
