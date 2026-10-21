@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -95,6 +96,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/tables/{id}", s.deleteTable)
 	mux.HandleFunc("GET /api/tables/{id}/files", s.getFiles)
 	mux.HandleFunc("GET /api/tables/{id}/history", s.getHistory)
+	mux.HandleFunc("GET /api/tables/{id}/snapshot", s.getSnapshot)
+	mux.HandleFunc("GET /api/tables/{id}/renderer", s.getRenderer)
 	mux.HandleFunc("PUT /api/tables/{id}/data", s.putData)
 	mux.HandleFunc("PUT /api/tables/{id}/plugins", s.putPlugins)
 	mux.HandleFunc("PUT /api/tables/{id}/state", s.putState)
@@ -275,6 +278,26 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, hist)
 }
 
+func (s *Server) getSnapshot(w http.ResponseWriter, r *http.Request) {
+	snapshot, err := s.requestRoot(r).Snapshot(r.Context(), r.PathValue("id"), r.URL.Query().Get("revision"))
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeOK(w, snapshot)
+}
+
+func (s *Server) getRenderer(w http.ResponseWriter, r *http.Request) {
+	js, err := s.requestRoot(r).ComparisonScript(r.Context(), r.PathValue("id"), r.URL.Query().Get("revision"))
+	if err != nil {
+		writeTableErr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeOK(w, map[string]string{"html": tables.ComparisonEditorHTML(js)})
+}
+
 func (s *Server) putData(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Data string `json:"data"`
@@ -360,6 +383,16 @@ func (s *Server) getEditor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
+	if revision := r.URL.Query().Get("revision"); revision != "" {
+		data, err := s.requestRoot(r).ComparisonAsset(r.Context(), r.PathValue("id"), revision, r.URL.Query().Get("path"))
+		if err != nil {
+			writeTableErr(w, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		http.ServeContent(w, r, filepath.Base(r.URL.Query().Get("path")), time.Time{}, bytes.NewReader(data))
+		return
+	}
 	id := r.PathValue("id")
 	rel := r.URL.Query().Get("path")
 	abs, err := s.requestRoot(r).ResolveAsset(id, rel)

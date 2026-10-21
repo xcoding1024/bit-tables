@@ -10,6 +10,7 @@ import { DocsMarkdown } from "../components/DocsMarkdown";
 import { QuickSearch } from "../components/QuickSearch";
 import { StatusLogBar, type StatusLogEntry, type StatusLogKind } from "../components/StatusLogBar";
 import { TableHistoryPanel } from "../components/TableHistory";
+import { equalValue, type LocalTableSnapshot } from "../lib/diff";
 import { PluginPanel } from "../components/PluginPanel";
 import { Btn, Dialog, Field, Input } from "../components/ui";
 import { TableTree, resolveTree } from "../components/TableTree";
@@ -1802,7 +1803,14 @@ export default function Workbench({
                 {!activeId ? (
                   <div className="text-muted">打开配置表后显示文档</div>
                 ) : rightTab === "history" ? (
-                  <TableHistoryPanel tableId={activeId} reloadKey={historyReload} />
+                  <TableHistoryPanel key={activeId} tableId={activeId} reloadKey={historyReload} captureLocal={(): LocalTableSnapshot => {
+                    if (editorEditingRef.current.has(activeId)) throw new Error("请先完成当前单元格编辑，再打开版本比对。");
+                    if (stateRequestsRef.current.size || savingRef.current.size || pluginWritesRef.current.size || refreshSourcesRunningRef.current || pluginBusyRef.current) throw new Error("正在处理配置表，请完成后再比对。");
+                    const files = filesRef.current[activeId];
+                    if (!files) throw new Error("配置表尚未加载完成");
+                    const data = fullDataOf(activeId);
+                    return { struct: files.struct, data: stringifyTableDoc(data), dirty: !equalValue(data, parseDoc(files.data)) };
+                  }} />
                 ) : rightTab === "plugin" ? (
                   <PluginPanel
                     key={`${pluginTableId}:${pluginSheetId}:${pluginTarget?.mode}:${pluginTarget?.cells[0]?.field}:${pluginTarget?.cells[0]?.id}`}

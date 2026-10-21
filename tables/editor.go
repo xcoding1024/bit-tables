@@ -229,8 +229,8 @@ func EditorHTML(editorJS string) string {
     var h = histories[historyKey()];
     if (!h || !same(h.committed, snapshot())) resetHistory();
   }
-  function canUndo() { return history().undo.length > 0 && !isStateBusy(); }
-  function canRedo() { return history().redo.length > 0 && !isStateBusy(); }
+  function canUndo() { return !window.__bitComparison && history().undo.length > 0 && !isStateBusy(); }
+  function canRedo() { return !window.__bitComparison && history().redo.length > 0 && !isStateBusy(); }
   function isStateBusy() { return stateBusy || Object.keys(statePending).length > 0; }
   function paintStateBusy() { root.setAttribute("data-state-busy", isStateBusy() ? "1" : "0"); }
   function requestState(type, payload, action) {
@@ -243,6 +243,7 @@ func EditorHTML(editorJS string) string {
     });
   }
   function restoreHistory(action) {
+    if (window.__bitComparison) return;
     var h = history();
     var list = action === "undo" ? h.undo : h.redo;
     if (isStateBusy() || !list.length) return;
@@ -267,19 +268,22 @@ func EditorHTML(editorJS string) string {
     h.committed = snap;
   }
   var api = {
+    isReadOnly: function () { return Boolean(window.__bitComparison); },
+    getComparison: function () { return window.__bitComparison ? window.__bitComparison.getConfig() : null; },
     getStruct: function () { return struct; },
     getData: function () { return data; },
     getEnums: function () { return enums || {}; },
     setData: function (next) {
+      if (window.__bitComparison) return;
       if (!applying) recordChange(next);
       else history().committed = snapshot(next);
       data = next;
       parent.postMessage({ type: "dirty", data: data }, "*");
     },
-    save: function () { if (!isStateBusy()) parent.postMessage({ type: "save", data: data }, "*"); },
-    fillCells: function (request) { return requestState("fillCells", { request: request }, "fill"); },
+    save: function () { if (!window.__bitComparison && !isStateBusy()) parent.postMessage({ type: "save", data: data }, "*"); },
+    fillCells: function (request) { return window.__bitComparison ? Promise.reject(new Error("版本比对为只读")) : requestState("fillCells", { request: request }, "fill"); },
     isFillBusy: isStateBusy,
-    askAI: function (mode, prompt) { parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); },
+    askAI: function (mode, prompt) { if (!window.__bitComparison) parent.postMessage({ type: "askAI", mode: mode, prompt: prompt }, "*"); },
     undo: undo,
     redo: redo,
     canUndo: canUndo,
@@ -294,6 +298,7 @@ func EditorHTML(editorJS string) string {
     getCheckErrors: function () { return checkErrors || []; },
     getCheckErrorTotal: function () { return errorTotal || 0; },
     assetURL: function (rel) {
+      if (window.__bitComparison) return window.__bitComparison.assetURL(rel);
       var id = api.getTableId();
       if (!id || rel == null || rel === "") return "";
       var rootPath = new URLSearchParams(location.search).get("rootPath");
@@ -375,7 +380,11 @@ func EditorHTML(editorJS string) string {
     }
     root.innerHTML = "";
     if (window.BitTableEditor && typeof window.BitTableEditor.mount === "function") {
-      window.BitTableEditor.mount(root, api);
+      try { window.BitTableEditor.mount(root, api); }
+      catch (error) {
+        if (!window.__bitComparison) throw error;
+        window.__bitComparison.error(error.message || error);
+      }
     }
     if (preserveScroll !== false) {
       root.scrollLeft = rootScroll.left; root.scrollTop = rootScroll.top;
@@ -439,6 +448,7 @@ func EditorHTML(editorJS string) string {
       return;
     }
     if (msg.type === "init" || msg.type === "setSheet") {
+      if (window.__bitComparison && msg.comparison) window.__bitComparison.configure(msg.comparison);
       var prevSheet = sheetId;
       if (msg.struct != null) struct = msg.struct;
       if (msg.tableId != null) tableId = msg.tableId;

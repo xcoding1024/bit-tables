@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListFilter } from "lucide-react";
 import { tablesApi, type HistoryKind, type TableHistory } from "../lib/api";
+import { TableDiff } from "./TableDiff";
+import type { LocalTableSnapshot } from "../lib/diff";
 
 const FILTERS: { id: HistoryKind; label: string }[] = [
   { id: "struct", label: "结构" },
@@ -18,7 +20,9 @@ const KIND_LABEL: Record<HistoryKind, string> = {
 
 const ALL_KINDS: HistoryKind[] = FILTERS.map((item) => item.id);
 
-export function TableHistoryPanel({ tableId, reloadKey }: { tableId: string; reloadKey: number }) {
+export function TableHistoryPanel({ tableId, reloadKey, captureLocal }: { tableId: string; reloadKey: number; captureLocal: () => LocalTableSnapshot }) {
+  const [comparison, setComparison] = useState<{ revision: string; local: LocalTableSnapshot; history: TableHistory; read: ReturnType<typeof tablesApi.snapshotReader> } | null>(null);
+  const [compareError, setCompareError] = useState("");
   const [history, setHistory] = useState<TableHistory | null>(null);
   const [error, setError] = useState("");
   const [filters, setFilters] = useState<HistoryKind[]>(ALL_KINDS);
@@ -31,7 +35,7 @@ export function TableHistoryPanel({ tableId, reloadKey }: { tableId: string; rel
     tablesApi
       .history(tableId)
       .then((next) => {
-        if (!cancelled) setHistory(next);
+        if (!cancelled) { setHistory(next); setError(next.error || ""); }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -81,9 +85,20 @@ export function TableHistoryPanel({ tableId, reloadKey }: { tableId: string; rel
     });
   }
 
+  function compare(revision: string) {
+    if (!history?.vcs) return;
+    try {
+      const local = captureLocal();
+      setCompareError("");
+      setComparison({ revision, local, history, read: tablesApi.snapshotReader(tableId) });
+    } catch (error) { setCompareError(error instanceof Error ? error.message : "读取草稿失败"); }
+  }
+
   return (
-    <div className="relative h-full min-h-0">
-      <div className="h-full overflow-auto pr-1 pb-12">
+    <div className="relative flex h-full min-h-0 flex-col">
+      {history?.vcs ? <button type="button" data-testid="tables-history-compare-base" className="mb-3 shrink-0 rounded border border-line px-3 py-1 text-left text-xs hover:bg-hover" onClick={() => compare("base")}>与基线比对（{history.vcs === "svn" ? "BASE" : "HEAD"}）</button> : null}
+      {compareError ? <div role="alert" className="mb-2 text-xs text-danger">{compareError}</div> : null}
+      <div className="min-h-0 flex-1 overflow-auto pr-1 pb-12">
         {error ? (
           <div className="text-danger">{error}</div>
         ) : !history ? (
@@ -101,8 +116,10 @@ export function TableHistoryPanel({ tableId, reloadKey }: { tableId: string; rel
                 </div>
                 <div className="whitespace-pre-wrap">{item.message || "（无说明）"}</div>
                 <div className="mt-1 text-[11px] text-muted">
+                  <span className="mr-2">{history.vcs === "svn" ? `r${item.id}` : item.id.slice(0, 10)}</span>
                   {item.kinds.map((kind) => KIND_LABEL[kind] || kind).join(" · ")}
                 </div>
+                <button type="button" data-testid={`tables-history-compare-${item.id}`} className="mt-1 text-xs text-accent hover:underline" onClick={() => compare(item.id)}>与本地比对</button>
               </div>
             ))}
           </div>
@@ -142,6 +159,8 @@ export function TableHistoryPanel({ tableId, reloadKey }: { tableId: string; rel
           <ListFilter size={14} />
         </button>
       </div>
+      {comparison ? <TableDiff tableId={tableId} history={comparison.history} initialRevision={comparison.revision} initialLocal={comparison.local}
+        captureLocal={captureLocal} readSnapshot={comparison.read} onClose={() => setComparison(null)} /> : null}
     </div>
   );
 }

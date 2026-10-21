@@ -335,6 +335,7 @@ export class BitTableEditorBase {
   }
 
   protected setRow(i: RowIndex, key: string, value: unknown): void {
+    if (this.api.isReadOnly?.()) return;
     if (i === "batch") {
       this.batchDraft[key] = value;
       return;
@@ -1308,6 +1309,7 @@ export class BitTableEditorBase {
   }
 
   protected cellEditable(field: FieldDef | undefined, row: Row): boolean {
+    if (this.api.isReadOnly?.()) return false;
     if (!field?.key) return false;
     if (this.isPluginBound(row, field.key)) return false;
     if (field.widget === "icon" || field.type === "icon") return false;

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +26,7 @@ type History struct {
 	ID      string         `json:"id"`
 	VCS     string         `json:"vcs"`
 	Entries []HistoryEntry `json:"entries"`
+	Error   string         `json:"error,omitempty"`
 }
 
 func NormalizeHistoryKinds(kinds []string) []string {
@@ -149,7 +151,7 @@ func runVCS(ctx context.Context, dir, name string, args ...string) (string, erro
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", err
+		return "", fmt.Errorf("读取提交历史失败：%s：%w", strings.TrimSpace(stderr.String()), err)
 	}
 	return stdout.String(), nil
 }
@@ -174,9 +176,11 @@ func (r *Root) History(id string, kinds []string) (History, error) {
 		if _, err := exec.LookPath("git"); err == nil {
 			out.VCS = "git"
 			entries, err := gitHistory(ctx, gitRoot, dir, tableID, kinds)
-			if err == nil {
-				out.Entries = entries
+			if err != nil {
+				out.Error = err.Error()
+				return out, nil
 			}
+			out.Entries = entries
 			return out, nil
 		}
 	}
@@ -184,9 +188,11 @@ func (r *Root) History(id string, kinds []string) (History, error) {
 		if _, err := exec.LookPath("svn"); err == nil {
 			out.VCS = "svn"
 			entries, err := svnHistory(ctx, svnRoot, dir, tableID, kinds)
-			if err == nil {
-				out.Entries = entries
+			if err != nil {
+				out.Error = err.Error()
+				return out, nil
 			}
+			out.Entries = entries
 			return out, nil
 		}
 	}

@@ -2,6 +2,8 @@ export type EnumEntry = { id: string; name: string };
 export type FillCellsRequest = { sheet: string; sourceRows: string[]; targetRows: string[]; fields: string[]; idReadonly?: boolean };
 
 export type EditorAPI = {
+  isReadOnly?(): boolean;
+  getComparison?(): unknown;
   getStruct(): unknown;
   getData(): unknown;
   getEnums(): Record<string, EnumEntry[]>;

@@ -47,6 +47,15 @@ export type TableHistory = {
   id: string;
   vcs: "git" | "svn" | "";
   entries: HistoryEntry[];
+  error?: string;
+};
+
+export type TableSnapshot = {
+  vcs: "git" | "svn";
+  revision: string;
+  struct: string | null;
+  data: string | null;
+  fileRevisions?: Record<string, string>;
 };
 
 export type RootInfo = {
@@ -92,6 +101,15 @@ export type ExportWriteResult = {
 };
 
 export const tablesApi = {
+  rendererReader: (id: string) => {
+    const url = withWindowRoot(`/api/tables/${encodeURIComponent(id)}/renderer`);
+    return (revision: string, signal?: AbortSignal) => request<{ html: string }>(`${url}${url.includes("?") ? "&" : "?"}revision=${encodeURIComponent(revision)}`, { signal });
+  },
+  comparisonAssetBase: (id: string) => withWindowRoot(`/api/tables/${encodeURIComponent(id)}/asset`) + (withWindowRoot(`/api/tables/${encodeURIComponent(id)}/asset`).includes("?") ? "" : "?comparison=1"),
+  snapshotReader: (id: string) => {
+    const url = withWindowRoot(`/api/tables/${encodeURIComponent(id)}/snapshot`);
+    return (revision: string, signal?: AbortSignal) => request<TableSnapshot>(`${url}${url.includes("?") ? "&" : "?"}revision=${encodeURIComponent(revision)}`, { signal });
+  },
   excelHashes: (id: string) => api<{ excel?: ExcelWorkbook[] }>(`/api/tables/${encodeURIComponent(id)}/files?view=excel-hashes`),
   root: () => api<RootInfo>("/api/root"),
   setRoot: (path: string, opts?: { sample?: boolean; guide?: boolean }) =>

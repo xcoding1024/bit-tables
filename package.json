@@ -10,6 +10,7 @@
     "accept": "node scripts/accept-shot.mjs",
     "test:e2e": "node e2e/fill.mjs",
     "test:windows": "node e2e/windows.mjs",
+    "test:diff": "node e2e/diff.mjs",
     "test:desktop": "node --test desktop/*.test.cjs",
     "desktop": "electron .",
     "pack:win": "powershell -File scripts/pack-win.ps1",
