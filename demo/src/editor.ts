@@ -8,6 +8,8 @@ type CellPos = { ri: number; ci: number };
 type CellRange = { r0: number; r1: number; c0: number; c1: number };
 type SelMode = "cell" | "row" | "col";
 type CellSel = { anchor: CellPos; focus: CellPos; mode: SelMode };
+type ScrollPos = { top: number; left: number };
+type ViewScroll = { root: ScrollPos; host: ScrollPos; table: ScrollPos; doc: ScrollPos; body: ScrollPos };
 
 export class BitTableEditorBase {
   testPrefix = "demo";
@@ -50,6 +52,8 @@ export class BitTableEditorBase {
   private fillBound = false;
   private fillDrag: { all: number[]; source: number[]; range: CellRange; end: number; startY: number } | null = null;
   private editBlurTimer = 0;
+  private suppressEditBlur = false;
+  private scrollHoldGen = 0;
   private resetTableScroll = false;
   private filterCloseBound = false;
   private multiCloseBound = false;
@@ -544,8 +548,10 @@ export class BitTableEditorBase {
 
   protected focusSelectionHost(): void {
     if (this.editingCell || this.view !== "table" || !this.selection) return;
-    const wrap = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
-    wrap?.focus({ preventScroll: true });
+    const saved = this.captureScroll();
+    this.tableScroller()?.focus({ preventScroll: true });
+    this.restoreScroll(saved);
+    this.pinScroll(saved);
   }
 
   protected isTypingTarget(target: EventTarget | null): boolean {
@@ -1358,7 +1364,6 @@ export class BitTableEditorBase {
     }
     this.editingCell = { ri, key };
     this.render();
-    this.focusEditingControl();
   }
 
   protected endEditCell(): void {
@@ -1390,7 +1395,7 @@ export class BitTableEditorBase {
     const el = this.el.querySelector(`[data-testid="${this.testPrefix}-${key}-${ri}"]`) as HTMLElement | null;
     if (!el) return;
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-      el.focus();
+      el.focus({ preventScroll: true });
       if (el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "range" && el.type !== "date") {
         el.select();
       }
@@ -1409,7 +1414,10 @@ export class BitTableEditorBase {
         this.endEditCell();
       }
     });
-    node.addEventListener("blur", () => this.scheduleEndEdit());
+    node.addEventListener("blur", () => {
+      if (this.suppressEditBlur || !node.isConnected || !this.el.contains(node)) return;
+      this.scheduleEndEdit();
+    });
   }
 
   protected setPageSize(size: number): void {
@@ -2084,11 +2092,85 @@ export class BitTableEditorBase {
     this.remapSelectionAfterDelete(removed);
   }
 
+  protected editorHost(): HTMLElement | null {
+    return this.el.querySelector(`[data-testid="${this.rootTestId}"]`) as HTMLElement | null;
+  }
+
+  protected tableScroller(): HTMLElement | null {
+    return this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
+  }
+
+  protected captureScroll(): ViewScroll {
+    const read = (el: HTMLElement | null): ScrollPos => (el ? { top: el.scrollTop, left: el.scrollLeft } : { top: 0, left: 0 });
+    if (this.resetTableScroll) {
+      const zero = { top: 0, left: 0 };
+      return { root: { ...zero }, host: { ...zero }, table: { ...zero }, doc: { ...zero }, body: { ...zero } };
+    }
+    const doc = document.scrollingElement instanceof HTMLElement ? document.scrollingElement : document.documentElement;
+    return {
+      root: read(this.el),
+      host: read(this.editorHost()),
+      table: read(this.tableScroller()),
+      doc: read(doc),
+      body: read(document.body),
+    };
+  }
+
+  protected applyScroll(el: HTMLElement | null, pos: ScrollPos | undefined): void {
+    if (!el || !pos) return;
+    if (Math.abs(el.scrollTop - pos.top) > 0.5) el.scrollTop = pos.top;
+    if (Math.abs(el.scrollLeft - pos.left) > 0.5) el.scrollLeft = pos.left;
+  }
+
+  protected restoreScroll(saved: ViewScroll): void {
+    const doc = document.scrollingElement instanceof HTMLElement ? document.scrollingElement : document.documentElement;
+    this.applyScroll(this.el, saved.root);
+    this.applyScroll(this.editorHost(), saved.host);
+    this.applyScroll(this.tableScroller(), saved.table);
+    this.applyScroll(doc, saved.doc);
+    this.applyScroll(document.body, saved.body);
+  }
+
+  protected pinScroll(saved: ViewScroll): void {
+    const gen = ++this.scrollHoldGen;
+    const apply = () => {
+      if (gen !== this.scrollHoldGen || !this.el?.isConnected) return;
+      this.restoreScroll(saved);
+    };
+    queueMicrotask(apply);
+    requestAnimationFrame(apply);
+  }
+
+  protected keepEditingCellInView(): void {
+    if (!this.editingCell) return;
+    const { ri, key } = this.editingCell;
+    const el = this.el.querySelector(
+      `td[data-role="cell-edit"][data-index="${ri}"][data-key="${key}"], [data-testid="${this.testPrefix}-${key}-${ri}"]`,
+    ) as HTMLElement | null;
+    if (!el) return;
+    const table = this.tableScroller();
+    let node: HTMLElement | null = el.parentElement;
+    while (node) {
+      const style = getComputedStyle(node);
+      const scrollY = /(auto|scroll)/.test(style.overflowY);
+      const scrollX = /(auto|scroll)/.test(style.overflowX);
+      if (scrollY || scrollX) {
+        const er = el.getBoundingClientRect();
+        const sr = node.getBoundingClientRect();
+        const padTop = node === table && this.enableTableScroll ? table?.querySelector("thead")?.getBoundingClientRect().height ?? 0 : 0;
+        if (scrollY && er.top < sr.top + padTop - 1) node.scrollTop += er.top - (sr.top + padTop) - 4;
+        else if (scrollY && er.bottom > sr.bottom + 1) node.scrollTop += er.bottom - sr.bottom + 4;
+        if (scrollX && er.left < sr.left - 1) node.scrollLeft += er.left - sr.left - 4;
+        else if (scrollX && er.right > sr.right + 1) node.scrollLeft += er.right - sr.right + 4;
+      }
+      if (node === document.body || node === document.documentElement) break;
+      node = node.parentElement;
+    }
+  }
+
   protected render(): void {
     this.destroySearchSelects();
-    const prevTable = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
-    const savedScrollLeft = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollLeft : 0;
-    const savedScrollTop = this.resetTableScroll ? 0 : prevTable ? prevTable.scrollTop : 0;
+    const savedScroll = this.captureScroll();
     this.resetTableScroll = false;
     let html =
       "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}[data-error='1']{background:rgba(235,87,87,.28);box-shadow:inset 0 0 0 1px #eb5757}</style>";
@@ -2097,6 +2179,7 @@ export class BitTableEditorBase {
     html += this.view === "card" ? this.renderCards() : this.renderTable();
     html += this.renderPager();
     html += "</div>";
+    this.suppressEditBlur = true;
     this.el.innerHTML = html;
 
     const visible = this.pagedRowIndexes();
@@ -2113,7 +2196,6 @@ export class BitTableEditorBase {
         this.beginEditCell(Number(td.getAttribute("data-index")), td.getAttribute("data-key") || "");
       });
     });
-    if (this.editingCell && !this.openMultiKey) this.focusEditingControl();
     if (this.paramsEditRi != null) this.placeParamsDialog();
 
     this.el.querySelectorAll('[data-role="col-filter-btn"]').forEach((btn) => {
@@ -2154,16 +2236,16 @@ export class BitTableEditorBase {
     }
     if (this.enableTableScroll) {
       this.syncTableScroll();
-      const nextTable = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
-      if (nextTable) {
-        nextTable.scrollLeft = savedScrollLeft;
-        nextTable.scrollTop = savedScrollTop;
-      }
       if (!this.resizeBound) {
         this.resizeBound = true;
         window.addEventListener("resize", () => this.syncTableScroll());
       }
     }
+    this.restoreScroll(savedScroll);
+    if (this.editingCell && !this.openMultiKey) this.focusEditingControl();
+    this.suppressEditBlur = false;
+    this.restoreScroll(savedScroll);
+    this.keepEditingCellInView();
     if (!this.escapeBound) {
       this.escapeBound = true;
       document.addEventListener("keydown", (raw) => this.onEscape(raw as KeyboardEvent));
@@ -2192,6 +2274,7 @@ export class BitTableEditorBase {
     }
     if (this.selecting) this.setSelecting(true);
     this.focusSelectionHost();
+    this.pinScroll(this.captureScroll());
     if (!this.multiCloseBound) {
       this.multiCloseBound = true;
       document.addEventListener("click", (ev) => {

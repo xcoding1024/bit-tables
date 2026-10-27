@@ -63,7 +63,7 @@ export class BitSearchSelect {
     if (this.active < 0) this.active = 0;
     this.placeMenu();
     const filter = this.menu?.querySelector<HTMLInputElement>('[data-role="ss-filter"]');
-    filter?.focus();
+    filter?.focus({ preventScroll: true });
     filter?.select();
   }
 
