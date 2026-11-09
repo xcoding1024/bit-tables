@@ -118,10 +118,10 @@ export const tablesApi = {
       body: JSON.stringify({ path, sample: Boolean(opts?.sample), guide: Boolean(opts?.guide) }),
     }),
   list: () => api<{ tables: TableInfo[]; tree?: TreeNode[]; path: string }>("/api/tables"),
-  create: (id: string) =>
+  create: (id: string, multiSeason: boolean) =>
     api<TableInfo>("/api/tables", {
       method: "POST",
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, multiSeason }),
     }),
   files: (id: string) => api<TableFiles>(`/api/tables/${encodeURIComponent(id)}/files`),
   exportSource: (id: string) =>

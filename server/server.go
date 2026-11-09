@@ -214,13 +214,18 @@ func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID string `json:"id"`
+		MultiSeason *bool  `json:"multiSeason"`
+		ID          string `json:"id"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "请求体无效")
 		return
 	}
-	info, err := s.requestRoot(r).Create(strings.TrimSpace(req.ID))
+	if req.MultiSeason == nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "请选择是否支持多赛季")
+		return
+	}
+	info, err := s.requestRoot(r).Create(strings.TrimSpace(req.ID), *req.MultiSeason)
 	if err != nil {
 		writeTableErr(w, err)
 		return

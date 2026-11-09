@@ -175,6 +175,7 @@ export default function Workbench({
   } | null>(null);
   const checkAllRunning = useRef(false);
   const [newId, setNewId] = useState("");
+  const [newMultiSeason, setNewMultiSeason] = useState<boolean | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [fileQuery, setFileQuery] = useState("");
@@ -625,7 +626,7 @@ export default function Workbench({
         return files && JSON.stringify(draft) !== JSON.stringify(parseDoc(files.data));
       }),
       isBusy: () => Boolean(stateRequestsRef.current.size || savingRef.current.size || pluginWritesRef.current.size || refreshSourcesRunningRef.current || pluginBusyRef.current),
-      newTable: () => { setNewId(""); setNewOpen(true); },
+      newTable: () => { setNewId(""); setNewMultiSeason(null); setNewOpen(true); },
       refreshSources: async () => {
         try {
           await refreshSourcesRef.current();
@@ -1510,11 +1511,11 @@ export default function Workbench({
 
   async function handleCreate() {
     const id = newId.trim();
-    if (!id) return;
+    if (!id || newMultiSeason === null) return;
     try {
-      const created = await tablesApi.create(id);
+      const created = await tablesApi.create(id, newMultiSeason);
       setNewOpen(false);
-      setNewId("");
+      setNewId(""); setNewMultiSeason(null);
       await loadList();
       await openTable(created.id, true);
     } catch (err: unknown) {
@@ -1928,12 +1929,17 @@ export default function Workbench({
         footer={
           <>
             <Btn onClick={() => setNewOpen(false)}>取消</Btn>
-            <Btn variant="primary" data-testid="tables-new-submit" disabled={!newId.trim()} onClick={() => void handleCreate()}>
+            <Btn variant="primary" data-testid="tables-new-submit" disabled={!newId.trim() || newMultiSeason === null} onClick={() => void handleCreate()}>
               创建
             </Btn>
           </>
         }
       >
+        <Field label="支持多赛季" hint="支持时，每行可设置适用赛季；此选择写入表结构。">
+          <select data-testid="tables-new-season" aria-label="支持多赛季" className="h-8 w-full rounded border border-line bg-bg px-2 text-ink" value={newMultiSeason === null ? "" : String(newMultiSeason)} onChange={e => setNewMultiSeason(e.target.value === "" ? null : e.target.value === "true")}>
+            <option value="">请选择</option><option value="true">支持</option><option value="false">不支持</option>
+          </select>
+        </Field>
         <Field label="表 id" hint="小写字母开头，仅字母数字下划线；可用 folder/id 建到子目录">
           <Input
             data-testid="tables-new-id"

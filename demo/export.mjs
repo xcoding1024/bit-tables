@@ -288,6 +288,16 @@ function writeSide(dir, files) {
   return written;
 }
 
+async function checkSeasonScopes(tables, projectRoot) {
+  const entry = path.join(projectRoot, "src", "season.ts");
+  if (!fs.existsSync(entry)) return;
+  const compiled = await esbuild.build({ entryPoints: [entry], bundle: true, write: false, format: "iife", globalName: "SeasonRules", platform: "browser", target: "es2020", logLevel: "silent" });
+  const scope = createContext({});
+  runInContext(compiled.outputFiles[0].text, scope, { timeout: 10000 });
+  const errors = tables.flatMap(table => scope.SeasonRules.checkSeasonData(table.data, table.struct).map(error => `${table.id}: ${error.path}: ${error.message}`));
+  if (errors.length) throw new Error(errors.join("\n"));
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -333,6 +343,8 @@ async function main() {
   console.log(`服务端: ${serverDir}`);
   console.log(`导出表: ${targetIds.join(", ") || "(无)"}`);
   console.log("");
+
+  await checkSeasonScopes(targetIds.map(id => byId.get(id)).filter(Boolean), projectRoot);
 
   let okCount = 0;
   let skipCount = 0;

@@ -1,3 +1,4 @@
+import { checkSeasonData } from "./season";
 import type { CheckError, CheckResult, EnumEntry, FieldDef, Row } from "./types";
 import { asRecord, splitMulti } from "./dom";
 
@@ -8,7 +9,7 @@ export class BitTableCheckerBase {
   protected enums: Record<string, EnumEntry[]> = {};
 
   check(data: unknown, struct: unknown, enums?: unknown): CheckResult {
-    this.errors = [];
+    this.errors = checkSeasonData(data, struct);
     this.data = asRecord(data) || {};
     this.struct = asRecord(struct) || {};
     this.enums = (asRecord(enums) as Record<string, EnumEntry[]>) || {};

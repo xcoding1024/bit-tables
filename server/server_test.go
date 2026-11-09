@@ -116,7 +116,7 @@ func TestListCreateTraversalAndData(t *testing.T) {
 	}
 
 	res = httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/tables", strings.NewReader(`{"id":"../etc"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/tables", strings.NewReader(`{"id":"../etc","multiSeason":false}`))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(res, req)
 	if res.Code != 400 {
@@ -319,10 +319,10 @@ func TestRootGuideFlag(t *testing.T) {
 	}
 }
 
-func TestCreateEmptyTableUsesFallbackEditor(t *testing.T) {
-	_, h, _ := testServer(t)
+func TestCreateTableIncludesScriptsAndFallback(t *testing.T) {
+	_, h, root := testServer(t)
 	res := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/tables", strings.NewReader(`{"id":"skill"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/tables", strings.NewReader(`{"id":"skill","multiSeason":false}`))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(res, req)
 	if res.Code != 201 {
@@ -330,8 +330,8 @@ func TestCreateEmptyTableUsesFallbackEditor(t *testing.T) {
 	}
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/skill/editor", nil))
-	if res.Code != 200 || !strings.Contains(res.Body.String(), "table-fallback") {
-		t.Fatalf("fallback editor %d %s", res.Code, res.Body.String())
+	if res.Code != 200 || !strings.Contains(res.Body.String(), "BitTableEditorBase") {
+		t.Fatalf("new editor status=%d", res.Code)
 	}
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/skill/files", nil))
@@ -340,8 +340,20 @@ func TestCreateEmptyTableUsesFallbackEditor(t *testing.T) {
 	if !files.HasDocs || !strings.Contains(files.Docs, "## 结构") || !strings.Contains(files.Docs, "## 检查规则") || !strings.Contains(files.Docs, "## 导出规则") {
 		t.Fatalf("empty docs %s", files.Docs)
 	}
-	if files.HasExport || files.Export != "" {
-		t.Fatalf("empty table should not have export: %#v", files)
+	if !files.Complete || files.Export == "" {
+		t.Fatal("new table is missing scripts")
+	}
+	dir, err := root.Dir("skill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(dir, "skill_editor.ts")); err != nil {
+		t.Fatal(err)
+	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/tables/skill/editor", nil))
+	if res.Code != 200 || !strings.Contains(res.Body.String(), "table-fallback") {
+		t.Fatalf("fallback editor status=%d", res.Code)
 	}
 }
 
@@ -455,5 +467,3 @@ func TestExportWritesAndRejectsTraversal(t *testing.T) {
 		t.Fatal("escaped write")
 	}
 }
-
-

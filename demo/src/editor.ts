@@ -1,3 +1,5 @@
+import { seasonFields, seasonScopeLabel, seasonKeyFields, supportsSeasons } from "./season";
+import { openSeasonDialog } from "./season_editor";
 import type { EditorAPI, EnumEntry, FieldDef, FillCellsRequest, ParamField, Row } from "./types";
 import { asRecord, escapeAttr, escapeHtml, joinMulti, num, splitMulti, truthy } from "./dom";
 import { BitSearchSelect } from "./search_select";
@@ -80,7 +82,7 @@ export class BitTableEditorBase {
       (api.getPluginCells?.() || []).map((item) => `${String(item.row || "").trim()}\t${String(item.field || "").trim()}`),
     );
     this.readCheckErrors(api.getCheckErrors?.() || [], api.getCheckErrorTotal?.());
-    this.fields = this.parseFields(this.struct);
+    this.fields = seasonFields(this.struct, this.parseFields(this.struct));
     this.title = String(this.struct.name || this.title || "配置表");
     this.view = String(this.struct.view || "").trim() === "card" ? "card" : "table";
     if (!this.batchKey) {
@@ -349,6 +351,23 @@ export class BitTableEditorBase {
     this.api.setData(this.data);
     this.syncHistoryButtons();
     this.afterDataChange();
+  }
+
+  protected seasonIndexes(): number[] {
+    const picked = this.selectedIndexes();
+    if (picked.length) return picked;
+    const range = this.selectionRange();
+    return range ? this.allVisibleRowIndexes().filter(i => i >= range.r0 && i <= range.r1) : [];
+  }
+
+  protected editSeasons(indexes = this.seasonIndexes()): void {
+    const available = () => !this.api.isReadOnly?.() && !this.api.isFillBusy?.() && !this.editingCell && indexes.every(i => this.data.rows[i] && !(this.api.getPluginCells?.() || []).some(cell => cell.field === '$season' && ['*', '#' + i, String(this.data.rows[i].id ?? '')].includes(cell.row)));
+    if (!indexes.length) { parent.postMessage({type:'toast', text:'请先选中行'}, '*'); return; }
+    if (!available()) { parent.postMessage({type:'toast', text:'请先结束当前编辑，且适用赛季不能由插件控制'}, '*'); return; }
+    openSeasonDialog({host:this.el, rows:this.data.rows, indexes, keys:seasonKeyFields(this.struct,this.fields), canApply:available, apply:(value) => {
+      indexes.forEach(i => { this.data.rows[i].$season = value; });
+      this.api.setData(this.data); this.afterDataChange(); this.render();
+    }});
   }
 
   protected selectedIndexes(): number[] {
@@ -1117,6 +1136,7 @@ export class BitTableEditorBase {
   }
 
   protected fieldControl(field: FieldDef, row: Row, ri: RowIndex, compact: boolean): string {
+    if (field.key === "$season" && supportsSeasons(this.struct, this.fields) && typeof ri === "number") return `<button type="button" data-season-row="${ri}" ${this.api.isReadOnly?.() ? "disabled" : ""} style="${this.inputStyle(compact)}">${escapeHtml(seasonScopeLabel(row.$season))}</button>`;
     const key = field.key;
     const val = row[key] == null ? "" : row[key];
     let widget = field.widget || (field.type === "bool" ? "checkbox" : "text");
@@ -1197,11 +1217,12 @@ export class BitTableEditorBase {
 
   protected batchableFields(): FieldDef[] {
     return this.fields.filter(
-      (f) => f.key && f.key !== "id" && f.widget !== "icon" && f.type !== "icon" && f.widget !== "params" && f.type !== "object",
+      (f) => f.key && !(f.key === "$season" && supportsSeasons(this.struct, this.fields)) && f.key !== "id" && f.widget !== "icon" && f.type !== "icon" && f.widget !== "params" && f.type !== "object",
     );
   }
 
   protected rowFilterText(field: FieldDef, row: Row): string {
+    if (field.key === "$season" && supportsSeasons(this.struct, this.fields)) return seasonScopeLabel(row.$season) + String(row.$season ?? "");
     if (!field?.key) return "";
     if (field.widget === "params" || field.type === "object") return this.paramsSummary(row[field.key], row);
     if (field.widget === "icon" || field.type === "icon") return this.iconRelPath(field, row);
@@ -1324,6 +1345,7 @@ export class BitTableEditorBase {
   }
 
   protected cellDisplayText(field: FieldDef, row: Row): string {
+    if (field.key === "$season" && supportsSeasons(this.struct, this.fields)) return seasonScopeLabel(row.$season);
     if (field.widget === "params" || field.type === "object") {
       const summary = this.paramsSummary(row[field.key], row);
       return summary === "未设置" ? "" : summary;
@@ -1349,6 +1371,7 @@ export class BitTableEditorBase {
     const field = this.fields.find((f) => f.key === key);
     const row = this.data.rows[ri] || {};
     if (!this.cellEditable(field, row) || !field) return;
+    if (key === "$season" && supportsSeasons(this.struct, this.fields)) { this.editSeasons([ri]); return; }
     if (field.widget === "params" || field.type === "object") {
       this.editingCell = null;
       this.paramsEditRi = ri;
@@ -1512,6 +1535,7 @@ export class BitTableEditorBase {
     if (this.enableColFilters && this.view === "table" && this.hasActiveFilters()) {
       html += `<button type="button" data-testid="${this.tid("filter-clear")}" style="${this.btn("ghost")}">清除筛选</button>`;
     }
+    if (supportsSeasons(this.struct, this.fields)) html += `<button type="button" data-testid="${this.tid("season-edit")}" ${this.api.isReadOnly?.() ? "disabled" : ""} style="${this.btn("ghost")}">设置适用赛季</button>`;
     const countText = `已选 ${n}${this.selectedCountSuffix}`;
     html += `<span data-testid="${this.tid("selected-count")}" style="color:#a3a3a3;min-width:56px">${countText}</span>`;
     html += `<button type="button" data-testid="${this.tid("batch-edit")}" ${n ? "" : "disabled "}style="${this.btn("ghost", disabled)}">批量修改</button>`;
@@ -2189,6 +2213,7 @@ export class BitTableEditorBase {
         this.bindControl(this.el, field, ri);
       });
     });
+    this.el.querySelectorAll("[data-season-row]").forEach(button => button.addEventListener("click", () => this.editSeasons([Number(button.getAttribute("data-season-row"))])));
     this.el.querySelectorAll("[data-role=cell]").forEach((td) => {
       td.addEventListener("dblclick", (ev) => {
         ev.preventDefault();
@@ -2358,6 +2383,7 @@ export class BitTableEditorBase {
         this.render();
       });
     }
+    this.el.querySelector(`[data-testid="${this.tid("season-edit")}"]`)?.addEventListener("click", () => this.editSeasons());
     this.el.querySelector(`[data-testid="${this.tid("batch-edit")}"]`)?.addEventListener("click", () => {
       if (!this.selectedIndexes().length) return;
       this.batchOpen = true;

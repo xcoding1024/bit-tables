@@ -1,0 +1,18 @@
+id: season_demo
+name: 赛季配置示例
+multi_season: true
+season_key: [id]
+fields:
+  - key: id
+    label: id
+    type: string
+    required: true
+  - key: $season
+    label: 适用赛季
+    type: string
+  - key: name
+    label: 名称
+    type: string
+  - key: amount
+    label: 数量
+    type: int

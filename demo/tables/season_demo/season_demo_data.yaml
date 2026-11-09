@@ -1,0 +1,6 @@
+rows:
+  - { id: coin, name: 金币, amount: 100 }
+  - { id: coin, $season: '[10100]', name: 金币, amount: 120 }
+  - { id: coin, $season: '[10200~]', name: 金币, amount: 140 }
+  - { id: wood, $season: '[10101]', name: 木材, amount: 10 }
+  - { id: stone, $season: '[10102]', name: 石料, amount: 20 }

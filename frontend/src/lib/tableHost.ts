@@ -1,3 +1,4 @@
+import { checkSeasonData } from "../../../demo/src/season";
 import { dump, load } from "js-yaml";
 
 export type TableCheckError = { path: string; message: string };
@@ -158,8 +159,10 @@ export function sliceForSheet(struct: unknown, data: unknown, sheetId: string): 
   const sheet = sheets.find((item) => item.id === sheetId) || sheets[0];
   const rec = asRecord(struct) || {};
   const view = sheet?.view || "table";
+  const metadata = (Array.isArray(rec.sheets) ? rec.sheets : []).map(asRecord).find(item => item?.id === sheet?.id) || {};
   const slicedStruct = {
     ...rec,
+    ...metadata,
     name: sheet?.name || rec.name,
     fields: sheet?.fields || [],
     view,
@@ -398,6 +401,8 @@ export function runTableExporter(
   data: unknown,
   struct: unknown,
 ): Promise<TableExportResult> {
+  const seasonErrors = checkSeasonData(data, struct);
+  if (seasonErrors.length) return Promise.resolve({ ok: false, client: [], server: [], error: seasonErrors.map(error => `${error.path}: ${error.message}`).join("\n") });
   if (!exportJs.trim()) {
     return Promise.resolve({ ok: false, client: [], server: [], error: "无导出脚本" });
   }
@@ -437,8 +442,9 @@ export function runTableChecker(
   struct: unknown,
   enums?: EnumsPayload,
 ): Promise<TableCheckResult> {
+  const seasonErrors = checkSeasonData(data, struct);
   if (!checkerJs.trim()) {
-    return Promise.resolve({ ok: true, errors: [] });
+    return Promise.resolve({ ok: !seasonErrors.length, errors: seasonErrors });
   }
   return new Promise((resolve) => {
     const html = `<!doctype html><meta charset="utf-8"><script>${checkerJs.replace(/<\/script/gi, "<\\/script")}</script><script>
@@ -465,8 +471,8 @@ export function runTableChecker(
       iframe.remove();
       URL.revokeObjectURL(url);
       resolve({
-        ok: Boolean(result?.ok),
-        errors: Array.isArray(result?.errors) ? result.errors : [],
+        ok: Boolean(result?.ok) && !seasonErrors.length,
+        errors: [...seasonErrors, ...(Array.isArray(result?.errors) ? result.errors : [])],
       });
     };
     const onMsg = (ev: MessageEvent) => {

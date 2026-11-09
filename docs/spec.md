@@ -217,3 +217,8 @@ bit-tables serve <root>
 整体保存接口为 `PUT /api/tables/{id}/state`，只写当前根目录内的配置表；与 bit-agent 的共享填充行为一致。
 
 浏览器验收：先运行 `npm --prefix frontend run build`，再运行 `npm run test:e2e`。脚本使用临时示例项目，不修改仓库数据；`npm run test:e2e -- --help` 查看说明。
+
+
+## 表级多赛季与适用范围
+
+新表必须声明 `multi_season: true|false`；支持时业务页显示“适用赛季”，枚举页不参与，分页可关闭。范围的之前、之后和区间均包含端点，按完整编号跨剧本比较。通用兜底，专属优先，同键专属范围重叠报错。选中单行或多行可设置范围，支持并集与排除，保存兼容的 `$season` 正区间表达式。

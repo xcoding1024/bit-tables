@@ -412,7 +412,7 @@ func (r *Root) List() ([]Info, error) {
 	return out, nil
 }
 
-func (r *Root) Create(id string) (Info, error) {
+func (r *Root) Create(id string, multiSeason ...bool) (Info, error) {
 	dir, err := r.Dir(id)
 	if err != nil {
 		return Info{}, err
@@ -427,7 +427,7 @@ func (r *Root) Create(id string) (Info, error) {
 	if err := EnsureDocs(dir, tableID); err != nil {
 		return Info{}, err
 	}
-	if err := WriteText(dir, tableID, "struct.yaml", "id: "+tableID+"\n"); err != nil {
+	if err := r.writeNewTable(dir, tableID, len(multiSeason) > 0 && multiSeason[0]); err != nil {
 		return Info{}, err
 	}
 	info := Inspect(dir, tableID)
