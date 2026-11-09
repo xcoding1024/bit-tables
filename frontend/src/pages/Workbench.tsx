@@ -1,3 +1,4 @@
+import { columnLayoutKey, loadColumnLayout, saveColumnLayout } from "../lib/columnLayout";
 import { TableTabMenu } from "../components/TableTabMenu";
 import { fillCells, type FillCellsRequest } from "../lib/fill";
 import { xlsxBindingKey, xlsxSourceHashes } from "../lib/xlsxSources";
@@ -124,6 +125,7 @@ function formatCheckErrors(errors: TableCheckError[]) {
 }
 
 export default function Workbench({
+  rootPath,
   enumsCatalog = [],
   tablePacks = [],
   editorCommandsRef,
@@ -403,12 +405,12 @@ export default function Workbench({
         return;
       }
       frame.contentWindow.postMessage(
-        { type, tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, pluginBindings, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
+        { type, columnLayout: loadColumnLayout(columnLayoutKey(rootPath, tablesApi.editorURL(id, 0), id, sheetId)), tableId: cur.id, sheetId, struct: sliced.struct, data: sliced.data, enums, pluginCells, pluginBindings, theme: "dark", reveal, selectByRef, checkErrors: marks.errors, errorTotal: marks.total },
         "*",
       );
       postPluginInteractionRef.current(id);
     },
-    [fullDataOf, sheetOf, structOf],
+    [fullDataOf, sheetOf, structOf, rootPath],
   );
 
   /** iframe ready 与 files 加载谁先谁后都可能；两边到齐才 init，避免窗口模式下只有 rows、没有 fields。 */
@@ -1236,7 +1238,11 @@ export default function Workbench({
       const frame = iframeRefs.current[id];
       const msg = ev.data as { type?: string; data?: unknown; key?: string; text?: string };
       const cur = filesRef.current[id];
-      if (msg.type === "editorEditing") {
+      if (msg.type === "columnLayout") {
+        const sheet = String(ev.data.sheetId || "");
+        if (sheet !== sheetRef.current[id]) return;
+        saveColumnLayout(columnLayoutKey(rootPath, tablesApi.editorURL(id, 0), id, sheet), ev.data.layout);
+      } else if (msg.type === "editorEditing") {
         if (ev.data.editing) editorEditingRef.current.add(id);
         else {
           editorEditingRef.current.delete(id);
@@ -1346,7 +1352,7 @@ export default function Workbench({
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [handleStateRequest, appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
+  }, [rootPath, handleStateRequest, appendLog, applyPartial, jumpNextError, postSlice, rememberDraft, rememberFiles, runCheck, runRecompute, scheduleRecompute, toggleLog, tryInitFrame]);
 
   const handlePluginSources = useCallback((sources: PluginSource[], pluginId?: string) => {
     setPluginSources((prev) => JSON.stringify(prev) === JSON.stringify(sources) ? prev : sources);

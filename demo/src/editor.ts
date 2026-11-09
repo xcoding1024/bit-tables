@@ -1,3 +1,4 @@
+import { columnSettingsHTML, columnWidth, readColumnLayout, type ColumnLayout } from "./column_layout";
 import { seasonFields, seasonScopeLabel, seasonKeyFields, supportsSeasons } from "./season";
 import { openSeasonDialog } from "./season_editor";
 import type { EditorAPI, EnumEntry, FieldDef, FillCellsRequest, ParamField, Row } from "./types";
@@ -34,6 +35,101 @@ export class BitTableEditorBase {
   protected data: { rows: Row[] } = { rows: [] };
   protected enumsBag: Record<string, EnumEntry[]> = {};
   protected fields: FieldDef[] = [];
+  private columnLayout: ColumnLayout = { hidden: [], widths: {} };
+  private columnsOpen = false;
+  protected get tableFields(): FieldDef[] {
+    return this.fields.filter(field => !this.columnLayout.hidden.includes(field.key));
+  }
+
+  private saveColumnLayout(): void {
+    this.api.setColumnLayout?.(this.columnLayout);
+  }
+
+  private showColumn(key: string): void {
+    if (!this.columnLayout.hidden.includes(key)) return;
+    this.columnLayout.hidden = this.columnLayout.hidden.filter(item => item !== key);
+    this.selection = null;
+    this.saveColumnLayout();
+  }
+
+  private bindColumnSettings(): void {
+    this.el.querySelector('[data-role="columns-toggle"]')?.addEventListener("click", () => {
+      this.endEditCell();
+      this.columnsOpen = !this.columnsOpen;
+      this.render();
+    });
+    this.el.querySelector('[data-role="columns-reset"]')?.addEventListener("click", () => {
+      this.columnLayout = { hidden: [], widths: {} };
+      this.selection = null;
+      this.saveColumnLayout();
+      this.reportSelection();
+      this.render();
+    });
+    this.el.querySelectorAll<HTMLInputElement>('[data-role="column-visible"]').forEach(input => {
+      input.addEventListener("change", () => {
+        const key = input.dataset.key!;
+        if (!input.checked && this.tableFields.length <= 1) return;
+        this.columnLayout.hidden = this.columnLayout.hidden.filter(item => item !== key);
+        if (!input.checked) this.columnLayout.hidden.push(key);
+        this.selection = null;
+        this.saveColumnLayout();
+        this.reportSelection();
+        this.render();
+      });
+    });
+    this.el.querySelectorAll<HTMLElement>('[data-role="column-resize"]').forEach(handle => {
+      const key = handle.dataset.key!;
+      handle.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); });
+      handle.addEventListener("dblclick", ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        delete this.columnLayout.widths[key];
+        this.saveColumnLayout(); this.render();
+      });
+      handle.addEventListener("mousedown", ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        if (ev.button !== 0) return;
+        const table = handle.closest("table")!;
+        const cols = Array.from(table.querySelectorAll<HTMLElement>("col[data-key]"));
+        const col = cols.find(item => item.dataset.key === key)!;
+        const start = ev.clientX, width = this.columnLayout.widths[key] || 160;
+        const previous = this.columnLayout.widths[key];
+        let moved = false;
+        const cursor = document.body.style.cursor, select = document.body.style.userSelect;
+        document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none";
+        const move = (event: MouseEvent) => {
+          moved = true;
+          const next = columnWidth(width + event.clientX - start);
+          this.columnLayout.widths[key] = next;
+          col.style.width = `${next}px`;
+          table.style.width = `${40 + this.tableFields.reduce((sum, field) => sum + (this.columnLayout.widths[field.key] || 160), 0)}px`;
+          this.paintFillHandle();
+          window.dispatchEvent(new Event("resize"));
+        };
+        const finish = (cancel = false) => {
+          document.removeEventListener("mousemove", move);
+          document.removeEventListener("mouseup", up);
+          document.removeEventListener("keydown", keydown, true);
+          window.removeEventListener("blur", blur);
+          document.body.style.cursor = cursor; document.body.style.userSelect = select;
+          if (!moved) return;
+          if (cancel) {
+            if (previous == null) delete this.columnLayout.widths[key];
+            else this.columnLayout.widths[key] = previous;
+          } else this.saveColumnLayout();
+          this.render();
+        };
+        const up = () => finish();
+        const blur = () => finish(true);
+        const keydown = (event: KeyboardEvent) => {
+          if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); finish(true); }
+        };
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", up);
+        document.addEventListener("keydown", keydown, true);
+        window.addEventListener("blur", blur);
+      });
+    });
+  }
   protected title = "";
   protected view: "table" | "card" = "table";
   protected picked: Record<number, boolean> = {};
@@ -83,6 +179,7 @@ export class BitTableEditorBase {
     );
     this.readCheckErrors(api.getCheckErrors?.() || [], api.getCheckErrorTotal?.());
     this.fields = seasonFields(this.struct, this.parseFields(this.struct));
+    this.columnLayout = readColumnLayout(api.getColumnLayout?.(), this.fields);
     this.title = String(this.struct.name || this.title || "配置表");
     this.view = String(this.struct.view || "").trim() === "card" ? "card" : "table";
     if (!this.batchKey) {
@@ -118,6 +215,7 @@ export class BitTableEditorBase {
       this.pageIndex = Math.floor(pos / this.resolvedPageSize());
       this.clampPage(all.length);
     }
+    this.showColumn(key);
     this.revealTarget = { ri, key, query };
     this.render();
     requestAnimationFrame(() => this.scrollRevealIntoView());
@@ -437,7 +535,7 @@ export class BitTableEditorBase {
 
   protected selectionCoversAllCols(): boolean {
     const range = this.selectionRange();
-    const last = this.fields.length - 1;
+    const last = this.tableFields.length - 1;
     return Boolean(range && last >= 0 && range.c0 === 0 && range.c1 === last);
   }
 
@@ -498,7 +596,7 @@ export class BitTableEditorBase {
     if (!this.fillAllowed()) { handle?.remove(); return; }
     const source = this.fillSource();
     if (!source) { handle?.remove(); return; }
-    const field = this.fields[source.range.c1];
+    const field = this.tableFields[source.range.c1];
     const ri = source.source[source.source.length - 1];
     const cell = this.el.querySelector<HTMLElement>(`td[data-role="cell"][data-index="${ri}"][data-col="${source.range.c1}"]`);
     if (!cell || !field) { handle?.remove(); return; }
@@ -551,7 +649,7 @@ export class BitTableEditorBase {
     const request: FillCellsRequest = {
       sheet: this.currentSheetId(), sourceRows: source.source.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
       targetRows: target.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
-      fields: this.fields.slice(source.range.c0, source.range.c1 + 1).map((field) => field.key), idReadonly: this.idReadonly,
+      fields: this.tableFields.slice(source.range.c0, source.range.c1 + 1).map((field) => field.key), idReadonly: this.idReadonly,
     };
     this.fillBusy = true; this.paintFillHandle();
     try {
@@ -598,7 +696,7 @@ export class BitTableEditorBase {
     if (!td || !this.el.contains(td)) return null;
     const ri = Number(td.getAttribute("data-index"));
     const ci = Number(td.getAttribute("data-col"));
-    if (!Number.isFinite(ri) || !Number.isFinite(ci) || ci < 0 || ci >= this.fields.length) return null;
+    if (!Number.isFinite(ri) || !Number.isFinite(ci) || ci < 0 || ci >= this.tableFields.length) return null;
     return { ri, ci };
   }
 
@@ -608,11 +706,11 @@ export class BitTableEditorBase {
 
   protected colHeadFromEl(el: HTMLElement | null): number | null {
     if (!el || !this.el?.contains(el)) return null;
-    if (el.closest("[data-role=col-filter-btn]")) return null;
+    if (el.closest("[data-role=col-filter-btn], [data-role=column-resize]")) return null;
     const th = el.closest("th[data-role=col-head]") as HTMLElement | null;
     if (!th || !this.el.contains(th)) return null;
     const ci = Number(th.getAttribute("data-col"));
-    if (!Number.isFinite(ci) || ci < 0 || ci >= this.fields.length) return null;
+    if (!Number.isFinite(ci) || ci < 0 || ci >= this.tableFields.length) return null;
     return ci;
   }
 
@@ -648,7 +746,7 @@ export class BitTableEditorBase {
 
   protected normalizeSelection(anchor: CellPos, focus: CellPos, mode: SelMode): CellSel {
     const lastRi = Math.max(0, this.data.rows.length - 1);
-    const lastCi = Math.max(0, this.fields.length - 1);
+    const lastCi = Math.max(0, this.tableFields.length - 1);
     if (mode === "col") {
       return { mode, anchor: { ri: 0, ci: anchor.ci }, focus: { ri: lastRi, ci: focus.ci } };
     }
@@ -677,7 +775,7 @@ export class BitTableEditorBase {
       else if (this.selection?.mode === "row" || (this.selectionCoversAllCols() && singleRow)) mode = "row";
       const push = (ri: number, ci: number, idOverride?: string) => {
         const row = this.data.rows[ri] || {};
-        const field = this.fields[ci];
+        const field = this.tableFields[ci];
         if (!field?.key) return;
         cells.push({
           id: idOverride ?? this.rowRefId(row, ri),
@@ -700,7 +798,9 @@ export class BitTableEditorBase {
   selectByRef(target: { field?: string; rowId?: string }): void {
     if (this.view !== "table") return;
     const field = String(target?.field || "").trim();
-    const ci = field ? this.fields.findIndex((item) => item.key === field) : -1;
+    this.showColumn(field);
+    this.render();
+    const ci = field ? this.tableFields.findIndex((item) => item.key === field) : -1;
     if (ci < 0) return;
     const rowId = String(target?.rowId || "").trim();
     if (!rowId || rowId === "*") {
@@ -747,7 +847,7 @@ export class BitTableEditorBase {
       const row = this.data.rows[ri] || {};
       const cols: string[] = [];
       for (let ci = range.c0; ci <= range.c1; ci++) {
-        const field = this.fields[ci];
+        const field = this.tableFields[ci];
         cols.push(field ? this.cellCopyText(field, row) : "");
       }
       lines.push(cols.join("\t"));
@@ -784,8 +884,8 @@ export class BitTableEditorBase {
     const table = this.currentTableId();
     const sheet = this.currentSheetId();
     const prefix = `${table}.${sheet}`;
-    const key0 = this.fields[range.c0]?.key || `c${range.c0}`;
-    const key1 = this.fields[range.c1]?.key || `c${range.c1}`;
+    const key0 = this.tableFields[range.c0]?.key || `c${range.c0}`;
+    const key1 = this.tableFields[range.c1]?.key || `c${range.c1}`;
     const id0 = this.rowRefId(this.data.rows[range.r0] || {}, range.r0);
     const id1 = this.rowRefId(this.data.rows[range.r1] || {}, range.r1);
     const path0 = this.cellCheckPath(sheet, range.r0, key0);
@@ -930,8 +1030,8 @@ export class BitTableEditorBase {
       const row = this.data.rows[ri];
       for (let c = 0; c < writeCols; c++) {
         const ci = range.c0 + c;
-        if (ci < 0 || ci >= this.fields.length) break;
-        const field = this.fields[ci];
+        if (ci < 0 || ci >= this.tableFields.length) break;
+        const field = this.tableFields[ci];
         if (!field || !this.cellEditable(field, row)) continue;
         if (field.widget === "params" || field.type === "object") continue;
         const raw = this.tsvCell(grid, r % srcRows, c % srcCols);
@@ -975,7 +1075,7 @@ export class BitTableEditorBase {
     if (this.shouldIgnoreSelectStart(target)) return;
     const col = this.colHeadFromEl(target);
     if (col != null) {
-      if (!this.data.rows.length || !this.fields.length) return;
+      if (!this.data.rows.length || !this.tableFields.length) return;
       ev.preventDefault();
       const keep = ev.shiftKey && this.selection?.mode === "col";
       const anchor = keep && this.selection ? this.selection.anchor : { ri: 0, ci: col };
@@ -986,7 +1086,7 @@ export class BitTableEditorBase {
     }
     const row = this.rowHeadFromEl(target);
     if (row != null) {
-      if (!this.data.rows.length || !this.fields.length) return;
+      if (!this.data.rows.length || !this.tableFields.length) return;
       ev.preventDefault();
       const keep = ev.shiftKey && this.selection?.mode === "row";
       const anchor = keep && this.selection ? this.selection.anchor : { ri: row, ci: 0 };
@@ -1529,6 +1629,7 @@ export class BitTableEditorBase {
     html += `<div><div style="font-weight:500">${escapeHtml(this.titleForToolbar())}</div>`;
     html += `<div style="color:#a3a3a3;margin-top:2px">${escapeHtml(this.hintForToolbar())}</div></div>`;
     html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+    if (this.view === "table") html += `<button type="button" data-role="columns-toggle" style="${this.btn("ghost")}">列设置${this.columnLayout.hidden.length ? `（隐藏 ${this.columnLayout.hidden.length} 列）` : ""}</button>`;
     if (this.enableCardView) {
       html += `<div style="display:flex;padding:2px;border:1px solid #3a3a3a;border-radius:6px"><button type="button" data-testid="${this.tid("view-table")}" style="${this.tabStyle(this.view === "table")}">表格</button><button type="button" data-testid="${this.tid("view-card")}" style="${this.tabStyle(this.view === "card")}">卡片</button></div>`;
     }
@@ -1553,6 +1654,7 @@ export class BitTableEditorBase {
     const errOff = this.checkErrorTotal > 0 ? "" : "opacity:.45;cursor:default";
     html += `<button type="button" data-testid="${this.tid("next-error")}" ${this.checkErrorTotal > 0 ? "" : "disabled "}style="${this.btn("ghost", errOff)}" title="跳到下一处检查错误">下一个错误</button>`;
     html += `<button type="button" data-testid="${this.tid("save")}" style="${this.btn("primary")}" title="Ctrl+S">保存</button></div></div>`;
+    if (this.columnsOpen && this.view === "table") html += columnSettingsHTML(this.fields, this.columnLayout);
     if (this.batchOpen) html += this.renderBatchPanel();
     return html;
   }
@@ -1608,23 +1710,24 @@ export class BitTableEditorBase {
     let html = this.enableTableScroll
       ? `<div style="flex:1;min-width:0;min-height:${this.tableMinHeight}px;overflow:hidden"><div data-testid="${wrapTest}" tabindex="-1" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px;outline:none">`
       : `<div data-testid="${wrapTest}" tabindex="-1" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto;outline:none">`;
-    html += `<table style="width:max-content;min-width:100%;border-collapse:collapse">`;
+    const totalWidth = 40 + this.tableFields.reduce((sum, field) => sum + (this.columnLayout.widths[field.key] || 160), 0);
+    html += `<table style="width:${totalWidth}px;table-layout:fixed;border-collapse:collapse"><colgroup><col style="width:40px" />${this.tableFields.map(field => `<col data-key="${escapeAttr(field.key)}" style="width:${this.columnLayout.widths[field.key] || 160}px" />`).join("")}</colgroup>`;
     html += "<thead><tr>";
     html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
-    this.fields.forEach((field, ci) => {
+    this.tableFields.forEach((field, ci) => {
       const colOn = this.isColHeadSelected(ci);
-      html += `<th data-role="col-head" data-col="${ci}" title="单击选中列" style="${sticky}background:${colOn ? "#243044" : "#1a1a1a"};text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap;cursor:pointer${colOn ? ";box-shadow:inset 0 -2px 0 #3794ff" : ""}"><span style="display:inline-flex;align-items:center;gap:2px">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span></th>`;
+      html += `<th data-role="col-head" data-key="${escapeAttr(field.key)}" data-col="${ci}" title="单击选中列" style="position:relative;${sticky}overflow:hidden;background:${colOn ? "#243044" : "#1a1a1a"};text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap;cursor:pointer${colOn ? ";box-shadow:inset 0 -2px 0 #3794ff" : ""}"><span style="display:inline-flex;align-items:center;gap:2px;max-width:100%;overflow:hidden">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span><span data-role="column-resize" data-key="${escapeAttr(field.key)}" title="拖动调整列宽，双击恢复默认" style="position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;border-right:1px solid #444"></span></th>`;
     });
     html += "</tr></thead><tbody>";
     if (!idxs.length) {
-      html += `<tr><td colspan="${this.fields.length + 1}" style="padding:24px;text-align:center;color:#a3a3a3">${this.data.rows.length ? "无匹配行，试试清除筛选" : "暂无行，点击「新增一行」"}</td></tr>`;
+      html += `<tr><td colspan="${this.tableFields.length + 1}" style="padding:24px;text-align:center;color:#a3a3a3">${this.data.rows.length ? "无匹配行，试试清除筛选" : "暂无行，点击「新增一行」"}</td></tr>`;
     }
     idxs.forEach((ri, vis) => {
       const row = this.data.rows[ri] || {};
       html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
       const rowOn = this.isRowHeadSelected(ri);
       html += `<td data-role="row-head" data-index="${ri}" title="单击选中行" style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center;cursor:pointer${rowOn ? ";background:rgba(55,148,255,.18)" : ""}"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
-      this.fields.forEach((field, ci) => {
+      this.tableFields.forEach((field, ci) => {
         html += this.renderTableCell(field, row, ri, ci);
       });
       html += "</tr>";
@@ -1635,7 +1738,7 @@ export class BitTableEditorBase {
   }
 
   protected renderTableCell(field: FieldDef, row: Row, ri: number, ci: number): string {
-    const td = `padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle;${this.revealCellStyle(ri, field.key)}`;
+    const td = `overflow:hidden;padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle;${this.revealCellStyle(ri, field.key)}`;
     const reveal = this.revealAttr(ri, field.key);
     const sel = this.cellSelAttrs(ri, ci);
     if (field.widget === "icon" || field.type === "icon") {
@@ -2205,6 +2308,7 @@ export class BitTableEditorBase {
     html += "</div>";
     this.suppressEditBlur = true;
     this.el.innerHTML = html;
+    this.bindColumnSettings();
 
     const visible = this.pagedRowIndexes();
     visible.forEach((ri) => {

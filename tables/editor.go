@@ -38,6 +38,7 @@ func EditorHTML(editorJS string) string {
   var data = null;
   var tableId = "";
   var sheetId = "";
+  var columnLayouts = {};
   var pluginCells = [];
   var pluginBindings = [];
   var stateSeq = 0;
@@ -144,7 +145,7 @@ func EditorHTML(editorJS string) string {
     var cell = target.closest('[data-role="cell"], [data-role="cell-edit"]');
     var head = target.closest('[data-role="col-head"]');
     var fields = (struct && struct.fields) || [];
-    var ci = head ? Number(head.getAttribute("data-col")) : cell ? fields.findIndex(function (f) { return f.key === cell.getAttribute("data-key"); }) : -1;
+    var ci = head ? (head.hasAttribute("data-key") ? fields.findIndex(function (f) { return f.key === head.getAttribute("data-key"); }) : Number(head.getAttribute("data-col"))) : cell ? fields.findIndex(function (f) { return f.key === cell.getAttribute("data-key"); }) : -1;
     if (!fields[ci]) return null;
     return { ci: ci, ri: cell ? Number(cell.getAttribute("data-index")) : 0, mode: head ? "col" : "cell" };
   }
@@ -294,6 +295,11 @@ func EditorHTML(editorJS string) string {
       return m ? decodeURIComponent(m[1]) : "";
     },
     getSheetId: function () { return sheetId || "main"; },
+    getColumnLayout: function () { return columnLayouts[sheetId || "main"] || null; },
+    setColumnLayout: function (layout) {
+      columnLayouts[sheetId || "main"] = clone(layout);
+      parent.postMessage({ type: "columnLayout", sheetId: sheetId || "main", layout: layout }, "*");
+    },
     getPluginCells: function () { return pluginCells || []; },
     getCheckErrors: function () { return checkErrors || []; },
     getCheckErrorTotal: function () { return errorTotal || 0; },
@@ -458,6 +464,7 @@ func EditorHTML(editorJS string) string {
       if (msg.pluginBindings != null) pluginBindings = clone(msg.pluginBindings);
       if (msg.checkErrors != null) checkErrors = msg.checkErrors;
       if (msg.errorTotal != null) errorTotal = msg.errorTotal;
+      columnLayouts[sheetId || "main"] = msg.columnLayout || null;
       var sameSheet = msg.type === "setSheet" && prevSheet && sheetId === prevSheet;
       if (!sameSheet) {
         if (msg.data != null) data = msg.data;

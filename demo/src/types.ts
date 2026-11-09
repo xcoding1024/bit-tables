@@ -17,6 +17,8 @@ export type EditorAPI = {
   assetURL?(rel: string): string;
   getTableId?(): string;
   getSheetId?(): string;
+  getColumnLayout?(): unknown;
+  setColumnLayout?(layout: { hidden: string[]; widths: Record<string, number> }): void;
   getPluginCells?(): { row: string; field: string }[];
   fillCells?(request: FillCellsRequest): Promise<void>;
   isFillBusy?(): boolean;
