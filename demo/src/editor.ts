@@ -468,6 +468,52 @@ export class BitTableEditorBase {
     }});
   }
 
+  protected confirmDeleteRows(indexes: number[], apply: () => void): void {
+    const canDelete = () => !this.api.isReadOnly?.() && !this.api.isFillBusy?.()
+      && !this.el.closest('[data-plugin-picking="1"], [data-state-busy="1"]');
+    if (!indexes.length || !canDelete() || this.el.querySelector('[data-role="delete-confirm"]')) return;
+    const rows = indexes.map(index => this.data.rows[index]);
+    const dialog = document.createElement("dialog");
+    dialog.dataset.role = "delete-confirm";
+    dialog.setAttribute("aria-label", `删除已选 ${indexes.length} 行？`);
+    dialog.style.cssText = "background:#202020;color:#f5f5f5;border:1px solid #555;border-radius:8px;padding:20px;min-width:280px;max-width:90vw;box-shadow:0 12px 48px #0008";
+    dialog.innerHTML = `<div style="font-size:16px;margin-bottom:12px">删除已选 ${indexes.length} 行？</div><p style="color:#aaa">确认后可撤销，保存后写入配置表。</p><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-action="cancel" autofocus style="${this.btn("ghost")}">取消</button><button type="button" data-action="delete" style="${this.btn("danger")}">确认删除</button></div>`;
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", () => dialog.close());
+    dialog.querySelector('[data-action="delete"]')?.addEventListener("click", () => dialog.close("delete"));
+    dialog.addEventListener("keydown", event => {
+      event.stopPropagation();
+      if (event.key === "Escape") { event.preventDefault(); dialog.close(); }
+    });
+    dialog.addEventListener("close", () => {
+      const accepted = dialog.isConnected && dialog.returnValue === "delete" && canDelete()
+        && indexes.every((index, position) => this.data.rows[index] === rows[position]);
+      dialog.remove();
+      if (accepted) apply();
+      else this.el.querySelector<HTMLButtonElement>(`[data-testid="${this.tid("batch-delete")}"]`)?.focus({ preventScroll: true });
+    }, { once: true });
+    this.el.appendChild(dialog);
+    dialog.showModal();
+  }
+
+  protected syncRowPickControls(): void {
+    const count = this.selectedIndexes().length;
+    const label = this.el.querySelector(`[data-testid="${this.tid("selected-count")}"]`);
+    if (label) label.textContent = `已选 ${count}${this.selectedCountSuffix}`;
+    for (const action of ["batch-edit", "batch-delete"]) {
+      const button = this.el.querySelector<HTMLButtonElement>(`[data-testid="${this.tid(action)}"]`);
+      if (!button) continue;
+      button.disabled = !count || Boolean(this.api.isReadOnly?.());
+      button.style.opacity = button.disabled ? ".45" : "";
+      button.style.cursor = button.disabled ? "default" : "pointer";
+    }
+    this.el.querySelectorAll<HTMLInputElement>("[data-role=pick]").forEach(box => {
+      box.checked = Boolean(this.picked[Number(box.dataset.index)]);
+    });
+    const all = this.el.querySelector<HTMLInputElement>(`[data-testid="${this.tid("pick-all")}"]`);
+    const visible = this.pagedRowIndexes();
+    if (all) all.checked = visible.length > 0 && visible.every(index => this.picked[index]);
+  }
+
   protected selectedIndexes(): number[] {
     return Object.keys(this.picked)
       .map(Number)
@@ -554,6 +600,7 @@ export class BitTableEditorBase {
   protected paintSelection(): void {
     if (!this.el) return;
     this.syncCopyRefButton();
+    this.syncRowPickControls();
     this.el.querySelectorAll("td[data-role=cell], td[data-role=cell-edit]").forEach((node) => {
       const td = node as HTMLElement;
       const ri = Number(td.getAttribute("data-index"));
@@ -758,6 +805,13 @@ export class BitTableEditorBase {
 
   protected setCellSelection(anchor: CellPos, focus: CellPos, mode: SelMode = "cell"): void {
     this.selection = this.normalizeSelection(anchor, focus, mode);
+    if (mode === "row") {
+      const range = this.selectionRange()!;
+      this.picked = {};
+      this.allVisibleRowIndexes().forEach(index => {
+        if (index >= range.r0 && index <= range.r1) this.picked[index] = true;
+      });
+    }
     this.paintSelection();
     this.reportSelection();
   }
@@ -2472,8 +2526,10 @@ export class BitTableEditorBase {
     });
     this.el.querySelectorAll("[data-role=pick]").forEach((box) => {
       box.addEventListener("change", () => {
+        const checked = (box as HTMLInputElement).checked;
+        if (this.selection?.mode === "row") this.clearCellSelection();
         const i = Number(box.getAttribute("data-index"));
-        if ((box as HTMLInputElement).checked) this.picked[i] = true;
+        if (checked) this.picked[i] = true;
         else delete this.picked[i];
         this.render();
       });
@@ -2481,8 +2537,10 @@ export class BitTableEditorBase {
     const pickAll = this.el.querySelector(`[data-testid="${this.tid("pick-all")}"]`) as HTMLInputElement | null;
     if (pickAll) {
       pickAll.addEventListener("change", () => {
+        const checked = pickAll.checked;
+        if (this.selection?.mode === "row") this.clearCellSelection();
         const idxs = this.pagedRowIndexes();
-        if (pickAll.checked) idxs.forEach((i) => (this.picked[i] = true));
+        if (checked) idxs.forEach((i) => (this.picked[i] = true));
         else idxs.forEach((i) => delete this.picked[i]);
         this.render();
       });
@@ -2498,17 +2556,18 @@ export class BitTableEditorBase {
     this.el.querySelector(`[data-testid="${this.tid("batch-delete")}"]`)?.addEventListener("click", () => {
       const idxs = this.selectedIndexes();
       if (!idxs.length) return;
-      if (!window.confirm(`删除已选 ${idxs.length} 行？`)) return;
-      idxs
-        .slice()
-        .reverse()
-        .forEach((i) => this.data.rows.splice(i, 1));
-      this.picked = {};
-      this.batchOpen = false;
-      this.selection = null;
-      this.setSelecting(false);
-      this.api.setData(this.data);
-      this.render();
+      this.confirmDeleteRows(idxs, () => {
+        idxs
+          .slice()
+          .reverse()
+          .forEach((i) => this.data.rows.splice(i, 1));
+        this.picked = {};
+        this.batchOpen = false;
+        this.selection = null;
+        this.setSelecting(false);
+        this.api.setData(this.data);
+        this.render();
+      });
     });
     this.el.querySelector(`[data-testid="${this.tid("batch-cancel")}"]`)?.addEventListener("click", () => {
       this.batchOpen = false;

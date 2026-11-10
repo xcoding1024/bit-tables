@@ -233,3 +233,10 @@ bit-tables serve <root>
 - iframe init/setSheet 增加 columnLayout；可选 EditorAPI.getColumnLayout / setColumnLayout 读写 `{ hidden: string[], widths: Record<string, number> }`，iframe 发 columnLayout（sheetId、layout）由宿主保存。旧宿主不提供 API 时可在当前挂载周期内调整；已有项目需同步共享基类与 column_layout.ts 才提供此入口，不自动覆盖项目自定义编辑器。
 - Mock 沿用本机 PUT /v1/dev/tables 的 fill_demo（八种字段、300 行）及 sheet_demo（多 sheet）夹具与真实交互，不向 Mock Hub 增加业务存储。Go 验收验证开发夹具的依赖编译、数据不变和项目边界；Playwright 在 Mock 登录后覆盖隐藏/恢复、最少一列、无宽度输入框、拖拽/取消/复位、刷新/分页/编辑保持、可见列复制粘贴填充及表/分页/项目/目录隔离。
 - 共享基类、列设置模块、类型、iframe 协议与偏好存储同次同步至 bit-tables；bit-agent 的项目键来自其宿主 editor URL。
+
+
+## 批量删除确认
+
+- 点击行首或 Shift/拖动选择多行时，同步勾选、已选数量和批量操作按钮；筛选状态下只勾选范围内匹配的行。直接勾选、取消与当前页全选继续可用。
+- 批量删除在编辑器内弹出确认框，支持取消与 Escape；确认后删除选中行，允许撤销/重做，保存后写入数据。确认期间数据已被替换、处于只读或正在写入时不执行删除。
+- 确认使用 HTML dialog，兼容 allow-scripts 沙箱，不需要浏览器模态弹窗权限。Mock 登录验收覆盖勾选及行首多选、取消/确认、筛选保护、撤销/重做与保存后重载。
