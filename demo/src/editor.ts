@@ -301,7 +301,8 @@ export class BitTableEditorBase {
   setCheckErrors(errors: { rowIndex: number; field: string; message?: string }[], total?: number): void {
     this.readCheckErrors(errors, total);
     if (!this.el) return;
-    this.render();
+    this.applyErrorMarks();
+    this.applyHistoryButton(this.tid("next-error"), this.checkErrorTotal > 0);
   }
 
   protected applyErrorMarks(): void {
