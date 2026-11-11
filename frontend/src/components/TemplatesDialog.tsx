@@ -48,7 +48,7 @@ const TEMPLATES: EditorTemplate[] = [
     usage: [
       "struct 里 sheet 设 kind: enum，字段推荐 id + name。",
       "他表字段用 enum: kinds 或 enum: enum_demo.rarities；存 id，下拉显示 name。",
-      "子类通常只改 testPrefix / toolbarHint，并把 idReadonly = false。",
+      "子类通常只改 testPrefix / toolbarHint；已有 ID 默认可直接修改，设 idReadonly = true 可锁定。",
       "参考 enum_demo_editor.ts。",
     ],
     preview: <EnumPreview />,

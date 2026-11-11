@@ -59,8 +59,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-const CHECKER_TABLE = /([A-Za-z][A-Za-z0-9_./]*)#/g;
-
 function resolveTableId(token: string, ids: Set<string>): string {
   const raw = String(token || "").trim();
   if (!raw) return "";
@@ -69,26 +67,14 @@ function resolveTableId(token: string, ids: Set<string>): string {
   return hits.length === 1 ? hits[0] : "";
 }
 
-function collectCheckerTargets(struct: unknown): string[] {
+/** 结构根上的 `refs`：声明本表依赖的其它表。 */
+function collectStructRefs(struct: unknown): string[] {
   const out = new Set<string>();
   const rec = asRecord(struct);
   if (Array.isArray(rec?.refs)) {
     for (const item of rec.refs) {
       const id = String(item || "").trim();
       if (id) out.add(id);
-    }
-  }
-  const sheets = rec && Array.isArray(rec.sheets) ? rec.sheets : [];
-  for (const item of sheets) {
-    const sheet = asRecord(item);
-    const fields = sheet && Array.isArray(sheet.fields) ? sheet.fields : [];
-    for (const field of fields) {
-      const checker = String(asRecord(field)?.checker ?? "");
-      if (!checker || checker === "x") continue;
-      if (checker.includes("ItemArrayChecker")) out.add("item");
-      CHECKER_TABLE.lastIndex = 0;
-      let match: RegExpExecArray | null;
-      while ((match = CHECKER_TABLE.exec(checker))) out.add(match[1]);
     }
   }
   return [...out];
@@ -141,7 +127,7 @@ export function buildDepGraph(tables: TableSnap[]): DepGraph {
       if (!parsed) continue;
       addEdge(from, parsed.tableId, ref);
     }
-    for (const target of collectCheckerTargets(table.struct)) {
+    for (const target of collectStructRefs(table.struct)) {
       addEdge(from, resolveTableId(target, ids), target);
     }
   }

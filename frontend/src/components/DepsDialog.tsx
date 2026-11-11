@@ -136,7 +136,7 @@ export function DepsDialog({
       bodyClassName="flex h-[70vh] flex-col overflow-hidden"
       footer={<Btn onClick={onClose}>关闭</Btn>}
     >
-      <div className="mb-3 shrink-0 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum、checker 里的表#分页，或结构上的 refs）。被多张表引用的节点会标出入度。图超出视口时可拖拽查看。</div>
+      <div className="mb-3 shrink-0 text-[12px] text-muted">箭头 A → B 表示 A 引用 B（跨表 enum 或结构上的 refs）。被多张表引用的节点会标出入度。图超出视口时可拖拽查看。</div>
       {graph.nodes.length === 0 ? (
         <div className="py-8 text-center text-muted" data-testid="deps-empty">
           暂无配置表

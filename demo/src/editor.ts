@@ -24,7 +24,8 @@ export class BitTableEditorBase {
   tableMinHeight = 240;
   pageSize = 100;
   pageSizeOptions = [20, 50, 100, 200];
-  idReadonly = true;
+  /** true 时锁定已有行的 ID；默认可在单元格或卡片中逐个修改，不更新其它表的引用。 */
+  idReadonly = false;
   checkboxHint = "";
   groupNames: Record<string, string> = {};
   selectedCountSuffix = "";
@@ -696,7 +697,7 @@ export class BitTableEditorBase {
     const request: FillCellsRequest = {
       sheet: this.currentSheetId(), sourceRows: source.source.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
       targetRows: target.map((ri) => this.rowRefId(this.data.rows[ri], ri)),
-      fields: this.tableFields.slice(source.range.c0, source.range.c1 + 1).map((field) => field.key), idReadonly: this.idReadonly,
+      fields: this.tableFields.slice(source.range.c0, source.range.c1 + 1).map((field) => field.key), idReadonly: true,
     };
     this.fillBusy = true; this.paintFillHandle();
     try {
@@ -1086,7 +1087,7 @@ export class BitTableEditorBase {
         const ci = range.c0 + c;
         if (ci < 0 || ci >= this.tableFields.length) break;
         const field = this.tableFields[ci];
-        if (!field || !this.cellEditable(field, row)) continue;
+        if (!field || !this.cellEditable(field, row) || (field.key === "id" && row.id)) continue;
         if (field.widget === "params" || field.type === "object") continue;
         const raw = this.tsvCell(grid, r % srcRows, c % srcCols);
         row[field.key] = this.coercePaste(field, raw);
@@ -1496,6 +1497,34 @@ export class BitTableEditorBase {
     if (field.widget === "icon" || field.type === "icon") return false;
     if (this.idReadonly && field.key === "id" && row.id) return false;
     return true;
+  }
+
+  /** 已有行的 ID：Enter 或失焦时一次写入，Escape 或清空则还原；保持原值的数字/文本类型。粘贴和向下填充不改已有 ID。 */
+  protected bindIdEdit(node: HTMLInputElement, ri: number, inTableEdit: boolean): void {
+    const original = this.data.rows[ri]?.id;
+    const originalText = String(original ?? "");
+    let done = false;
+    const finish = (commit: boolean) => {
+      if (done) return;
+      done = true;
+      const text = node.value.trim();
+      if (commit && text && text !== originalText.trim()) {
+        this.setRow(ri, "id", typeof original === "number" && /^-?\d+(\.\d+)?$/.test(text) ? Number(text) : text);
+        if (inTableEdit) this.endEditCell();
+        else this.render();
+        return;
+      }
+      if (inTableEdit) this.endEditCell();
+      else { node.value = originalText; done = false; }
+    };
+    node.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); ev.stopPropagation(); finish(true); }
+      else if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+    });
+    node.addEventListener("blur", () => {
+      if (this.suppressEditBlur || !node.isConnected || !this.el.contains(node)) return;
+      finish(true);
+    });
   }
 
   protected cellDisplayText(field: FieldDef, row: Row): string {
@@ -2178,6 +2207,10 @@ export class BitTableEditorBase {
     if ("type" in node && node.type === "checkbox") widget = "checkbox";
     if ("type" in node && node.type === "range") widget = "range";
     const inTableEdit = typeof ri === "number" && this.view === "table" && this.isEditingCell(ri, field.key);
+    if (typeof ri === "number" && field.key === "id" && !this.idReadonly && this.data.rows[ri]?.id && node instanceof HTMLInputElement) {
+      this.bindIdEdit(node, ri, inTableEdit);
+      return;
+    }
     const finishInstant = () => {
       if (inTableEdit) this.endEditCell();
     };
