@@ -45,6 +45,7 @@ export function PluginPanel(props: PanelProps) {
   return (
     <div className="flex flex-col gap-3" data-testid="plugin-panel">
       {picking ? <div className="text-accent" data-testid="plugin-pick-mode">选择来源：可拖拽框选或选列，目标已锁定</div> : null}
+      <TargetMeta target={target} />
       <Field label="目标">
         <div className="flex gap-1">
           <Input data-testid="plugin-target" style={{ minWidth: 0, flex: "1 1 0%" }} value={selectionToRef(target)} title={selectionToRef(target)} readOnly />
@@ -125,6 +126,33 @@ function PluginCard({ plugin, tableId, sheetId, field, row, binding, otherBound,
       </div> : null}
     </section>
   );
+}
+
+function TargetMeta({ target }: { target: PluginSelection | null }) {
+  const fields = selectionFieldMeta(target);
+  if (!fields.length) return null;
+  return (
+    <div data-testid="plugin-target-meta">
+      <Field label="字段名">
+        <div data-testid="plugin-target-field" className="break-all">{fields.map((item) => item.field).join("、")}</div>
+      </Field>
+      <Field label="字段类型">
+        <div data-testid="plugin-target-type" className="break-all">{fields.map((item) => item.type).join("、")}</div>
+      </Field>
+    </div>
+  );
+}
+
+function selectionFieldMeta(target: PluginSelection | null): { field: string; type: string }[] {
+  const out: { field: string; type: string }[] = [];
+  const seen = new Set<string>();
+  for (const item of target?.cells || []) {
+    const field = String(item?.field || "").trim();
+    if (!field || seen.has(field)) continue;
+    seen.add(field);
+    out.push({ field, type: String(item.type || "").trim() || "—" });
+  }
+  return out;
 }
 
 function findBinding(bindings: PluginBinding[], sheet: string, field: string, row: string) {
