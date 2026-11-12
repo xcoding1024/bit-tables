@@ -76,10 +76,10 @@ func resolveUnderRoot(projectRoot, abs string) (string, error) {
 
 var bitTablesImportRe = regexp.MustCompile(`^bit-tables\.([a-z][a-z0-9_]*)$`)
 
-func resolveBitTablesImport(projectRoot, spec string) (string, error) {
+func bitTablesImportCandidates(projectRoot, spec string) ([]string, error) {
 	m := bitTablesImportRe.FindStringSubmatch(spec)
 	if m == nil {
-		return "", fmt.Errorf("无效的 bit-tables 模块: %s", spec)
+		return nil, fmt.Errorf("无效的 bit-tables 模块: %s", spec)
 	}
 	name := m[1]
 	allowed := map[string]string{
@@ -91,9 +91,28 @@ func resolveBitTablesImport(projectRoot, spec string) (string, error) {
 	}
 	file, ok := allowed[name]
 	if !ok {
-		return "", fmt.Errorf("未知的 bit-tables 模块: %s", spec)
+		return nil, fmt.Errorf("未知的 bit-tables 模块: %s", spec)
 	}
-	return resolveUnderRoot(projectRoot, filepath.Join(projectRoot, "src", file))
+	return []string{
+		filepath.Join(projectRoot, "src", "workbench", file),
+		filepath.Join(projectRoot, "src", file),
+	}, nil
+}
+
+func resolveBitTablesImport(projectRoot, spec string) (string, error) {
+	candidates, err := bitTablesImportCandidates(projectRoot, spec)
+	if err != nil {
+		return "", err
+	}
+	var lastErr error
+	for _, candidate := range candidates {
+		resolved, err := resolveUnderRoot(projectRoot, candidate)
+		if err == nil {
+			return resolved, nil
+		}
+		lastErr = err
+	}
+	return "", lastErr
 }
 
 func sandboxPlugin(projectRoot string) api.Plugin {
@@ -127,13 +146,13 @@ func (r *Root) bundleScript(entry string) (string, error) {
 		return "", fmt.Errorf("脚本不在项目根内: %s", entry)
 	}
 	opts := api.BuildOptions{
-		EntryPoints: []string{entry},
-		Bundle:      true,
-		Write:       false,
-		Format:      api.FormatIIFE,
-		Platform:    api.PlatformBrowser,
-		Target:      api.ES2020,
-		LogLevel:    api.LogLevelSilent,
+		EntryPoints:   []string{entry},
+		Bundle:        true,
+		Write:         false,
+		Format:        api.FormatIIFE,
+		Platform:      api.PlatformBrowser,
+		Target:        api.ES2020,
+		LogLevel:      api.LogLevelSilent,
 		AbsWorkingDir: projectRoot,
 		Loader: map[string]api.Loader{
 			".yaml": api.LoaderText,

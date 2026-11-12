@@ -145,8 +145,20 @@ func (r *Root) SnapshotEditor(ctx context.Context, id, revision string) (string,
 		build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 			file := args.Path
 			if args.Kind != api.ResolveEntryPoint {
-				if match := bitTablesImportRe.FindStringSubmatch(args.Path); match != nil {
-					file = filepath.Join(project, "src", match[1]+".ts")
+				if bitTablesImportRe.MatchString(args.Path) {
+					candidates, err := bitTablesImportCandidates(project, args.Path)
+					if err != nil {
+						return api.OnResolveResult{}, err
+					}
+					var lastErr error
+					for _, candidate := range candidates {
+						resolved, err := resolve(candidate)
+						if err == nil {
+							return api.OnResolveResult{Path: resolved, Namespace: "snapshot"}, nil
+						}
+						lastErr = err
+					}
+					return api.OnResolveResult{}, lastErr
 				} else if strings.HasPrefix(args.Path, ".") {
 					file = filepath.Join(filepath.Dir(args.Importer), args.Path)
 				} else {

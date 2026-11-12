@@ -95,7 +95,7 @@ sheets:
 
 ## 宿主约定
 
-AI 生成的脚本只在沙箱 iframe 跑（`sandbox="allow-scripts"`，禁止主窗口 eval）。源码优先 `{id}_*.ts`，服务端打包成 IIFE 再内联；仍兼容无 import 的 `{id}_*.js`。若配表根上一级有 `src/`，可 `import { ... } from "bit-tables.editor"` / `bit-tables.checker` / `bit-tables.export` / `bit-tables.dom` / `bit-tables.types`（映射到 `src/*.ts`）。无共享基类时写自包含脚本即可。运行时全局对象不变：
+AI 生成的脚本只在沙箱 iframe 跑（`sandbox="allow-scripts"`，禁止主窗口 eval）。源码优先 `{id}_*.ts`，服务端打包成 IIFE 再内联；仍兼容无 import 的 `{id}_*.js`。若配表根上一级有 `src/`，可 `import { ... } from "bit-tables.editor"` / `bit-tables.checker` / `bit-tables.export` / `bit-tables.dom` / `bit-tables.types`（优先映射到 `src/workbench/*.ts`，并兼容旧的 `src/*.ts`）。无共享基类时写自包含脚本即可。运行时全局对象不变：
 
 ```ts
 window.BitTableEditor = {

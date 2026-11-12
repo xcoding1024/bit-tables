@@ -62,6 +62,34 @@ window.BitTableEditor = new ItemEditor();
 	}
 }
 
+func TestBundleBitTablesImportPrefersWorkbench(t *testing.T) {
+	project := t.TempDir()
+	tablesRoot := filepath.Join(project, "tables")
+	item := filepath.Join(tablesRoot, "item")
+	writeFile(t, filepath.Join(project, "src", "editor.ts"), `export const broken =`)
+	writeFile(t, filepath.Join(project, "src", "workbench", "dom.ts"), `export const marker = "workbench";`)
+	writeFile(t, filepath.Join(project, "src", "workbench", "editor.ts"), `
+import { marker } from "./dom";
+export class BitTableEditorBase { marker = marker; }
+`)
+	writeFile(t, filepath.Join(item, "item_editor.ts"), `
+import { BitTableEditorBase } from "bit-tables.editor";
+window.BitTableEditor = new BitTableEditorBase();
+`)
+	writeFile(t, filepath.Join(item, "item_struct.yaml"), "id: item\n")
+	r, err := Open(tablesRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, ok, err := r.loadTableScript(item, "item", "editor")
+	if err != nil || !ok {
+		t.Fatalf("bundle %v ok=%v", err, ok)
+	}
+	if !strings.Contains(js, "workbench") {
+		t.Fatalf("workbench module missing: %s", js)
+	}
+}
+
 func TestBundleRejectsUnknownBitTables(t *testing.T) {
 	project := t.TempDir()
 	tablesRoot := filepath.Join(project, "tables")
