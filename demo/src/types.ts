@@ -41,7 +41,11 @@ export type FieldDef = {
   min?: number;
   max?: number;
   step?: number;
+  items?: ArrayItemDef;
 };
+
+/** 数组元素描述；widget 可由表编辑器的 arrayItemOptions 扩展。 */
+export type ArrayItemDef = { type?: string; widget?: string; items?: ArrayItemDef };
 
 export type Row = Record<string, unknown>;
 export type ParamField = { key: string; label: string; type?: string; min?: number; max?: number; step?: number };

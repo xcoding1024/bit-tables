@@ -246,3 +246,14 @@ bit-tables serve <root>
 - 共享基类默认允许修改已有行的 `id`：表格双击进入编辑，卡片视图直接编辑；Enter 或失焦写入，Escape 或清空还原。原值是数字时新值保持数字。子类设 `idReadonly = true` 可锁定。
 - 只改这一行的 ID，进入撤销栈，保存后写入数据；不扫描、不更新其它表或本表的引用，也不改插件绑定。重复 ID 和失效引用由各表 `{id}_checker.ts` 提示。
 - 粘贴和向下填充仍跳过已有行的 ID，避免批量产生重复。新增行的空 ID 照常填写。
+
+## 通用数组控件
+
+- 字段使用 `type: array`（或 `widget: array`），通过 `items: { type: int|float|string }` 指定元素类型；`items` 可以继续声明 `type: array` 与子 `items`。值保存为真实数组，整数、浮点数保存为数值，字符串保留空串、逗号和空白。
+- `bit-tables.editor` 导出 `BitArrayEditorBase<T>` 与 `ArrayItemOptions<T>`。构造参数为容器和 `{ value, item, readOnly?, onChange? }`，提供 `getValue / validate / add / remove / move / destroy`。读写复制配置数据，排序复用子控件，删除与关闭调用子控件 `destroy`。
+- 自定义元素通过 `item.createDefault()` 和 `item.mount(host, { value, readOnly, onChange })` 接入；mount 返回 `{ validate?(): boolean, destroy(): void }`。可重写基类的 `createDefault` / `mountItem`，也可将另一个数组控件作为子控件返回。自定义控件必须遵守 readOnly 并在 destroy 时清理外部监听。
+- 表编辑器通过 `protected arrayItemOptions(item)` 解析元素描述，子类可按 `items.widget` 返回自定义工厂；嵌套数组递归经过这个扩展点。默认缺省元素类型为 string，未知类型或未注册控件显示错误。
+- 表格双击或卡片按钮打开数组弹窗，支持增删、上移、下移；确定校验全部子控件后写回，取消或 Escape 放弃草稿。整数限制为安全整数，浮点数必须有限，非法输入不静默转成零。支持空数组和批量修改，每行持有独立数据副本。只读状态不能写入；数据重载或切换 sheet 时销毁草稿。
+- 复制数组输出 JSON，粘贴只接受数组结构及基础类型合法的 JSON；非法值跳过。检查器递归检查内置类型，自定义元素业务规则由表检查器补充。导出保留原始结构和类型。
+- 示例 `array_demo` 包含整数、浮点数、字符串、嵌套数组、自定义奖励及空数组，提供完整 editor/checker/export/docs。新建表补齐 array_editor 与 column_layout 依赖；已有项目需要同步 src/ 共享模块，不自动覆盖自定义编辑器。
+- 配置数据沿用当前项目配表根目录。Mock 沿用本机 `PUT /v1/dev/tables` 示例夹具和真实保存接口；不新增 Hub 存储。Go 验收覆盖模块编译、保存读回和项目隔离；Playwright 覆盖 Mock 登录、编辑、取消、校验、排序、卡片、批量、复制粘贴、撤销重做、保存重载和双端导出。

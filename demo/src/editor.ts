@@ -5,6 +5,10 @@ import type { EditorAPI, EnumEntry, FieldDef, FillCellsRequest, ParamField, Row 
 import { asRecord, escapeAttr, escapeHtml, joinMulti, num, splitMulti, truthy } from "./dom";
 import { BitSearchSelect } from "./search_select";
 export { BitSearchSelect } from "./search_select";
+import { BitArrayEditorBase, arrayValueValid, cloneArrayValue, isArrayField, readArrayField, writeArrayField, arrayFieldText, type ArrayItemOptions } from "./array_editor";
+import type { ArrayItemDef } from "./types";
+export { BitArrayEditorBase } from "./array_editor";
+export type { ArrayChildControl, ArrayItemContext, ArrayItemOptions, ArrayEditorOptions } from "./array_editor";
 
 type RowIndex = number | "batch";
 type CellPos = { ri: number; ci: number };
@@ -15,6 +19,64 @@ type ScrollPos = { top: number; left: number };
 type ViewScroll = { root: ScrollPos; host: ScrollPos; table: ScrollPos; doc: ScrollPos; body: ScrollPos };
 
 export class BitTableEditorBase {
+  private closeArrayDialog: (() => void) | null = null;
+
+  /** 可重写以按 widget 挂载自定义子控件；嵌套数组递归使用同一扩展点。 */
+  protected arrayItemOptions(item: ArrayItemDef): ArrayItemOptions {
+    if (isArrayField(item)) return {
+      createDefault: () => [],
+      mount: (host, context) => {
+        if (!Array.isArray(context.value)) throw new Error("嵌套项不是数组，请先修正配置数据");
+        return new BitArrayEditorBase(host, {
+          value: context.value, item: this.arrayItemOptions(item.items || {}),
+          readOnly: context.readOnly, onChange: context.onChange,
+        });
+      },
+    };
+    if (item.widget && !["text", "number"].includes(item.widget)) throw new Error(`未注册的数组子控件：${item.widget}`);
+    if (item.type && !["int", "float", "string"].includes(item.type)) throw new Error(`不支持的数组元素类型：${item.type}`);
+    return { type: (item.type || "string") as "int" | "float" | "string" };
+  }
+
+  protected openArrayEditor(field: FieldDef, ri: RowIndex): void {
+    this.closeArrayDialog?.();
+    const row = ri === "batch" ? this.batchDraft : this.data.rows[ri] || {};
+    const original = row[field.key];
+    let value: unknown[] = [];
+    const dialog = document.createElement("dialog");
+    dialog.dataset.role = "array-dialog";
+    dialog.setAttribute("aria-label", `${field.label || field.key}数组编辑`);
+    dialog.style.cssText = "width:min(760px,90vw);max-height:85vh;overflow:auto;background:#141414;color:#f5f5f5;border:1px solid #555;border-radius:8px;padding:20px";
+    dialog.innerHTML = `<h3 style="margin:0 0 16px">${escapeHtml(field.label || field.key)}</h3><div data-role="array-content"></div><div data-role="array-error" role="alert" style="color:#ff8787"></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button type="button" data-role="array-cancel">取消</button><button type="button" data-role="array-save">确定</button></div>`;
+    this.el.append(dialog);
+    let control: BitArrayEditorBase | undefined;
+    const close = () => { control?.destroy(); dialog.remove(); this.closeArrayDialog = null; };
+    this.closeArrayDialog = close;
+    dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
+    dialog.addEventListener("keydown", event => event.stopPropagation());
+    dialog.addEventListener("mousedown", event => event.stopPropagation());
+    dialog.querySelector('[data-role="array-cancel"]')!.addEventListener("click", close);
+    const save = dialog.querySelector<HTMLButtonElement>('[data-role="array-save"]')!;
+    save.disabled = Boolean(this.api.isReadOnly?.());
+    try {
+      value = readArrayField(field, original);
+      control = new BitArrayEditorBase(dialog.querySelector<HTMLElement>('[data-role="array-content"]')!, {
+        value, item: this.arrayItemOptions(field.items || {}), readOnly: Boolean(this.api.isReadOnly?.()),
+      });
+    } catch (error) {
+      dialog.querySelector('[data-role="array-error"]')!.textContent = String(error instanceof Error ? error.message : error);
+      save.disabled = true;
+    }
+    save.addEventListener("click", () => {
+      if (this.api.isReadOnly?.() || !control?.validate()) return;
+      const next = control.getValue();
+      close();
+      if (JSON.stringify(next) === JSON.stringify(value)) return;
+      this.setRow(ri, field.key, writeArrayField(field, next));
+      this.render();
+    });
+    dialog.showModal();
+  }
   testPrefix = "demo";
   rootTestId = "table-editor";
   toolbarHint = "单击或拖拽框选单元格，单击表头选列、单击行首选行，Ctrl+C / Ctrl+V 复制粘贴 · Ctrl+Shift+C 复制引用 · 双击编辑 · 勾选后可批量修改或删除";
@@ -888,6 +950,7 @@ export class BitTableEditorBase {
 
   protected cellCopyText(field: FieldDef, row: Row): string {
     if (!field?.key) return "";
+    if (isArrayField(field)) return arrayFieldText(field, row[field.key]);
     if (field.widget === "icon" || field.type === "icon") return "";
     if (field.widget === "params" || field.type === "object") return "";
     if (field.widget === "checkbox" || field.type === "bool") return truthy(row[field.key]) ? "true" : "false";
@@ -1091,7 +1154,13 @@ export class BitTableEditorBase {
         if (!field || !this.cellEditable(field, row) || (field.key === "id" && row.id)) continue;
         if (field.widget === "params" || field.type === "object") continue;
         const raw = this.tsvCell(grid, r % srcRows, c % srcCols);
-        row[field.key] = this.coercePaste(field, raw);
+        if (isArrayField(field)) {
+          try {
+            const value: unknown = JSON.parse(raw);
+            if (!arrayValueValid(value, field.items)) continue;
+            row[field.key] = writeArrayField(field, value as unknown[]);
+          } catch { continue; }
+        } else row[field.key] = this.coercePaste(field, raw);
         changed = true;
         if (ri > maxRi) maxRi = ri;
         if (ci > maxCi) maxCi = ci;
@@ -1292,6 +1361,7 @@ export class BitTableEditorBase {
   }
 
   protected fieldControl(field: FieldDef, row: Row, ri: RowIndex, compact: boolean): string {
+    if (isArrayField(field)) return `<button type="button" ${this.testAttr(field.key, ri)} style="${this.inputStyle(compact)}">${escapeHtml(arrayFieldText(field, row[field.key]))} · 编辑</button>`;
     if (field.key === "$season" && supportsSeasons(this.struct, this.fields) && typeof ri === "number") return `<button type="button" data-season-row="${ri}" ${this.api.isReadOnly?.() ? "disabled" : ""} style="${this.inputStyle(compact)}">${escapeHtml(seasonScopeLabel(row.$season))}</button>`;
     const key = field.key;
     const val = row[key] == null ? "" : row[key];
@@ -1365,6 +1435,7 @@ export class BitTableEditorBase {
 
   protected coerce(field: FieldDef, value: unknown): unknown {
     if (!field) return value;
+    if (isArrayField(field)) return writeArrayField(field, readArrayField(field, value));
     if (field.type === "int") return String(parseInt(String(value), 10) || 0);
     if (field.type === "float") return String(Number(value) || 0);
     if (field.type === "bool") return truthy(value) ? "true" : "false";
@@ -1529,6 +1600,7 @@ export class BitTableEditorBase {
   }
 
   protected cellDisplayText(field: FieldDef, row: Row): string {
+    if (isArrayField(field)) return arrayFieldText(field, row[field.key]);
     if (field.key === "$season" && supportsSeasons(this.struct, this.fields)) return seasonScopeLabel(row.$season);
     if (field.widget === "params" || field.type === "object") {
       const summary = this.paramsSummary(row[field.key], row);
@@ -1555,6 +1627,7 @@ export class BitTableEditorBase {
     const field = this.fields.find((f) => f.key === key);
     const row = this.data.rows[ri] || {};
     if (!this.cellEditable(field, row) || !field) return;
+    if (isArrayField(field)) { this.openArrayEditor(field, ri); return; }
     if (key === "$season" && supportsSeasons(this.struct, this.fields)) { this.editSeasons([ri]); return; }
     if (field.widget === "params" || field.type === "object") {
       this.editingCell = null;
@@ -1648,6 +1721,7 @@ export class BitTableEditorBase {
     this.fields.forEach((f) => {
       if (!f?.key) return;
       if (f.key === "id") row.id = `new_${this.data.rows.length + 1}`;
+      else if (isArrayField(f)) row[f.key] = writeArrayField(f, []);
       else if (f.widget === "icon" || f.type === "icon") return;
       else if (f.widget === "params" || f.type === "object") row[f.key] = this.defaultParams(row);
       else if (f.type === "bool") row[f.key] = "true";
@@ -1750,7 +1824,8 @@ export class BitTableEditorBase {
     this.batchKey = field.key;
     if (this.batchDraft[field.key] == null) {
       const opts = this.enumOptions(field);
-      if (field.type === "bool") this.batchDraft[field.key] = "true";
+      if (isArrayField(field)) this.batchDraft[field.key] = writeArrayField(field, []);
+      else if (field.type === "bool") this.batchDraft[field.key] = "true";
       else if (opts.length) this.batchDraft[field.key] = opts[0].id;
       else if (field.type === "int" || field.type === "float") this.batchDraft[field.key] = "0";
       else this.batchDraft[field.key] = "";
@@ -2163,6 +2238,10 @@ export class BitTableEditorBase {
   }
 
   protected bindControl(root: HTMLElement, field: FieldDef, ri: RowIndex): void {
+    if (isArrayField(field)) {
+      root.querySelector(`[data-testid="${this.testPrefix}-${field.key}-${ri}"]`)?.addEventListener("click", () => this.openArrayEditor(field, ri));
+      return;
+    }
     let widget = field.widget || "text";
     if (widget === "icon" || field.type === "icon") return;
     if (widget === "params" || field.type === "object") {
@@ -2384,6 +2463,7 @@ export class BitTableEditorBase {
   }
 
   protected render(): void {
+    this.closeArrayDialog?.();
     this.destroySearchSelects();
     const savedScroll = this.captureScroll();
     this.resetTableScroll = false;
@@ -2624,7 +2704,7 @@ export class BitTableEditorBase {
       const value = this.coerce(field, this.batchDraft[field.key]);
       this.selectedIndexes().forEach((i) => {
         if (!this.data.rows[i]) this.data.rows[i] = {};
-        this.data.rows[i][field.key] = value;
+        this.data.rows[i][field.key] = isArrayField(field) ? cloneArrayValue(value) : value;
       });
       this.api.setData(this.data);
       this.batchOpen = false;

@@ -57,7 +57,7 @@
     var raw = String(text || "").trim();
     if (!raw) return { rows: [] };
     if (raw.charAt(0) === "{" || raw.charAt(0) === "[") {
-      return JSON.parse(raw);
+      throw new Error("配置表只接受 YAML，不能以 { 或 [ 开头");
     }
     var rows = [];
     var current = null;

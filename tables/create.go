@@ -10,7 +10,7 @@ import (
 
 func (r *Root) writeNewTable(dir, id string, multiSeason bool) error {
 	// 已有项目基类保留原样；新目录补齐独立运行所需的共享基类。
-	for _, name := range []string{"types.ts", "dom.ts", "search_select.ts", "season.ts", "season_editor.ts", "editor.ts", "checker.ts", "export.ts"} {
+	for _, name := range []string{"types.ts", "dom.ts", "search_select.ts", "season.ts", "season_editor.ts", "column_layout.ts", "array_editor.ts", "editor.ts", "checker.ts", "export.ts"} {
 		target := filepath.Join(r.projectRoot(), "src", name)
 		if _, err := os.Stat(target); err == nil {
 			continue

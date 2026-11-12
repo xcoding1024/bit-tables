@@ -1,6 +1,7 @@
 import { checkSeasonData } from "./season";
 import type { CheckError, CheckResult, EnumEntry, FieldDef, Row } from "./types";
 import { asRecord, splitMulti } from "./dom";
+import { arrayFieldValid, isArrayField } from "./array_editor";
 
 export class BitTableCheckerBase {
   protected errors: CheckError[] = [];
@@ -96,6 +97,10 @@ export class BitTableCheckerBase {
     rows.forEach((row, i) => {
       row = row || {};
       const prefix = `sheets.${sheetId}.rows.${i}`;
+      fields.filter(isArrayField).forEach(field => {
+        if (row[field.key] == null && !field.required) return;
+        if (!arrayFieldValid(field, row[field.key])) this.errors.push({ path: `${prefix}.${field.key}`, message: `${field.key} 数组或元素类型不正确` });
+      });
       required.forEach((key) => {
         if (!String(row[key] ?? "").trim()) this.errors.push({ path: `${prefix}.${key}`, message: `${key} 必填` });
       });

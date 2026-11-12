@@ -1,0 +1,17 @@
+rows:
+  - id: sample
+    integers: [1, -2, 3]
+    floats: [0.25, -1.5]
+    strings: ["hello,world", "中文", ""]
+    matrix: [[1, 2], [3]]
+    rewards: [{ name: 金币, count: 10 }]
+    text_integers: [1, -2]
+    text_symbols: [SINGLE_PVE]
+  - id: empty
+    integers: []
+    floats: []
+    strings: []
+    matrix: []
+    rewards: []
+    text_integers: []
+    text_symbols: []

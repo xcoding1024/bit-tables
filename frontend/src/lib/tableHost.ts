@@ -67,7 +67,7 @@ export function parseTableDoc(text: string): unknown {
   const raw = (text || "").trim();
   if (!raw) return { rows: [] };
   if (raw.startsWith("{") || raw.startsWith("[")) {
-    return JSON.parse(raw);
+    throw new Error("配置表只接受 YAML，不能以 { 或 [ 开头");
   }
   try {
     const parsed = load(raw);

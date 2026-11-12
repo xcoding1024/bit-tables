@@ -60,8 +60,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 export function parseBindings(text: string): PluginBinding[] {
   const raw = String(text || "").trim();
   if (!raw) return [];
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    throw new Error("插件绑定只接受 YAML，不能以 { 或 [ 开头");
+  }
   try {
-    const doc = raw.startsWith("{") || raw.startsWith("[") ? JSON.parse(raw) : load(raw);
+    const doc = load(raw);
     const rec = asRecord(doc);
     const list = rec && Array.isArray(rec.bindings) ? rec.bindings : [];
     const out: PluginBinding[] = [];

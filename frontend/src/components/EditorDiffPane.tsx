@@ -22,7 +22,7 @@ export function EditorDiffPane({ side, tableId, source, revision, sheet, rows, s
   const visible = useMemo(() => rows.filter((row) => row[side]).sort((a, b) => (a[side === "left" ? "leftIndex" : "rightIndex"] || 0) - (b[side === "left" ? "leftIndex" : "rightIndex"] || 0)), [rows, side]);
   const pack = useMemo(() => {
     if (!(side === "left" ? sheet.left : sheet.right)) return null;
-    const struct = parseTableDoc(source.struct || "{}"), data = parseTableDoc(source.data || "{}");
+    const struct = parseTableDoc(source.struct || ""), data = parseTableDoc(source.data || "");
     const sliced = sliceForSheet(struct, data, sheet.id);
     return { struct: sliced.struct, data: { ...sliced.data as Record<string, unknown>, rows: visible.map((row) => row[side]) },
       enums: buildEnumsPayload(struct, tableId, buildEnumsCatalog([{ id: tableId, struct, data }, ...enumSources])) };
@@ -30,12 +30,12 @@ export function EditorDiffPane({ side, tableId, source, revision, sheet, rows, s
   useEffect(() => {
     const controller = new AbortController();
     setEnumSources([]); setEnumError("");
-    const struct = parseTableDoc(source.struct || "{}");
+    const struct = parseTableDoc(source.struct || "");
     const refs = [...new Set(listSheets(struct).flatMap((sheet) => sheet.fields.map((field) => String((field as { enum?: string } | null)?.enum || "")))
       .filter((ref) => ref.includes(".")).map((ref) => ref.slice(0, ref.indexOf("."))).filter((id) => id !== tableId))];
     void Promise.all(refs.map(async (id) => {
       const source = revision === "local" ? await tablesApi.files(id) : await tablesApi.snapshotReader(id)(revision, controller.signal);
-      return { id, struct: parseTableDoc(source.struct || "{}"), data: parseTableDoc(source.data || "{}") };
+      return { id, struct: parseTableDoc(source.struct || ""), data: parseTableDoc(source.data || "") };
     })).then((sources) => { if (!controller.signal.aborted) setEnumSources(sources); })
       .catch(() => { if (!controller.signal.aborted) setEnumError("部分枚举无法读取对应版本，显示原始 ID。"); });
     return () => controller.abort();

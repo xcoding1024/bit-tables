@@ -1,0 +1,35 @@
+id: array_demo
+name: 数组控件演示
+multi_season: false
+fields:
+  - { key: id, label: 标识, type: string, required: true }
+  - key: integers
+    label: 整数数组
+    type: array
+    items: { type: int }
+  - key: floats
+    label: 浮点数组
+    type: array
+    items: { type: float }
+  - key: strings
+    label: 字符串数组
+    type: array
+    items: { type: string }
+  - key: matrix
+    label: 嵌套数组
+    type: array
+    items:
+      type: array
+      items: { type: int }
+  - key: rewards
+    label: 自定义奖励
+    type: array
+    items: { type: object, widget: reward }
+  - key: text_integers
+    label: 整数数组
+    type: array
+    items: { type: int }
+  - key: text_symbols
+    label: 字符串数组
+    type: array
+    items: { type: string }
