@@ -421,6 +421,19 @@ export class BitTableEditorBase {
     );
   }
 
+  protected frozenInsets(scroller: HTMLElement | null): { top: number; left: number } {
+    const table = this.tableScroller();
+    if (!scroller || scroller !== table) return { top: 0, left: 0 };
+    const top = table.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+    let left = 0;
+    const origin = table.getBoundingClientRect().left;
+    table.querySelectorAll("thead [data-freeze]").forEach((node) => {
+      const edge = (node as HTMLElement).getBoundingClientRect().right - origin;
+      if (edge > left) left = edge;
+    });
+    return { top, left };
+  }
+
   protected scrollRevealIntoView(): void {
     if (!this.el || !this.revealTarget) return;
     const { ri, key } = this.revealTarget;
@@ -435,13 +448,15 @@ export class BitTableEditorBase {
     const wrap = this.el.querySelector(`[data-testid="${this.tid("table")}"]`) as HTMLElement | null;
     const host = (wrap?.parentElement as HTMLElement | null) || this.el;
     el.scrollIntoView({ block: "center", inline: "nearest" });
+    const frozen = Boolean(el.closest("[data-freeze]"));
     for (const scroller of [wrap, host, this.el]) {
       if (!scroller) continue;
       const er = el.getBoundingClientRect();
       const wr = scroller.getBoundingClientRect();
-      if (er.top < wr.top) scroller.scrollTop += er.top - wr.top - 24;
+      const inset = this.frozenInsets(scroller);
+      if (er.top < wr.top + inset.top) scroller.scrollTop += er.top - (wr.top + inset.top) - 24;
       if (er.bottom > wr.bottom) scroller.scrollTop += er.bottom - wr.bottom + 24;
-      if (er.left < wr.left) scroller.scrollLeft += er.left - wr.left - 24;
+      if (!frozen && er.left < wr.left + inset.left) scroller.scrollLeft += er.left - (wr.left + inset.left) - 24;
       if (er.right > wr.right) scroller.scrollLeft += er.right - wr.right + 24;
     }
   }
@@ -926,7 +941,15 @@ export class BitTableEditorBase {
       this.setCellSelection({ ri: 0, ci }, { ri: 0, ci }, "col");
       requestAnimationFrame(() => {
         const th = this.el?.querySelector(`th[data-role="col-head"][data-col="${ci}"]`) as HTMLElement | null;
-        th?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        if (!th) return;
+        th.scrollIntoView({ block: "nearest", inline: "nearest" });
+        const wrap = this.tableScroller();
+        if (!wrap || th.hasAttribute("data-freeze")) return;
+        const er = th.getBoundingClientRect();
+        const wr = wrap.getBoundingClientRect();
+        const inset = this.frozenInsets(wrap);
+        if (er.left < wr.left + inset.left) wrap.scrollLeft += er.left - (wr.left + inset.left) - 24;
+        if (er.right > wr.right) wrap.scrollLeft += er.right - wr.right + 24;
       });
       return;
     }
@@ -1781,7 +1804,7 @@ export class BitTableEditorBase {
     const flexHost = this.enableTableScroll || this.view === "card";
     const layout = flexHost
       ? "padding:16px 20px;box-sizing:border-box;height:100%;overflow:auto;display:flex;flex-direction:column"
-      : "padding:12px;box-sizing:border-box;height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px";
+      : "padding:12px;box-sizing:border-box;height:100%;overflow:hidden;display:flex;flex-direction:column;gap:12px";
     let html = `<div data-testid="${escapeAttr(this.rootTestId)}" style="${layout}">`;
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;flex-shrink:0">';
     html += `<div><div style="font-weight:500">${escapeHtml(this.titleForToolbar())}</div>`;
@@ -1859,23 +1882,29 @@ export class BitTableEditorBase {
     return `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" style="display:block"><path fill="${color}" d="M1.2 2.2h9.6L7.1 6.5v3.2L4.9 11V6.5L1.2 2.2z"/></svg>`;
   }
 
+  protected isFrozenId(field: FieldDef): boolean {
+    return field.key === "id" && this.tableFields[0]?.key === "id";
+  }
+
   protected renderTable(): string {
     const idxs = this.pagedRowIndexes();
     const allOn = idxs.length > 0 && idxs.every((i) => this.picked[i]);
     const wrapTest = this.tid("table");
-    const sticky = this.enableTableScroll
-      ? "position:sticky;top:0;z-index:2;"
-      : "";
     let html = this.enableTableScroll
       ? `<div style="flex:1;min-width:0;min-height:${this.tableMinHeight}px;overflow:hidden"><div data-testid="${wrapTest}" tabindex="-1" style="width:100%;height:100%;overflow:auto;border:1px solid #3a3a3a;border-radius:8px;outline:none">`
-      : `<div data-testid="${wrapTest}" tabindex="-1" style="border:1px solid #3a3a3a;border-radius:8px;overflow:auto;outline:none">`;
+      : `<div data-testid="${wrapTest}" tabindex="-1" style="flex:1;min-width:0;min-height:0;border:1px solid #3a3a3a;border-radius:8px;overflow:auto;outline:none">`;
     const totalWidth = 40 + this.tableFields.reduce((sum, field) => sum + (this.columnLayout.widths[field.key] || 160), 0);
-    html += `<table style="width:${totalWidth}px;table-layout:fixed;border-collapse:collapse"><colgroup><col style="width:40px" />${this.tableFields.map(field => `<col data-key="${escapeAttr(field.key)}" style="width:${this.columnLayout.widths[field.key] || 160}px" />`).join("")}</colgroup>`;
+    html += `<table style="width:${totalWidth}px;table-layout:fixed;border-collapse:separate;border-spacing:0"><colgroup><col style="width:40px" />${this.tableFields.map(field => `<col data-key="${escapeAttr(field.key)}" style="width:${this.columnLayout.widths[field.key] || 160}px" />`).join("")}</colgroup>`;
     html += "<thead><tr>";
-    html += `<th style="${sticky}background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:36px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
+    html += `<th data-freeze="check" style="position:sticky;top:0;left:0;z-index:4;background:#1a1a1a;padding:8px;border-bottom:1px solid #3a3a3a;width:40px"><input type="checkbox" data-testid="${this.tid("pick-all")}"${allOn ? " checked" : ""} /></th>`;
     this.tableFields.forEach((field, ci) => {
       const colOn = this.isColHeadSelected(ci);
-      html += `<th data-role="col-head" data-key="${escapeAttr(field.key)}" data-col="${ci}" title="单击选中列" style="position:relative;${sticky}overflow:hidden;background:${colOn ? "#243044" : "#1a1a1a"};text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap;cursor:pointer${colOn ? ";box-shadow:inset 0 -2px 0 #3794ff" : ""}"><span style="display:inline-flex;align-items:center;gap:2px;max-width:100%;overflow:hidden">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span><span data-role="column-resize" data-key="${escapeAttr(field.key)}" title="拖动调整列宽，双击恢复默认" style="position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;border-right:1px solid #444"></span></th>`;
+      const freeze = this.isFrozenId(field);
+      const pos = freeze
+        ? "position:sticky;top:0;left:40px;z-index:4;"
+        : "position:sticky;top:0;z-index:2;";
+      const shadow = !freeze && colOn ? "box-shadow:inset 0 -2px 0 #3794ff;" : "";
+      html += `<th data-role="col-head" data-key="${escapeAttr(field.key)}" data-col="${ci}"${freeze ? ' data-freeze="id"' : ""} title="单击选中列" style="${pos}overflow:hidden;background:${colOn ? "#243044" : "#1a1a1a"};text-align:left;color:#a3a3a3;font-weight:500;padding:8px;border-bottom:1px solid #3a3a3a;white-space:nowrap;cursor:pointer;${shadow}"><span style="display:inline-flex;align-items:center;gap:2px;max-width:100%;overflow:hidden">${escapeHtml(field.label || field.key)}${this.headerFilterBtn(field)}</span><span data-role="column-resize" data-key="${escapeAttr(field.key)}" title="拖动调整列宽，双击恢复默认" style="position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;border-right:1px solid #444"></span></th>`;
     });
     html += "</tr></thead><tbody>";
     if (!idxs.length) {
@@ -1883,9 +1912,11 @@ export class BitTableEditorBase {
     }
     idxs.forEach((ri, vis) => {
       const row = this.data.rows[ri] || {};
-      html += `<tr data-testid="${this.tid(`row-${ri}`)}" style="background:${this.picked[ri] ? "#1c2430" : vis % 2 && this.enableTableScroll ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
+      const picked = Boolean(this.picked[ri]);
+      const stripe = !picked && vis % 2 === 1 && this.enableTableScroll;
+      html += `<tr data-testid="${this.tid(`row-${ri}`)}"${picked ? ' data-picked="1"' : ""}${stripe ? ' data-stripe="1"' : ""} style="background:${picked ? "#1c2430" : stripe ? "#111" : "transparent"};${this.revealRowStyle(ri)}">`;
       const rowOn = this.isRowHeadSelected(ri);
-      html += `<td data-role="row-head" data-index="${ri}" title="单击选中行" style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center;cursor:pointer${rowOn ? ";background:rgba(55,148,255,.18)" : ""}"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${this.picked[ri] ? " checked" : ""} /></td>`;
+      html += `<td data-role="row-head" data-freeze="check" data-index="${ri}"${rowOn ? ' data-sel="1"' : ""} title="单击选中行" style="padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:center;cursor:pointer"><input type="checkbox" data-role="pick" data-index="${ri}" data-testid="${this.tid(`pick-${ri}`)}"${picked ? " checked" : ""} /></td>`;
       this.tableFields.forEach((field, ci) => {
         html += this.renderTableCell(field, row, ri, ci);
       });
@@ -1897,20 +1928,27 @@ export class BitTableEditorBase {
   }
 
   protected renderTableCell(field: FieldDef, row: Row, ri: number, ci: number): string {
+    const frozenId = this.isFrozenId(field);
     const td = `overflow:hidden;padding:6px 8px;border-bottom:1px solid #2a2a2a;vertical-align:middle;${this.revealCellStyle(ri, field.key)}`;
     const reveal = this.revealAttr(ri, field.key);
     const sel = this.cellSelAttrs(ri, ci);
+    const freeze = frozenId ? ' data-freeze="id"' : "";
     if (field.widget === "icon" || field.type === "icon") {
-      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${freeze}${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     if (this.isEditingCell(ri, field.key)) {
-      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
+      return `<td data-role="cell-edit" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title=""${freeze}${reveal}${sel} style="${td}">${this.fieldControl(field, row, ri, true)}</td>`;
     }
     const canEdit = this.cellEditable(field, row);
     const pluginOn = this.isPluginBound(row, field.key);
     const text = this.cellDisplayText(field, row);
     const title = pluginOn ? "插件计算" : canEdit ? "双击编辑" : "";
-    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title="${escapeAttr(title)}"${pluginOn ? " data-plugin=1" : ""}${reveal}${sel} title="${escapeAttr(title)}" style="${td}${pluginOn ? ";box-shadow:inset 2px 0 0 #3ecf8e" : ""}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
+    const pluginShadow = pluginOn
+      ? frozenId
+        ? ";box-shadow:1px 0 0 #2a2a2a, inset 2px 0 0 #3ecf8e"
+        : ";box-shadow:inset 2px 0 0 #3ecf8e"
+      : "";
+    return `<td data-role="cell" data-index="${ri}" data-key="${escapeAttr(field.key)}" data-base-title="${escapeAttr(title)}"${pluginOn ? " data-plugin=1" : ""}${freeze}${reveal}${sel} title="${escapeAttr(title)}" style="${td}${pluginShadow}"><div data-role="cell-view" ${this.testAttr(field.key, ri)} style="min-height:28px;line-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${text ? "color:#f5f5f5" : "color:#737373"}">${this.highlightQuery(text || "—", ri, field.key)}</div></td>`;
   }
 
   protected renderCards(): string {
@@ -2451,10 +2489,11 @@ export class BitTableEditorBase {
       if (scrollY || scrollX) {
         const er = el.getBoundingClientRect();
         const sr = node.getBoundingClientRect();
-        const padTop = node === table && this.enableTableScroll ? table?.querySelector("thead")?.getBoundingClientRect().height ?? 0 : 0;
-        if (scrollY && er.top < sr.top + padTop - 1) node.scrollTop += er.top - (sr.top + padTop) - 4;
+        const inset = node === table ? this.frozenInsets(table) : { top: 0, left: 0 };
+        const frozen = Boolean(el.closest("[data-freeze]"));
+        if (scrollY && er.top < sr.top + inset.top - 1) node.scrollTop += er.top - (sr.top + inset.top) - 4;
         else if (scrollY && er.bottom > sr.bottom + 1) node.scrollTop += er.bottom - sr.bottom + 4;
-        if (scrollX && er.left < sr.left - 1) node.scrollLeft += er.left - sr.left - 4;
+        if (!frozen && scrollX && er.left < sr.left + inset.left - 1) node.scrollLeft += er.left - (sr.left + inset.left) - 4;
         else if (scrollX && er.right > sr.right + 1) node.scrollLeft += er.right - sr.right + 4;
       }
       if (node === document.body || node === document.documentElement) break;
@@ -2468,7 +2507,7 @@ export class BitTableEditorBase {
     const savedScroll = this.captureScroll();
     this.resetTableScroll = false;
     let html =
-      "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}[data-error='1']{background:rgba(235,87,87,.28);box-shadow:inset 0 0 0 1px #eb5757}</style>";
+      "<style>td[data-role=cell],td[data-role=cell-edit],td[data-role=row-head],th[data-role=col-head]{user-select:none;-webkit-user-select:none}td[data-sel='1'],th[data-sel='1']{background:rgba(55,148,255,.18)}th[data-role=col-head][data-sel='1']{box-shadow:inset 0 -2px 0 #3794ff}td[data-active='1']:not([data-reveal='1']){outline:2px solid #3794ff;outline-offset:-2px}[data-selecting='1']{user-select:none;-webkit-user-select:none}[data-error='1']{background:rgba(235,87,87,.28);box-shadow:inset 0 0 0 1px #eb5757}td[data-freeze='check']{position:sticky;left:0;z-index:1;background:#0a0a0a}th[data-freeze='check']{position:sticky;top:0;left:0;z-index:4;background:#1a1a1a}td[data-freeze='id']{position:sticky;left:40px;z-index:1;background:#0a0a0a;box-shadow:1px 0 0 #2a2a2a}th[data-freeze='id']{position:sticky;top:0;left:40px;z-index:4;box-shadow:1px 0 0 #2a2a2a}tr[data-stripe] td[data-freeze]{background:#111}tr[data-picked] td[data-freeze]{background:#1c2430}td[data-freeze][data-sel],th[data-freeze][data-sel],tr[data-stripe] td[data-freeze][data-sel],tr[data-picked] td[data-freeze][data-sel]{background:#243044}th[data-freeze='id'][data-sel]{box-shadow:1px 0 0 #2a2a2a, inset 0 -2px 0 #3794ff}td[data-freeze][data-error],tr[data-stripe] td[data-freeze][data-error],tr[data-picked] td[data-freeze][data-error]{background:#5c2a2a}</style>";
     html += this.renderToolbar();
     html += this.renderExtra();
     html += this.view === "card" ? this.renderCards() : this.renderTable();
